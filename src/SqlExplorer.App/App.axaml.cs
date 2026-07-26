@@ -163,6 +163,9 @@ public partial class App : Application
                     // Drop any MCP-created transient connections (SE-155): they are session-only, held only in
                     // memory, and must never outlive the process.
                     services.GetRequiredService<Core.Connections.ConnectionService>().ClearTransient();
+                    // Close every SSH tunnel (SE-18) rather than leave a forwarded loopback port and a live
+                    // bastion session behind for as long as the process lingers.
+                    services.GetRequiredService<Core.Connections.Ssh.ISshTunnelManager>().CloseAll();
                     _trayIcon?.Dispose();
                 };
                 // Stop the MCP listener cleanly on exit so its loopback port is released promptly. Run it

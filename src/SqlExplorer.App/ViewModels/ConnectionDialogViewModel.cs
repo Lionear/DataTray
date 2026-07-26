@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Controls;
 using SqlExplorer.Core.Connections;
+using SqlExplorer.Core.Connections.Ssh;
 using SqlExplorer.Core.Localization;
 using SqlExplorer.Core.Providers;
 using SqlExplorer.Sdk;
@@ -233,7 +234,14 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         }
 
         var provider = _providers.Get(SelectedProvider.Id);
-        foreach (var field in provider.ConnectionFields)
+        // The host's SSH block rides along with the provider's own fields (SE-18) — same value dictionary,
+        // same save path — but only for providers that connect to a host; there is nothing to forward for a
+        // file-backed engine like SQLite.
+        var fields = SshConnectionFields.AppliesTo(provider.ConnectionFields)
+            ? [.. provider.ConnectionFields, .. SshConnectionFields.All]
+            : provider.ConnectionFields;
+
+        foreach (var field in fields)
         {
             var input = new ConnectionFieldInput(field);
             input.PropertyChanged += OnFieldChanged;

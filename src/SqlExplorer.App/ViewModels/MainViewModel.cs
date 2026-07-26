@@ -2204,6 +2204,9 @@ public partial class MainViewModel : ViewModelBase
 
         var root = FindConnectionNode(SelectedConnection.Id);
         root?.Disconnect();
+        // Nothing else ever closes an SSH tunnel: it is opened per route and outlives every single query, so
+        // Disconnect is the one point where the user says they are done with this server (SE-18).
+        _connections.CloseTunnel(SelectedConnection);
     }
 
     /// <summary>Open a new, empty query tab against the selected connection.</summary>
