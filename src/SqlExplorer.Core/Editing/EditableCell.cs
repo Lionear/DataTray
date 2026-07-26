@@ -45,6 +45,7 @@ public sealed class EditableCell : INotifyPropertyChanged
             OnPropertyChanged(nameof(EditText));
             OnPropertyChanged(nameof(BoolValue));
             OnPropertyChanged(nameof(DateValue));
+            OnPropertyChanged(nameof(DateText));
             OnPropertyChanged(nameof(IsModified));
             _row.NotifyCellEdited();
         }
@@ -133,6 +134,34 @@ public sealed class EditableCell : INotifyPropertyChanged
 
             var time = DateValue?.TimeOfDay ?? TimeSpan.Zero;
             Value = value.Value.Date + time;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for the text half of a date editor: the value in ISO form
+    /// (<c>yyyy-MM-dd</c>, plus <c>HH:mm:ss</c> when the cell carries a time), which is unambiguous
+    /// regardless of the machine's locale. Clearing the text is NULL — a date column has no empty
+    /// string to fall back to. Text that doesn't parse is kept as typed, so the save reports it rather
+    /// than the editor silently discarding what was entered.
+    /// </summary>
+    public string? DateText
+    {
+        get => DateValue is not { } date
+            ? string.Empty
+            : date.TimeOfDay == TimeSpan.Zero
+                ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                SetNull();
+                return;
+            }
+
+            Value = DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? parsed
+                : value;
         }
     }
 

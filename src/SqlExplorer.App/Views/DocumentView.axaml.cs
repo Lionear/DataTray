@@ -863,33 +863,55 @@ public partial class DocumentView : UserControl
             return box;
         });
 
+    // Our own date editor rather than CalendarDatePicker. That control renders the machine's short date
+    // format — "3/4/2026" is two different days depending on where you are — and Avalonia 12.0.5 offers no
+    // way to pin it to ISO: CalendarDatePickerFormat has a Custom member, but there is no format-string
+    // property to go with it. So: an ISO text box you can type in or clear, with a calendar button beside
+    // it. Both halves bind to the same cell, so they stay in step, and clearing the text is NULL.
     private static IDataTemplate BuildDateEditingTemplate(int index) =>
         new FuncDataTemplate<EditableRow>((_, _) =>
         {
-            // CalendarDatePicker, not DatePicker: it keeps a text box you can clear, which is how a date
-            // cell is set back to NULL. The cell's time of day survives the pick (see EditableCell).
-            var picker = new CalendarDatePicker
+            var box = new TextBox
             {
                 BorderThickness = new Thickness(0),
                 Background = Brushes.Transparent,
-                // The default template is sized for a form, not a dense grid row: without stretching it
-                // and flattening the padding, the picker's own box gets squeezed and the calendar button
-                // clips against the row.
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
                 VerticalContentAlignment = VerticalAlignment.Center,
-                Padding = new Thickness(8, 0, 0, 0),
-                Margin = new Thickness(0)
-                // Note: the picker shows the machine's short date format, which is ambiguous ("3/4/2026").
-                // Avalonia 12.0.5's CalendarDatePicker has no custom-format property — CalendarDatePickerFormat
-                // has a Custom member but there is no format string to go with it — so pinning this to ISO
-                // means replacing the control, not configuring it.
+                Padding = new Thickness(8, 0, 0, 0)
             };
-            picker.Bind(CalendarDatePicker.SelectedDateProperty, new Binding($"Cells[{index}].DateValue")
+            box.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].DateText") { Mode = BindingMode.TwoWay });
+
+            var calendar = new Calendar();
+            calendar.Bind(Calendar.SelectedDateProperty, new Binding($"Cells[{index}].DateValue")
             {
                 Mode = BindingMode.TwoWay
             });
-            return picker;
+
+            var glyph = new Avalonia.Controls.Shapes.Path
+            {
+                Width = 12,
+                Height = 12,
+                Stretch = Stretch.Uniform,
+                Data = Icons.ChevronDown,
+                StrokeThickness = 2
+            };
+            glyph[!Avalonia.Controls.Shapes.Shape.StrokeProperty] =
+                new DynamicResourceExtension("SETextSecondaryBrush");
+
+            var button = new Button
+            {
+                Content = glyph,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(6, 0),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Flyout = new Flyout { Content = calendar, Placement = PlacementMode.BottomEdgeAlignedLeft }
+            };
+
+            var panel = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(button, Dock.Right);
+            panel.Children.Add(button);
+            panel.Children.Add(box);
+            return panel;
         });
 }

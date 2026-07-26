@@ -103,4 +103,54 @@ public class TypeAwareCellEditorTests
 
         Assert.Equal(new DateTime(2026, 3, 4, 8, 15, 0), row.Cells[0].DateValue);
     }
+
+    [Fact]
+    public void DateText_IsIso_NotTheMachineCulture()
+    {
+        var row = EditableRow.Existing([new DateTime(2026, 3, 4, 13, 45, 30)]);
+
+        // "3/4/2026" reads as two different days depending on where you are; ISO does not.
+        Assert.Equal("2026-03-04 13:45:30", row.Cells[0].DateText);
+    }
+
+    [Fact]
+    public void DateText_MidnightValue_DropsTheTimeHalf()
+    {
+        var row = EditableRow.Existing([new DateTime(2026, 3, 4)]);
+
+        Assert.Equal("2026-03-04", row.Cells[0].DateText);
+    }
+
+    [Fact]
+    public void DateText_Cleared_SetsNull()
+    {
+        var row = EditableRow.New(1);
+        row.Cells[0].DateText = "2026-03-04";
+
+        row.Cells[0].DateText = "   ";
+
+        Assert.Null(row[0]);
+        Assert.True(row.Cells[0].IsExplicitNull);
+    }
+
+    [Fact]
+    public void DateText_Typed_IsParsedToADate()
+    {
+        var row = EditableRow.Existing([null]);
+
+        row.Cells[0].DateText = "2026-03-04 08:15:00";
+
+        Assert.Equal(new DateTime(2026, 3, 4, 8, 15, 0), row[0]);
+    }
+
+    [Fact]
+    public void DateText_Unparseable_IsKeptAsTyped()
+    {
+        var row = EditableRow.Existing([new DateTime(2026, 3, 4)]);
+
+        row.Cells[0].DateText = "not a date";
+
+        // Kept, not discarded: the save reports it, the same way a bad date did before typed editors.
+        Assert.Equal("not a date", row[0]);
+    }
 }
