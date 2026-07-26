@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -19,10 +20,17 @@ using SqlExplorer.Sdk.Formatting;
 using SqlExplorer.Core.History;
 using SqlExplorer.Core.Localization;
 using SqlExplorer.Core.Logging;
+using SqlExplorer.Core.Plugins;
 using SqlExplorer.Core.Providers;
 using SqlExplorer.Core.Schema;
 using SqlExplorer.Core.Settings;
 using SqlExplorer.Core.Shortcuts;
+using SqlExplorer.Core.Tools;
+using SqlExplorer.App.Theming;
+using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Schema;
+using SqlExplorer.Sdk.Tools;
+using SqlExplorer.Sdk.Ui;
 
 namespace SqlExplorer.Screenshots;
 
@@ -30,8 +38,11 @@ namespace SqlExplorer.Screenshots;
 // real database. Usage:
 //   dotnet run --project src/SqlExplorer.Screenshots -- --scene hero --out docs/images/hero.png [--size 1280x820]
 // Scenes: hero (main window browsing a synthetic demo DB), query (SQL editor with a query + results),
-// store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window).
+// store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window),
+// copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
+// --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
+// without a display.
 internal static class Program
 {
     [STAThread]
@@ -58,9 +69,19 @@ internal static class Program
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
                 .SetupWithoutStarting();
 
+            // Seed the sandbox before the container is built: plugin discovery runs inside
+            // AppServices.Build(), so anything a scene needs on disk has to be there first.
+            SceneCatalog.PrepareSandbox(opts.Scene);
+
             var services = AppServices.Build();
 
-            var window = SceneCatalog.BuildAsync(opts.Scene, services, sandbox).GetAwaiter().GetResult();
+            // Before the scene builds: a control reads its theme brushes as it is realized, and the app's
+            // own ThemeApplier is what a real profile's theme setting goes through.
+            ThemeApplier.Apply(opts.Theme.Equals("dark", StringComparison.OrdinalIgnoreCase)
+                ? AppTheme.Dark
+                : AppTheme.Light);
+
+            var window = SceneCatalog.BuildAsync(opts.Scene, services, sandbox, opts.State).GetAwaiter().GetResult();
             if (window is null)
             {
                 Console.Error.WriteLine($"Unknown scene '{opts.Scene}'. Known: {SceneCatalog.Names}");
@@ -109,11 +130,11 @@ internal static class Program
         Dispatcher.UIThread.RunJobs();
     }
 
-    private sealed record Options(string Scene, string Out, int Width, int Height)
+    private sealed record Options(string Scene, string Out, int Width, int Height, string Theme, string State)
     {
         public static Options Parse(string[] args)
         {
-            string scene = "hero", @out = "screenshot.png";
+            string scene = "hero", @out = "screenshot.png", theme = "light", state = "input";
             int width = 1280, height = 820;
 
             for (var i = 0; i < args.Length - 1; i++)
@@ -122,6 +143,8 @@ internal static class Program
                 {
                     case "--scene": scene = args[++i]; break;
                     case "--out": @out = args[++i]; break;
+                    case "--theme": theme = args[++i]; break;
+                    case "--state": state = args[++i]; break;
                     case "--size":
                         var wh = args[++i].Split('x', 'X');
                         if (wh.Length == 2 && int.TryParse(wh[0], out var w) && int.TryParse(wh[1], out var h))
@@ -132,7 +155,7 @@ internal static class Program
                 }
             }
 
-            return new Options(scene, @out, width, height);
+            return new Options(scene, @out, width, height, theme, state);
         }
     }
 }
@@ -140,9 +163,9 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, main, mcpsettings, aitree";
+    public static string Names => "hero, query, store, export, main, mcpsettings, aitree, copytable";
 
-    public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox) => scene switch
+    public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
         "hero" => BuildHeroAsync(services, sandbox),
         "query" => BuildQueryAsync(services, sandbox),
@@ -151,8 +174,100 @@ internal static class SceneCatalog
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
+        "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
         _ => Task.FromResult<Window?>(null)
     };
+
+    /// <summary>
+    /// The Copy Table tool dialog (SE-188), in whichever of its states <paramref name="state"/> names. The
+    /// view owns the whole dialog lifecycle, so a state is reached by calling the same
+    /// <see cref="IToolDialogLifecycle"/> methods the host calls during a real run — no database involved.
+    ///
+    /// <para>This is what makes the dialog checkable in both themes: it is built from DynamicResource theme
+    /// brushes and alpha washes, and "dark should follow" is a claim worth a render rather than a shrug.</para>
+    /// </summary>
+    private static Window? BuildCopyTable(IServiceProvider services, string sandbox, string state)
+    {
+        var tool = services.GetRequiredService<IToolRegistry>().All.FirstOrDefault(t => t.Id == "copy-table");
+        if (tool is null)
+        {
+            Console.Error.WriteLine("The copy-table plugin isn't in this build's plugins/ folder.");
+            return null;
+        }
+
+        var dbPath = Path.Combine(sandbox, "demo-shop.db");
+        DemoData.CreateShopDatabase(dbPath);
+
+        var connections = services.GetRequiredService<ConnectionService>();
+        var saved = connections.Save("demo-shop", "Demo shop", "sqlite",
+            new Dictionary<string, string?> { ["path"] = dbPath });
+        // A second connection so the destination picker has something to offer.
+        connections.Save("warehouse", "Warehouse", "sqlite",
+            new Dictionary<string, string?> { ["path"] = dbPath });
+
+        var providers = services.GetRequiredService<IDbProviderRegistry>();
+        var viewModel = services.GetRequiredService<ToolDialogViewModel>();
+        viewModel.Configure(
+            tool,
+            connections.Resolve(saved, database: null),
+            new DbNodeRef(DbNodeKind.Table, "customers"),
+            providers.Get("sqlite"),
+            "sqlite");
+
+        DriveTo(viewModel.CustomView as IToolDialogLifecycle, state);
+
+        var window = new ToolDialog { DataContext = viewModel };
+        Program.Settle(rounds: 10);
+        return window;
+    }
+
+    // Replays the progress a real run reports, so each state is the one the user actually sees.
+    private static void DriveTo(IToolDialogLifecycle? lifecycle, string state)
+    {
+        if (lifecycle is null || state == "input")
+        {
+            return;
+        }
+
+        lifecycle.OnRunStarted();
+        lifecycle.OnProgress(new ToolProgress("Read customers: 6 columns.",
+            ItemKey: "schema", ItemStatus: ToolItemStatus.Done, Detail: "6 cols · PK"));
+
+        if (state == "progress")
+        {
+            lifecycle.OnProgress(new ToolProgress("Created the table on the target.",
+                ItemKey: "create", ItemStatus: ToolItemStatus.Done, Detail: "created"));
+            lifecycle.OnProgress(new ToolProgress("Copying 5,000 row(s)…",
+                ItemKey: "rows", ItemStatus: ToolItemStatus.Running, Fraction: 0.42, Detail: "2,100 / 5,000"));
+            return;
+        }
+
+        if (state == "failed")
+        {
+            // The failing step stays on the list next to the banner — that is the point of the state.
+            lifecycle.OnProgress(new ToolProgress("Created the table on the target.",
+                ItemKey: "create", ItemStatus: ToolItemStatus.Done, Detail: "created"));
+            // Deliberately the shape a batched insert really returns: the same complaint once per offending
+            // row, which used to grow the banner past the dialog and push the checklist out of the body.
+            var complaint = "String or binary data would be truncated in table "
+                + "'Eveworkbench_Empty.dbo.AuditLogs', column 'Event'. Truncated value: 'R'.";
+            var repeated = string.Join("\n", Enumerable.Repeat(complaint, 412));
+            lifecycle.OnProgress(new ToolProgress(complaint,
+                ItemKey: "rows", ItemStatus: ToolItemStatus.Error, Detail: "1,500 / 5,000"));
+            lifecycle.OnRunFinished(ToolRunOutcome.Failed, repeated);
+            return;
+        }
+
+        lifecycle.OnProgress(new ToolProgress("Created the table on the target.",
+            ItemKey: "create", ItemStatus: ToolItemStatus.Done, Detail: "created"));
+        lifecycle.OnProgress(new ToolProgress("Copied 5,000 row(s).",
+            ItemKey: "rows", ItemStatus: ToolItemStatus.Done, Detail: "5,000 rows"));
+        lifecycle.OnProgress(new ToolProgress("Created 2 index(es) and 1 foreign key(s).",
+            ItemKey: "indexes", ItemStatus: ToolItemStatus.Done, Detail: "2 idx · 1 FK"));
+        lifecycle.OnProgress(new ToolProgress("Copied customers to warehouse.",
+            ItemKey: "done", ItemStatus: ToolItemStatus.Done));
+        lifecycle.OnRunFinished(ToolRunOutcome.Succeeded, null);
+    }
 
     // The MCP settings pane with connection-creation turned on (SE-155), so the enable warning, the
     // allowed-hosts editor and the folder field are all visible.
@@ -251,7 +366,49 @@ internal static class SceneCatalog
             services.GetRequiredService<KeymapService>()) { DataContext = viewModel };
     }
 
-    // The Plugin Store on its Installed tab, listing the bundled database engines (no network needed).
+    // The engines that ship beside the binary but are Store installs in a real profile: the build stages
+    // every provider into the bundled root, so a capture would otherwise show all eight as "Built-in".
+    private static readonly string[] StoreInstalledPlugins = ["mongodb", "redis", "dragonflydb", "elasticsearch"];
+
+    /// <summary>
+    /// Puts the sandbox in the state a scene needs before DI (and therefore plugin discovery) runs.
+    /// For the Store scene that means a realistic install mix: the four SQL engines stay bundled and the
+    /// four NoSQL engines are copied into the per-user root, where discovery's "user copy wins on id"
+    /// rule makes them user-installed — enable/disable/uninstall actions and all.
+    /// </summary>
+    public static void PrepareSandbox(string scene)
+    {
+        if (scene != "store")
+        {
+            return;
+        }
+
+        foreach (var id in StoreInstalledPlugins)
+        {
+            var source = Path.Combine(PluginPaths.BundledRoot, id);
+            if (Directory.Exists(source))
+            {
+                CopyDirectory(source, PluginPaths.UserPluginDir(id));
+            }
+        }
+    }
+
+    private static void CopyDirectory(string source, string target)
+    {
+        Directory.CreateDirectory(target);
+        foreach (var file in Directory.EnumerateFiles(source))
+        {
+            File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(source))
+        {
+            CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)));
+        }
+    }
+
+    // The Plugin Store on its Installed tab: four built-in engines plus the four installed from the
+    // Store (see PrepareSandbox) — no network needed.
     private static Window BuildStore(IServiceProvider services)
     {
         var viewModel = services.GetRequiredService<PluginStoreViewModel>();

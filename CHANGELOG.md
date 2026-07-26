@@ -9,7 +9,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Schema Diff now reads secondary indexes and supports SQLite.** A migration includes the `CREATE INDEX` /
+  `DROP INDEX` work it used to silently skip, and SQLite databases can be compared at all (read through
+  `sqlite_master` and PRAGMA rather than `information_schema`). Indexes an engine creates behind a primary
+  key or unique constraint are left out, so they aren't dropped twice.
+- **Copy Table — right-click a table and copy it to another connection and database.** A store-only tool
+  plugin. Choose structure + data, structure only or data only, all rows or the first N, whether to keep the
+  source's identity/sequence values, and whether to bring the table's indexes and foreign keys along. Either
+  *run the copy* — creating and filling the table on the target, with a live checklist that shows which step
+  failed if one does — or *open it as a script* on the target to review the SQL first; the tool remembers
+  which you used last. Rows are copied in batches, so a large table shows real progress instead of one long
+  wait, and indexes and foreign keys are created once the rows are in: a foreign key pointing at a table the
+  copy didn't bring along is reported as skipped rather than failing a copy that otherwise landed. Postgres,
+  MySQL, SQL Server and SQLite, with source and target on the same engine — copying between different engines
+  needs type mapping between dialects and is not attempted.
+- **Tools can own their whole dialog** — a tool plugin's own view may now render the run's progress and result
+  itself (stepped checklist with per-step detail and progress, and its own footer buttons) instead of the
+  generic checklist and action bar. Copy Table is the first tool to use it; every other tool is unchanged.
+
+### Fixed
+
+- **`varchar(max)` columns are no longer copied as `varchar(1)`.** SQL Server reports the MAX variants as a
+  length of -1, which was read as "no length" — and a bare `varchar` in a `CREATE TABLE` means one character
+  on SQL Server. The copied or recreated column held a single character and every insert failed with "String
+  or binary data would be truncated". `varchar(max)`, `nvarchar(max)` and `varbinary(max)` now come across
+  intact, and types whose name already fixes their length (`text`, `longtext`, `mediumblob`, …) no longer get
+  an invalid length appended.
+- **A migration no longer drops a table's auto-numbering.** Recreating a table on the target lost its
+  MySQL `AUTO_INCREMENT` or SQL Server `IDENTITY` — the script ran, but the table was subtly wrong and the
+  next insert failed or wrote an empty key. Auto-numbered columns are now read and recreated on every
+  engine, and a column that gained or lost its auto-numbering is called out in the migration, since no
+  engine can switch that in place.
+- **Schema Diff no longer reports constraints the engine named itself as changes.** Two SQL Server databases
+  with the same schema carry different invented names for the same unique constraint or foreign key
+  (`UQ__customer__AB6E6164DF5AECAE`), so every one of them was dropped and recreated — correct, but it
+  buried the real changes. Constraints left unmatched by name are now paired up by what they actually
+  describe, which also reads a deliberately renamed constraint as no structural change.
+- **A script no longer dumps every row of every table — and every result tab gets its own Previous/Next.**
+  `SELECT * FROM a; SELECT * FROM b;` returned both tables in full, because paging only ever applied to a
+  single SELECT. When a script is nothing but SELECTs, each result tab now pages independently: the tab shows
+  which rows you're looking at ("rows 201–400"), Previous/Next move just that tab, and switching tabs moves
+  the page bar to where that tab is. A script that mixes SELECTs with other statements can't map tabs to
+  statements safely, so it has no page bar — but its SELECTs are still bounded to one page each on the
+  server, and the Output panel says so. Statements with their own `TOP`/`LIMIT` and non-SELECTs run exactly
+  as written, and the whole thing follows the existing "Page query results" setting.
+- **A query that ends in a semicolon can be paged again.** `SELECT * FROM Donations;` failed with "Incorrect
+  syntax near the keyword 'ORDER'" (and the equivalent on every other engine), because paging appends its
+  `ORDER BY … OFFSET … FETCH` / `LIMIT` *after* the statement — semicolon and all. The terminator is now
+  dropped before the page is built, and a stray extra semicolon no longer costs you the page bar either.
+- **Schema Diff against MySQL compared the wrong things.** Two MySQL databases diffed as "drop everything,
+  recreate everything", because MySQL's schema *is* the database, and foreign keys came out referencing the
+  same column several times. Both are corrected, and a MySQL migration now applies cleanly.
+- **Schema Diff produced scripts that couldn't run.** A Postgres `serial` column was recreated with a
+  `DEFAULT nextval(…)` pointing at a sequence that doesn't exist on the target; `DROP INDEX` was emitted in
+  Postgres form for every engine, though MySQL and SQL Server need the table named. Generated migrations for
+  Postgres, MySQL, SQL Server and SQLite are now verified end-to-end against live engines.
 
 ## [0.4.0] - 2026-07-21
 

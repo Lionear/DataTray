@@ -45,6 +45,9 @@
   <data name="StatusBarMs" xml:space="preserve">
     <value>{0} ms</value>
   </data>
+  <data name="StatusScriptCapped" xml:space="preserve">
+    <value>Each SELECT in the script was limited to the first {0} rows — turn off “Page query results” in Settings to run them unbounded.</value>
+  </data>
   <data name="StatusAffected" xml:space="preserve">
     <value>{0} affected · {1:F0} ms</value>
   </data>
@@ -640,7 +643,7 @@
     <value>Query page size (rows)</value>
   </data>
   <data name="QueryPageSizeHint" xml:space="preserve">
-    <value>When on, a single SELECT with no TOP/LIMIT of its own is shown one page at a time (use Previous/Next to walk the rows), so a stray "SELECT * FROM big_table" doesn't pull everything at once. Queries with their own TOP/LIMIT, other statements and scripts run unchanged. Applies to newly opened query tabs.</value>
+    <value>When on, a single SELECT with no TOP/LIMIT of its own is shown one page at a time (use Previous/Next to walk the rows), so a stray "SELECT * FROM big_table" doesn't pull everything at once. A multi-statement script can't have a page bar, so each such SELECT in one is limited to a single page of rows instead, and the result tab says so. Queries with their own TOP/LIMIT and non-SELECT statements run unchanged. Applies to newly opened query tabs.</value>
   </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Ask for confirmation before quitting</value>
@@ -1670,6 +1673,32 @@
   </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Check for updates</value>
+  </data>
+  <data name="UpdateChannelUnreachable" xml:space="preserve">
+    <value>Couldn't reach the {0} channel — the switch is saved, but nothing could be checked.</value>
+  </data>
+  <data name="UpdateChannelSameBuild" xml:space="preserve">
+    <value>{0} offers exactly the build you're running.</value>
+  </data>
+  <data name="UpdateChannelDowngradeInfo" xml:space="preserve">
+    <value>{0} currently offers {1}, which is older than the build you're running.</value>
+  </data>
+  <data name="UpdateChannelDowngradeTitle" xml:space="preserve">
+    <value>Switch channel and downgrade?</value>
+  </data>
+  <data name="UpdateChannelDowngradeMessage" xml:space="preserve">
+    <value>The {0} channel currently offers {1}. You're running {2}.
+
+Switching means downgrading to {1}. Plugins built for a newer host may stop loading until you switch back.</value>
+  </data>
+  <data name="UpdateChannelDowngradeYes" xml:space="preserve">
+    <value>Switch &amp; downgrade</value>
+  </data>
+  <data name="UpdateChannelDowngradeAccepted" xml:space="preserve">
+    <value>{0} is queued — close Settings to download and install it.</value>
+  </data>
+  <data name="UpdateChannelDowngradeNoAsset" xml:space="preserve">
+    <value>{0} has no download for this platform; the channel is switched but nothing can be installed here.</value>
   </data>
   <data name="UpdateCheckChecking" xml:space="preserve">
     <value>Checking…</value>

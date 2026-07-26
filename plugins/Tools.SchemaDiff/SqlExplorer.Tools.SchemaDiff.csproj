@@ -13,6 +13,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Reading a schema is shared with Copy Table, source-linked rather than packaged: plugins load into
+         isolated ALCs, so a shared DLL would have to be duplicated per plugin folder anyway (or promoted
+         into the SDK, whose surface is a public contract). See plugins/Shared.Schema/README.md. -->
+    <Compile Include="..\Shared.Schema\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- Localization embedded into the main DLL. WithCulture=false stops MSBuild routing the ".nl." file
          to a satellite assembly; LogicalName fixes the resource name the host's PluginLocalizer expects. -->
@@ -28,6 +35,7 @@
     <Using Include="SqlExplorer.Sdk.Branding" />
     <Using Include="SqlExplorer.Sdk.Localization" />
     <Using Include="SqlExplorer.Sdk.Tools" />
+    <Using Include="SqlExplorer.Plugins.Schema" />
   </ItemGroup>
 
 </Project>

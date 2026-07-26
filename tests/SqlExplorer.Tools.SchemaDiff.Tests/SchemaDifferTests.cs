@@ -1,3 +1,4 @@
+using SqlExplorer.Plugins.Schema;
 using SqlExplorer.Tools.SchemaDiff;
 
 namespace SqlExplorer.Tools.SchemaDiff.Tests;
@@ -127,5 +128,80 @@ public class SchemaDifferTests
         var to = Snap(Table("users", [Col("id")]));
 
         Assert.Empty(SchemaDiffer.Diff(from, to));
+    }
+
+    // --- Auto-numbering (SE-190) ---
+
+    [Fact]
+    public void Auto_numbering_gained_or_lost_is_a_column_change()
+    {
+        var plain = Col("id");
+        var auto = plain with { IsIdentity = true };
+
+        Assert.Single(SchemaDiffer.Diff(Snap(Table("t", [plain])), Snap(Table("t", [auto]))));
+        Assert.Single(SchemaDiffer.Diff(Snap(Table("t", [auto])), Snap(Table("t", [plain]))));
+        Assert.Empty(SchemaDiffer.Diff(Snap(Table("t", [auto])), Snap(Table("t", [auto]))));
+    }
+
+    // --- System-generated constraint names (SE-191) ---
+
+    [Fact]
+    public void A_unique_constraint_the_engine_named_itself_is_matched_by_its_columns()
+    {
+        // Two SQL Server databases built from the same script: same constraint, different invented names.
+        var from = Snap(Table("customers", [Col("id"), Col("email", "nvarchar(255)", ord: 2)],
+            uniques: [new UniqueDef("UQ__customer__AB6E6164DF5AECAE", ["email"])]));
+        var to = Snap(Table("customers", [Col("id"), Col("email", "nvarchar(255)", ord: 2)],
+            uniques: [new UniqueDef("UQ__customer__AB6E61648BC85C55", ["email"])]));
+
+        Assert.Empty(SchemaDiffer.Diff(from, to));
+    }
+
+    [Fact]
+    public void A_foreign_key_the_engine_named_itself_is_matched_by_its_definition()
+    {
+        var from = Snap(Table("orders", [Col("id"), Col("customer_id", ord: 2)],
+            fks: [new ForeignKeyDef("FK__orders__customer__2A4B4B5E", ["customer_id"], "public", "customers", ["id"])]));
+        var to = Snap(Table("orders", [Col("id"), Col("customer_id", ord: 2)],
+            fks: [new ForeignKeyDef("FK__orders__customer__72910220", ["customer_id"], "public", "customers", ["id"])]));
+
+        Assert.Empty(SchemaDiffer.Diff(from, to));
+    }
+
+    [Fact]
+    public void A_unique_constraint_on_different_columns_is_still_a_change()
+    {
+        // The fallback matches definitions, not names — a genuinely different constraint stays a change.
+        var from = Snap(Table("customers", [Col("id"), Col("email", "text", ord: 2)],
+            uniques: [new UniqueDef("uq_a", ["email"])]));
+        var to = Snap(Table("customers", [Col("id"), Col("email", "text", ord: 2)],
+            uniques: [new UniqueDef("uq_b", ["id"])]));
+
+        var changes = SchemaDiffer.Diff(from, to);
+        Assert.Contains(changes, c => c is DropUnique);
+        Assert.Contains(changes, c => c is AddUnique);
+    }
+
+    [Fact]
+    public void Two_unique_constraints_pair_up_one_for_one_rather_than_collapsing()
+    {
+        var from = Snap(Table("t", [Col("a"), Col("b", ord: 2)],
+            uniques: [new UniqueDef("UQ__t__1", ["a"]), new UniqueDef("UQ__t__2", ["b"])]));
+        var to = Snap(Table("t", [Col("a"), Col("b", ord: 2)],
+            uniques: [new UniqueDef("UQ__t__9", ["b"]), new UniqueDef("UQ__t__8", ["a"])]));
+
+        Assert.Empty(SchemaDiffer.Diff(from, to));
+    }
+
+    [Fact]
+    public void A_renamed_index_is_still_a_change_because_an_index_name_is_always_chosen()
+    {
+        // CREATE INDEX always names its index, so unlike a constraint, a differing name is a real difference.
+        var from = Snap(Table("t", [Col("a")], indexes: [new IndexDef("ix_old", false, ["a"])]));
+        var to = Snap(Table("t", [Col("a")], indexes: [new IndexDef("ix_new", false, ["a"])]));
+
+        var changes = SchemaDiffer.Diff(from, to);
+        Assert.Contains(changes, c => c is DropIndex);
+        Assert.Contains(changes, c => c is AddIndex);
     }
 }

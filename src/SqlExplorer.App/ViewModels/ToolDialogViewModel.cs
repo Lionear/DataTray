@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using SqlExplorer.Core.Connections;
@@ -73,6 +74,10 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     /// with the given SQL (used by <see cref="IToolHost.OpenQueryEditor"/>).</summary>
     public Action<string>? OpenQueryRequested { get; set; }
 
+    /// <summary>Set by <c>MainViewModel</c> per open: opens a query tab on a picked <i>secondary</i> connection
+    /// and database with the given SQL (used by <see cref="IToolHost.OpenQueryEditorOn"/>).</summary>
+    public Action<SavedConnection, string?, string>? OpenQueryOnConnectionRequested { get; set; }
+
     // --- IToolHost: the host services handed to the running tool ---
     Task<string?> IToolHost.PickSaveFileAsync(string suggestedName, params string[] extensions) =>
         SaveFilePicker?.Invoke(suggestedName, extensions) ?? Task.FromResult<string?>(null);
@@ -82,6 +87,12 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     string? IToolHost.GetPluginSetting(string key) =>
         _pluginStore.Get(_tool.Id).TryGetValue(key, out var value) ? value : null;
+
+    void IToolHost.SetPluginSetting(string key, string? value)
+    {
+        var values = new Dictionary<string, string?>(_pluginStore.Get(_tool.Id)) { [key] = value };
+        _pluginStore.Save(_tool.Id, values);
+    }
 
     IReadOnlyList<ToolConnectionInfo> IToolHost.ListConnections() => PickableConnections();
 
@@ -108,6 +119,14 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     }
 
     void IToolHost.OpenQueryEditor(string sql) => OpenQueryRequested?.Invoke(sql);
+
+    void IToolHost.OpenQueryEditorOn(string connectionId, string? database, string sql)
+    {
+        if (_connections.List().FirstOrDefault(c => c.Id == connectionId) is { } saved)
+        {
+            OpenQueryOnConnectionRequested?.Invoke(saved, database, sql);
+        }
+    }
 
     // The picker offers same-provider connections only (a cross-provider schema diff would need type-mapping
     // we don't do yet) and never the launched connection itself (comparing it to itself is a no-op). The
@@ -163,14 +182,22 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     /// tool runs. Empty for tools that don't report keyed items — the log panel is then the only feedback.</summary>
     public ObservableCollection<ToolChecklistRow> Checklist { get; } = [];
 
-    public bool HasChecklist => Checklist.Count > 0;
+    public bool HasChecklist => Checklist.Count > 0 && !CustomOwnsLifecycle;
+
+    /// <summary>True when the Route-B view implements <see cref="IToolDialogLifecycle"/>: it renders the
+    /// progress and completion states itself, so the host's generic checklist, log, progress bar and action
+    /// bar all step aside and the view keeps the full dialog for the whole run.</summary>
+    public bool CustomOwnsLifecycle => CustomView is IToolDialogLifecycle;
+
+    /// <summary>A lifecycle-owning view draws its own header/footer edge-to-edge, so it gets no host padding.</summary>
+    public Thickness CustomViewMargin => CustomOwnsLifecycle ? new Thickness(0) : new Thickness(18, 16);
 
     // Hide the plain log once there's a checklist: a keyed-item tool's checklist already shows per-item
     // status, so a second, line-by-line log underneath is mostly the same information twice (e.g. the
     // Backup dialog showed "Table 7/9: Traders — 0 row(s)" in both panels at once). Otherwise, hide the
     // panel until there is something to show, so form-only tools (e.g. the Shrink dialogs) aren't dominated
     // by a big empty box before the first run.
-    public bool HasLogArea => !HasChecklist && (IsRunning || IsCompleted || Log.Count > 0);
+    public bool HasLogArea => !HasChecklist && !CustomOwnsLifecycle && (IsRunning || IsCompleted || Log.Count > 0);
 
     /// <summary>True once a run has started (or finished): the Route-A/B fields area collapses so the
     /// checklist/log can expand into that space instead — the object-selection tree (or form) has done its
@@ -179,15 +206,19 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     /// <summary>Row-0 (fields/custom view) height: fills the dialog while editing, collapses to nothing once
     /// a run starts so <see cref="ResultsAreaHeight"/> can expand into the freed space.</summary>
-    public GridLength ObjectAreaHeight => ShowingResults ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+    public GridLength ObjectAreaHeight =>
+        ShowingResults && !CustomOwnsLifecycle ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
 
     /// <summary>Row-1 (checklist/log) height: content-sized while editing (usually empty), fills the space
     /// <see cref="ObjectAreaHeight"/> just freed up once a run starts.</summary>
-    public GridLength ResultsAreaHeight => ShowingResults ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+    public GridLength ResultsAreaHeight =>
+        ShowingResults && !CustomOwnsLifecycle ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanExecute))]
     [NotifyPropertyChangedFor(nameof(InputsEnabled))]
+    [NotifyPropertyChangedFor(nameof(CustomViewEnabled))]
+    [NotifyPropertyChangedFor(nameof(HostChromeRunning))]
     [NotifyPropertyChangedFor(nameof(HasLogArea))]
     [NotifyPropertyChangedFor(nameof(ShowingResults))]
     [NotifyPropertyChangedFor(nameof(ObjectAreaHeight))]
@@ -199,6 +230,8 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanExecute))]
     [NotifyPropertyChangedFor(nameof(InputsEnabled))]
+    [NotifyPropertyChangedFor(nameof(CustomViewEnabled))]
+    [NotifyPropertyChangedFor(nameof(HostChromeRunning))]
     [NotifyPropertyChangedFor(nameof(HasLogArea))]
     [NotifyPropertyChangedFor(nameof(ShowingResults))]
     [NotifyPropertyChangedFor(nameof(ObjectAreaHeight))]
@@ -207,6 +240,13 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     /// <summary>Inputs are editable only before a run and while not finished.</summary>
     public bool InputsEnabled => !IsRunning && !IsCompleted;
+
+    /// <summary>The host's own progress bar: only while running, and only when the view didn't take over.</summary>
+    public bool HostChromeRunning => IsRunning && !CustomOwnsLifecycle;
+
+    /// <summary>A lifecycle-owning view stays interactive during the run (it draws the Cancel button and its
+    /// own progress); a plain Route-B input view is greyed out like the Route-A fields are.</summary>
+    public bool CustomViewEnabled => CustomOwnsLifecycle || InputsEnabled;
 
     /// <summary>0..1 determinate progress; ignored while <see cref="IsProgressIndeterminate"/> is true.</summary>
     [ObservableProperty]
@@ -242,7 +282,17 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     /// <summary>Route B: a tool-supplied view drives the form instead of the generated fields.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCustomView))]
+    [NotifyPropertyChangedFor(nameof(HasFields))]
+    [NotifyPropertyChangedFor(nameof(CustomOwnsLifecycle))]
+    [NotifyPropertyChangedFor(nameof(CustomViewEnabled))]
+    [NotifyPropertyChangedFor(nameof(HostChromeRunning))]
+    [NotifyPropertyChangedFor(nameof(CustomViewMargin))]
+    [NotifyPropertyChangedFor(nameof(ObjectAreaHeight))]
+    [NotifyPropertyChangedFor(nameof(ResultsAreaHeight))]
     private Control? _customView;
+
+    private IToolDialogLifecycle? Lifecycle => CustomView as IToolDialogLifecycle;
 
     public bool HasCustomView => CustomView is not null;
 
@@ -336,6 +386,9 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
         }
 
         _cts = new CancellationTokenSource();
+        // A lifecycle-owning view can offer "run it again" from its done state, so a new run clears the
+        // completed flag rather than being blocked by it.
+        IsCompleted = false;
         IsRunning = true;
         Progress = 0;
         IsProgressIndeterminate = true;
@@ -348,8 +401,10 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
             ? _customValues
             : Fields.ToDictionary(f => f.Field.Key, f => f.Value);
         var context = new ToolExecutionContext(_profile, _node, _provider, _providerId, this, _pluginLoc);
+        Lifecycle?.OnRunStarted();
         var progress = new Progress<ToolProgress>(p =>
         {
+            Lifecycle?.OnProgress(p);
             Log.Add(p.Message);
             if (p.Fraction is { } fraction)
             {
@@ -380,14 +435,17 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
             await _tool.ExecuteAsync(context, inputs, progress, _cts.Token);
             Log.Add(Loc["ToolDone"]);
             IsCompleted = true; // success → switch the dialog to its done state
+            Lifecycle?.OnRunFinished(ToolRunOutcome.Succeeded, null);
         }
         catch (OperationCanceledException)
         {
             Log.Add(Loc["ToolCancelled"]);
+            Lifecycle?.OnRunFinished(ToolRunOutcome.Cancelled, Loc["ToolCancelled"]);
         }
         catch (Exception ex)
         {
             Log.Add($"⚠ {ex.Message}");
+            Lifecycle?.OnRunFinished(ToolRunOutcome.Failed, ex.Message);
         }
         finally
         {
@@ -430,4 +488,21 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     Task<string?> IToolUiContext.PickOpenFileAsync(params string[] extensions) =>
         OpenFilePicker?.Invoke(extensions) ?? Task.FromResult<string?>(null);
+
+    // A Route B view's destination pickers reuse the same host lookups the Route A ConnectionPicker /
+    // DatabasePicker fields do.
+    IReadOnlyList<ToolConnectionInfo> IToolUiContext.ListConnections() => ((IToolHost)this).ListConnections();
+
+    Task<IReadOnlyList<string>> IToolUiContext.ListDatabasesAsync(string connectionId, CancellationToken ct) =>
+        ((IToolHost)this).ListDatabasesAsync(connectionId, ct);
+
+    // A lifecycle-owning view (IToolDialogLifecycle) renders its own action bar, so it drives the run
+    // through these three instead of the host's buttons.
+    IPluginLocalizer IToolUiContext.Localizer => _pluginLoc;
+
+    Task IToolUiContext.RunAsync() => ExecuteAsync();
+
+    void IToolUiContext.CancelRun() => _cts?.Cancel();
+
+    void IToolUiContext.CloseDialog() => CloseRequested?.Invoke();
 }

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace SqlExplorer.Plugins.Schema;
 
 /// <summary>
 /// Renders an ordered <see cref="SchemaChange"/> list (from <see cref="SchemaDiffer"/>) into a runnable
@@ -34,26 +34,57 @@ public sealed class AlterScriptWriter(SqlDialect dialect)
         DropTable c => [$"DROP TABLE {dialect.QuoteTable(c.Def)};"],
         AddColumn c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} {dialect.AddColumnClause} {dialect.ColumnSpec(c.Column)};"],
         DropColumn c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP COLUMN {dialect.Quote(c.Column.Name)};"],
-        AlterColumn c => dialect.AlterColumn(c.Table, c.From, c.To),
-        AddPrimaryKey c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} ADD CONSTRAINT {dialect.Quote(c.Key.Name)} PRIMARY KEY ({Cols(c.Key.Columns)});"],
-        DropPrimaryKey c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP CONSTRAINT {dialect.Quote(c.Key.Name)};"],
-        AddUnique c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} ADD CONSTRAINT {dialect.Quote(c.Unique.Name)} UNIQUE ({Cols(c.Unique.Columns)});"],
-        DropUnique c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP CONSTRAINT {dialect.Quote(c.Unique.Name)};"],
+        AlterColumn c => RenderAlterColumn(c),
+        AddPrimaryKey c => [Constraint(c.Table, "add primary key", c.Key.Name,
+            $"ALTER TABLE {dialect.QuoteTable(c.Table)} ADD {dialect.PrimaryKeyClause(c.Key, Cols(c.Key.Columns))};")],
+        DropPrimaryKey c => [Constraint(c.Table, "drop primary key", c.Key.Name,
+            $"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP CONSTRAINT {dialect.Quote(c.Key.Name)};")],
+        AddUnique c => [Constraint(c.Table, "add unique constraint", c.Unique.Name,
+            $"ALTER TABLE {dialect.QuoteTable(c.Table)} ADD CONSTRAINT {dialect.Quote(c.Unique.Name)} UNIQUE ({Cols(c.Unique.Columns)});")],
+        DropUnique c => [Constraint(c.Table, "drop unique constraint", c.Unique.Name,
+            $"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP CONSTRAINT {dialect.Quote(c.Unique.Name)};")],
         AddIndex c => [RenderCreateIndex(c.Table, c.Index)],
-        DropIndex c => [$"DROP INDEX {dialect.Quote(c.Index.Name)};"],
-        AddForeignKey c => [RenderAddForeignKey(c.Table, c.ForeignKey)],
-        DropForeignKey c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP CONSTRAINT {dialect.Quote(c.ForeignKey.Name)};"],
+        DropIndex c => [dialect.DropIndex(c.Table, c.Index)],
+        AddForeignKey c => [Constraint(c.Table, "add foreign key", c.ForeignKey.Name,
+            RenderAddForeignKey(c.Table, c.ForeignKey))],
+        DropForeignKey c => [Constraint(c.Table, "drop foreign key", c.ForeignKey.Name,
+            $"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP CONSTRAINT {dialect.Quote(c.ForeignKey.Name)};")],
         _ => []
     };
+
+    // No engine can switch a column's auto-numbering on or off with an ALTER — it is bound to a sequence or
+    // to the column's own definition — so the change is called out rather than quietly rendered as a type
+    // change that leaves the target still wrong.
+    private IEnumerable<string> RenderAlterColumn(AlterColumn c)
+    {
+        if (c.From.IsIdentity != c.To.IsIdentity)
+        {
+            var what = c.To.IsIdentity ? "is auto-numbered on the source but not here" : "is auto-numbered here but not on the source";
+            yield return $"-- NOTE: column {dialect.Quote(c.To.Name)} on {dialect.QuoteTable(c.Table)} {what}; " +
+                         "auto-numbering can't be added or removed in place — recreate the table to apply.";
+        }
+
+        foreach (var statement in dialect.AlterColumn(c.Table, c.From, c.To))
+        {
+            yield return statement;
+        }
+    }
+
+    // An engine that can't ALTER a constraint (SQLite) gets a note instead of DDL that would fail on run.
+    private string Constraint(TableDef table, string what, string name, string statement) =>
+        dialect.SupportsAlterConstraint
+            ? statement
+            : $"-- NOTE: cannot {what} {dialect.Quote(name)} on {dialect.QuoteTable(table)} — this engine " +
+              "only supports adding and dropping columns; recreate the table to apply.";
 
     private IEnumerable<string> RenderCreateTable(TableDef t)
     {
         var body = new List<string>();
-        body.AddRange(t.Columns.OrderBy(c => c.Ordinal).Select(dialect.ColumnSpec));
+        body.AddRange(t.Columns.OrderBy(c => c.Ordinal).Select(c => dialect.ColumnSpec(c)));
 
         if (t.PrimaryKey is { } pk)
         {
-            body.Add($"CONSTRAINT {dialect.Quote(pk.Name)} PRIMARY KEY ({Cols(pk.Columns)})");
+            body.Add(dialect.PrimaryKeyClause(pk, Cols(pk.Columns)));
         }
 
         body.AddRange(t.Uniques.Select(u => $"CONSTRAINT {dialect.Quote(u.Name)} UNIQUE ({Cols(u.Columns)})"));

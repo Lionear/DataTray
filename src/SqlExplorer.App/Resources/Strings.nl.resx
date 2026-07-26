@@ -45,6 +45,9 @@
   <data name="StatusBarMs" xml:space="preserve">
     <value>{0} ms</value>
   </data>
+  <data name="StatusScriptCapped" xml:space="preserve">
+    <value>Elke SELECT in het script is beperkt tot de eerste {0} rijen — zet “Query-resultaten pagen” uit in Instellingen om ze onbegrensd te draaien.</value>
+  </data>
   <data name="StatusAffected" xml:space="preserve">
     <value>{0} gewijzigd · {1:F0} ms</value>
   </data>
@@ -640,7 +643,7 @@
     <value>Paginagrootte query's (rijen)</value>
   </data>
   <data name="QueryPageSizeHint" xml:space="preserve">
-    <value>Indien aan wordt een enkele SELECT zonder eigen TOP/LIMIT pagina voor pagina getoond (gebruik Vorige/Volgende om door de rijen te bladeren), zodat een losse "SELECT * FROM grote_tabel" niet in één keer alles ophaalt. Query's met een eigen TOP/LIMIT, andere statements en scripts blijven ongewijzigd. Geldt voor nieuw geopende querytabbladen.</value>
+    <value>Indien aan wordt een enkele SELECT zonder eigen TOP/LIMIT pagina voor pagina getoond (gebruik Vorige/Volgende om door de rijen te bladeren), zodat een losse "SELECT * FROM grote_tabel" niet in één keer alles ophaalt. Een script met meerdere statements kan geen paginabalk hebben; daar wordt elke zulke SELECT in plaats daarvan beperkt tot één pagina rijen, en het resultaattabblad zegt dat erbij. Query's met een eigen TOP/LIMIT en niet-SELECT-statements blijven ongewijzigd. Geldt voor nieuw geopende querytabbladen.</value>
   </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Vraag om bevestiging bij afsluiten</value>
@@ -1670,6 +1673,32 @@
   </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Controleren op updates</value>
+  </data>
+  <data name="UpdateChannelUnreachable" xml:space="preserve">
+    <value>Kanaal {0} niet bereikbaar — de wissel is opgeslagen, maar er kon niets gecontroleerd worden.</value>
+  </data>
+  <data name="UpdateChannelSameBuild" xml:space="preserve">
+    <value>{0} biedt exact de build die je draait.</value>
+  </data>
+  <data name="UpdateChannelDowngradeInfo" xml:space="preserve">
+    <value>{0} biedt nu {1}, ouder dan de build die je draait.</value>
+  </data>
+  <data name="UpdateChannelDowngradeTitle" xml:space="preserve">
+    <value>Kanaal wisselen en downgraden?</value>
+  </data>
+  <data name="UpdateChannelDowngradeMessage" xml:space="preserve">
+    <value>Kanaal {0} biedt nu {1}. Jij draait {2}.
+
+Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn gebouwd, laden mogelijk niet meer tot je terugwisselt.</value>
+  </data>
+  <data name="UpdateChannelDowngradeYes" xml:space="preserve">
+    <value>Wisselen &amp; downgraden</value>
+  </data>
+  <data name="UpdateChannelDowngradeAccepted" xml:space="preserve">
+    <value>{0} staat klaar — sluit Instellingen om 'm te downloaden en installeren.</value>
+  </data>
+  <data name="UpdateChannelDowngradeNoAsset" xml:space="preserve">
+    <value>{0} heeft geen download voor dit platform; het kanaal is gewisseld maar er valt hier niets te installeren.</value>
   </data>
   <data name="UpdateCheckChecking" xml:space="preserve">
     <value>Bezig met controleren…</value>

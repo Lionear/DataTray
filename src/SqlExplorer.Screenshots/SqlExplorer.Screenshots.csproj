@@ -37,6 +37,9 @@
       <ShotPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.Redis\bin\$(Configuration)\$(TargetFramework)\**\*"><PluginId>redis</PluginId></ShotPluginFile>
       <ShotPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.DragonflyDb\bin\$(Configuration)\$(TargetFramework)\**\*"><PluginId>dragonflydb</PluginId></ShotPluginFile>
       <ShotPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.Elasticsearch\bin\$(Configuration)\$(TargetFramework)\**\*"><PluginId>elasticsearch</PluginId></ShotPluginFile>
+      <!-- Tool plugins whose dialogs have their own scene (Copy Table renders its own dialog end to end,
+           so its four states are captured here rather than only being looked at by hand). -->
+      <ShotPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.CopyTable\bin\$(Configuration)\$(TargetFramework)\**\*"><PluginId>copy-table</PluginId></ShotPluginFile>
     </ItemGroup>
   </Target>
 

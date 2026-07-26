@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace SqlExplorer.Plugins.Schema;
 
 /// <summary>
 /// A provider-agnostic snapshot of a database's structure, read from <c>information_schema</c> plus a
@@ -25,8 +25,15 @@ public sealed record TableDef(
 
 /// <summary><see cref="DataType"/> is the fully-rendered type as the engine reports it (e.g.
 /// <c>character varying(255)</c>, <c>numeric(10,2)</c>) so a length/precision change shows up as a type
-/// change. <see cref="Default"/> is the raw default expression, or null for none.</summary>
-public sealed record ColumnDef(string Name, string DataType, bool Nullable, string? Default, int Ordinal);
+/// change. <see cref="Default"/> is the raw default expression, or null for none.
+///
+/// <para><see cref="IsIdentity"/> marks a column the engine numbers itself — Postgres <c>serial</c> /
+/// <c>GENERATED AS IDENTITY</c>, MySQL <c>AUTO_INCREMENT</c>, SQL Server <c>IDENTITY</c>, SQLite
+/// <c>INTEGER PRIMARY KEY</c>. It is not in <c>information_schema.columns</c> in any portable form, so each
+/// reader digs it out its own way; without it a recreated table silently loses its auto-numbering and the
+/// next insert fails or writes a null key.</para></summary>
+public sealed record ColumnDef(
+    string Name, string DataType, bool Nullable, string? Default, int Ordinal, bool IsIdentity = false);
 
 public sealed record PrimaryKeyDef(string Name, IReadOnlyList<string> Columns);
 
