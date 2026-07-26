@@ -737,7 +737,7 @@ public partial class DocumentView : UserControl
                 IsReadOnly = column.IsReadOnly,
                 CanUserSort = sortable,
                 CellTemplate = BuildCellTemplate(i, mayHaveActions),
-                CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i)
+                CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i, column)
             };
 
             // The Tag carries the base column name the server-side ORDER BY needs.
@@ -814,8 +814,24 @@ public partial class DocumentView : UserControl
         return button;
     }
 
-    private static IDataTemplate BuildCellEditingTemplate(int index) =>
-        new FuncDataTemplate<EditableRow>((_, _) =>
+    // The editor matches the column's type (SE-30): a checkbox for booleans, a date picker for dates,
+    // a text box for everything else. Every editor writes through EditableCell, so SE-29's rule — an
+    // empty editor over a NULL cell leaves the NULL alone — holds for all of them.
+    private static IDataTemplate BuildCellEditingTemplate(int index, ResultColumn column)
+    {
+        var type = Nullable.GetUnderlyingType(column.ClrType) ?? column.ClrType;
+
+        if (type == typeof(bool))
+        {
+            return BuildBoolEditingTemplate(index, column.AllowDbNull);
+        }
+
+        if (type == typeof(DateTime) || type == typeof(DateTimeOffset))
+        {
+            return BuildDateEditingTemplate(index);
+        }
+
+        return new FuncDataTemplate<EditableRow>((_, _) =>
         {
             var box = new TextBox
             {
@@ -826,5 +842,131 @@ public partial class DocumentView : UserControl
             // tabbing through a NULL can't quietly turn it into an empty string (SE-29).
             box.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].EditText") { Mode = BindingMode.TwoWay });
             return box;
+        });
+    }
+
+    private static IDataTemplate BuildBoolEditingTemplate(int index, bool nullable) =>
+        new FuncDataTemplate<EditableRow>((_, _) =>
+        {
+            // A checkbox has two states, a nullable boolean has three. Only a column that accepts NULL
+            // gets the indeterminate state, so a NOT NULL column can't be left in a state it can't store.
+            var box = new CheckBox
+            {
+                IsThreeState = nullable,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            box.Bind(CheckBox.IsCheckedProperty, new Binding($"Cells[{index}].BoolValue")
+            {
+                Mode = BindingMode.TwoWay
+            });
+            return box;
+        });
+
+    // Our own date editor rather than CalendarDatePicker. That control renders the machine's short date
+    // format — "3/4/2026" is two different days depending on where you are — and Avalonia 12.0.5 offers no
+    // way to pin it to ISO: CalendarDatePickerFormat has a Custom member, but there is no format-string
+    // property to go with it. So: an ISO text box you can type in or clear, with a calendar button beside
+    // it. Both halves bind to the same cell, so they stay in step, and clearing the text is NULL.
+    private static IDataTemplate BuildDateEditingTemplate(int index) =>
+        new FuncDataTemplate<EditableRow>((row, _) =>
+        {
+            var box = new TextBox
+            {
+                BorderThickness = new Thickness(0),
+                Background = Brushes.Transparent,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(8, 0, 0, 0)
+            };
+            box.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].DateText") { Mode = BindingMode.TwoWay });
+
+            var calendar = new Calendar
+            {
+                // A flyout's content is not a child of the cell, so it does not inherit the row as its
+                // DataContext — without this the bindings below silently find nothing and the calendar
+                // opens on today instead of the cell's date.
+                DataContext = row,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            calendar.Bind(Calendar.SelectedDateProperty, new Binding($"Cells[{index}].DateValue")
+            {
+                Mode = BindingMode.TwoWay
+            });
+
+            var glyph = new Avalonia.Controls.Shapes.Path
+            {
+                Width = 12,
+                Height = 12,
+                Stretch = Stretch.Uniform,
+                Data = Icons.ChevronDown,
+                StrokeThickness = 2
+            };
+            glyph[!Avalonia.Controls.Shapes.Shape.StrokeProperty] =
+                new DynamicResourceExtension("SETextSecondaryBrush");
+
+            // The time half: a calendar picks a date and nothing else, so a timestamp column needs its own
+            // field or the time is only reachable by typing it into the ISO box.
+            var timeBox = new TextBox
+            {
+                DataContext = row,
+                Width = 90,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(8, 4)
+            };
+            timeBox.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].TimeText") { Mode = BindingMode.TwoWay });
+
+            var timeLabel = new TextBlock
+            {
+                Text = "Time",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0),
+                [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SETextSecondaryBrush")
+            };
+
+            var timeRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children = { timeLabel, timeBox }
+            };
+
+            var flyoutContent = new Border
+            {
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(10),
+                [!Border.BackgroundProperty] = new DynamicResourceExtension("SEPanelBgBrush"),
+                [!Border.BorderBrushProperty] = new DynamicResourceExtension("SEHairlineBrush"),
+                Child = new StackPanel { Children = { calendar, timeRow } }
+            };
+
+            var button = new Button
+            {
+                Content = glyph,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(6, 0),
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Flyout = new Flyout
+                {
+                    Content = flyoutContent,
+                    Placement = PlacementMode.BottomEdgeAlignedLeft,
+                    ShowMode = FlyoutShowMode.Standard
+                }
+            };
+
+            // Open on the cell's month rather than the current one — and re-read it every time, since the
+            // value may have changed since the template was built.
+            if (button.Flyout is Flyout flyout)
+            {
+                flyout.Opening += (_, _) =>
+                    calendar.DisplayDate = row.Cells[index].DateValue ?? DateTime.Today;
+            }
+
+            var panel = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(button, Dock.Right);
+            panel.Children.Add(button);
+            panel.Children.Add(box);
+            return panel;
         });
 }

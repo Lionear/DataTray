@@ -43,6 +43,10 @@ public sealed class EditableCell : INotifyPropertyChanged
 
             OnPropertyChanged();
             OnPropertyChanged(nameof(EditText));
+            OnPropertyChanged(nameof(BoolValue));
+            OnPropertyChanged(nameof(DateValue));
+            OnPropertyChanged(nameof(DateText));
+            OnPropertyChanged(nameof(TimeText));
             OnPropertyChanged(nameof(IsModified));
             _row.NotifyCellEdited();
         }
@@ -74,6 +78,111 @@ public sealed class EditableCell : INotifyPropertyChanged
             }
 
             Value = value;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for a checkbox editor on a boolean column: the value as a nullable bool,
+    /// where null is SQL NULL. Clearing a three-state checkbox therefore sets NULL deliberately rather
+    /// than falling back to false — on a nullable column those are different rows.
+    /// </summary>
+    public bool? BoolValue
+    {
+        get => _value switch
+        {
+            null => null,
+            bool b => b,
+            string s when bool.TryParse(s, out var parsed) => parsed,
+            // Numeric booleans: SQLite has no bool type, MySQL's is tinyint(1).
+            string s when int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) => n != 0,
+            IConvertible c => System.Convert.ToInt64(c, CultureInfo.InvariantCulture) != 0,
+            _ => null
+        };
+        set
+        {
+            if (value is null)
+            {
+                SetNull();
+                return;
+            }
+
+            Value = value.Value;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for a date-picker editor: the value as a nullable date, where null is SQL
+    /// NULL. Picking a date keeps the cell's existing time of day — a picker only edits the date half,
+    /// and a datetime column would otherwise silently lose its time.
+    /// </summary>
+    public DateTime? DateValue
+    {
+        get => _value switch
+        {
+            null => null,
+            DateTime d => d,
+            DateTimeOffset o => o.DateTime,
+            string s when DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
+            _ => null
+        };
+        set
+        {
+            if (value is null)
+            {
+                SetNull();
+                return;
+            }
+
+            var time = DateValue?.TimeOfDay ?? TimeSpan.Zero;
+            Value = value.Value.Date + time;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for the text half of a date editor: the value in ISO form
+    /// (<c>yyyy-MM-dd</c>, plus <c>HH:mm:ss</c> when the cell carries a time), which is unambiguous
+    /// regardless of the machine's locale. Clearing the text is NULL — a date column has no empty
+    /// string to fall back to. Text that doesn't parse is kept as typed, so the save reports it rather
+    /// than the editor silently discarding what was entered.
+    /// </summary>
+    public string? DateText
+    {
+        get => DateValue is not { } date
+            ? string.Empty
+            : date.TimeOfDay == TimeSpan.Zero
+                ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                SetNull();
+                return;
+            }
+
+            Value = DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? parsed
+                : value;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for the time half of a date editor (<c>HH:mm:ss</c>). A calendar only picks
+    /// a date, so this is where the time of a timestamp is edited. Text that isn't a time yet is ignored
+    /// rather than written, so typing through "1", "13", "13:" doesn't rewrite the cell three times.
+    /// Setting a time on a NULL cell dates it today — otherwise the input would vanish with no feedback.
+    /// </summary>
+    public string? TimeText
+    {
+        get => DateValue is { } date ? date.ToString("HH:mm:ss", CultureInfo.InvariantCulture) : string.Empty;
+        set
+        {
+            if (!TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var time))
+            {
+                return;
+            }
+
+            Value = (DateValue?.Date ?? DateTime.Today) + time;
         }
     }
 
