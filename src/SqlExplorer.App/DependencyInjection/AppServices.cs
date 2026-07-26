@@ -2,6 +2,7 @@ using System.Reflection;
 using SqlExplorer.App.Localization;
 using SqlExplorer.App.ViewModels;
 using SqlExplorer.Core.Connections;
+using SqlExplorer.Core.Connections.Ssh;
 using SqlExplorer.Core.Security;
 using SqlExplorer.Core.Formatting;
 using SqlExplorer.Sdk.Formatting;
@@ -264,6 +265,9 @@ public static class AppServices
         services.AddSingleton<IOpenTabsStore>(new JsonOpenTabsStore());
         // Recently opened/saved .sql files for the File ▸ Recent menu (SE-154).
         services.AddSingleton<IRecentFilesStore>(new JsonRecentFilesStore());
+        // Owns the live SSH tunnels (SE-18). Singleton and registered before ConnectionService, which takes
+        // it as a constructor dependency; the container disposes it at shutdown, closing every tunnel.
+        services.AddSingleton<ISshTunnelManager, SshTunnelManager>();
         services.AddSingleton<ConnectionService>();
         services.AddSingleton<MasterPasswordService>();
 

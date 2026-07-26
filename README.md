@@ -60,6 +60,8 @@ dotnet run --project src/Desktop
   primary key (otherwise read-only, with the reason shown).
 - Connection management with **secure credential storage** (OS keychain via
   `ISecretStore`).
+- **SSH tunnelling** to reach a database behind a bastion: host-side, so every
+  provider gets it without knowing about it. Optional host-key pinning.
 - **Runtime language switch** NL ⇄ EN (resx + `ILocalizer`).
 
 ## Not yet (roadmap)

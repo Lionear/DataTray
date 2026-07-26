@@ -1,3 +1,5 @@
+using System.Globalization;
+using SqlExplorer.Core.Connections.Ssh;
 using SqlExplorer.Core.Providers;
 using SqlExplorer.Sdk;
 
@@ -5,7 +7,8 @@ namespace SqlExplorer.Core.Connections;
 
 /// <summary>
 /// Ties saved connections, the keychain and the providers together. Uses each provider's
-/// declared <see cref="ConnectionField"/>s to decide which values are secret (→ keychain) and
+/// declared <see cref="ConnectionField"/>s — plus the host's own SSH block, see
+/// <see cref="SshConnectionFields"/> — to decide which values are secret (→ keychain) and
 /// which are plain (→ config file), so the split is provider-driven, not hard-coded here.
 /// </summary>
 public sealed class ConnectionService
@@ -13,6 +16,7 @@ public sealed class ConnectionService
     private readonly IConnectionStore _store;
     private readonly ISecretStore _secrets;
     private readonly IDbProviderRegistry _providers;
+    private readonly ISshTunnelManager? _tunnels;
 
     // In-memory, session-only connections (SE-155): the full value set (incl. secrets) is held here and
     // never touches the config file or keychain; cleared by ClearTransient() at shutdown. Keyed by id.
@@ -20,11 +24,15 @@ public sealed class ConnectionService
 
     private sealed record TransientConnection(SavedConnection Connection, IReadOnlyDictionary<string, string?> Values);
 
-    public ConnectionService(IConnectionStore store, ISecretStore secrets, IDbProviderRegistry providers)
+    /// <param name="tunnels">Optional: without it a connection that asks for an SSH tunnel is refused rather
+    /// than quietly connected straight to the server. Tests that never tunnel can leave it out.</param>
+    public ConnectionService(
+        IConnectionStore store, ISecretStore secrets, IDbProviderRegistry providers, ISshTunnelManager? tunnels = null)
     {
         _store = store;
         _secrets = secrets;
         _providers = providers;
+        _tunnels = tunnels;
     }
 
     /// <summary>Raised after a connection is persisted via <see cref="Save"/>. The tree subscribes so a
@@ -56,7 +64,7 @@ public sealed class ConnectionService
         string? color = null, bool readOnly = false, string? folder = null,
         AiAccessMode aiAccess = AiAccessMode.None, bool excludeFromMcp = false, string? origin = null)
     {
-        var fields = _providers.Get(providerId).ConnectionFields;
+        var fields = FieldsFor(providerId);
         var secretKeys = fields.Where(f => f.IsSecret).Select(f => f.Key).ToHashSet();
 
         foreach (var field in fields.Where(f => f.IsSecret))
@@ -106,7 +114,7 @@ public sealed class ConnectionService
         string id, string name, string providerId, IReadOnlyDictionary<string, string?> values,
         string? folder = null, AiAccessMode aiAccess = AiAccessMode.None, string? origin = null)
     {
-        var fields = _providers.Get(providerId).ConnectionFields;
+        var fields = FieldsFor(providerId);
         var secretKeys = fields.Where(f => f.IsSecret).Select(f => f.Key).ToHashSet();
         var nonSecret = values.Where(kv => !secretKeys.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
 
@@ -195,7 +203,7 @@ public sealed class ConnectionService
         var connection = _store.GetAll().FirstOrDefault(c => c.Id == id);
         if (connection is not null)
         {
-            foreach (var field in _providers.Get(connection.ProviderId).ConnectionFields.Where(f => f.IsSecret))
+            foreach (var field in FieldsFor(connection.ProviderId).Where(f => f.IsSecret))
             {
                 _secrets.Delete(SecretKey(id, field.Key));
             }
@@ -219,15 +227,45 @@ public sealed class ConnectionService
     public IReadOnlyDictionary<string, string?> GetEditableValues(SavedConnection connection) =>
         WithSecrets(connection);
 
-    /// <summary>Build a profile from raw dialog values (used by Test, before anything is persisted).</summary>
+    /// <summary>Build a profile from raw dialog values (used by Test, before anything is persisted). When the
+    /// values ask for an SSH tunnel this is where it is opened, so Test exercises the same route a real
+    /// connection takes.</summary>
     public ConnectionProfile BuildProfile(
-        string name, string providerId, IReadOnlyDictionary<string, string?> values, string? database = null) =>
-        new()
+        string name, string providerId, IReadOnlyDictionary<string, string?> values, string? database = null)
+    {
+        var provider = _providers.Get(providerId);
+        return new()
         {
             Name = name,
-            ConnectionString = _providers.Get(providerId).BuildConnectionString(values),
+            ConnectionString = provider.BuildConnectionString(ThroughTunnel(provider, values)),
             Database = database
         };
+    }
+
+    /// <summary>Tear down the SSH tunnel this connection routes through, if any. Called when the user
+    /// disconnects: the tunnel outlives every individual query, so nothing else would ever close it.</summary>
+    public void CloseTunnel(SavedConnection connection)
+    {
+        if (_tunnels is null)
+        {
+            return;
+        }
+
+        // Deliberately the stored values rather than WithSecrets: closing a tunnel needs the route, not the
+        // credentials, and reading secrets here would hit the keychain (and a locked vault) for nothing.
+        var values = _transient.TryGetValue(connection.Id, out var transient)
+            ? transient.Values
+            : connection.Values;
+
+        if (SshTunnelSettings.From(values) is not { } settings ||
+            !_providers.TryGet(connection.ProviderId, out var provider) || provider is null ||
+            Target(provider, values) is not { } target)
+        {
+            return;
+        }
+
+        _tunnels.Close(settings, target.Host, target.Port);
+    }
 
     /// <summary>Every stored connection secret (connection id, field key, current value), read through the
     /// secret store. Used by the master-password flow to re-encrypt/decrypt all secrets in one pass; the
@@ -237,7 +275,7 @@ public sealed class ConnectionService
         var list = new List<ConnectionSecret>();
         foreach (var connection in _store.GetAll())
         {
-            foreach (var field in _providers.Get(connection.ProviderId).ConnectionFields.Where(f => f.IsSecret))
+            foreach (var field in FieldsFor(connection.ProviderId).Where(f => f.IsSecret))
             {
                 list.Add(new ConnectionSecret(connection.Id, field.Key, _secrets.Get(SecretKey(connection.Id, field.Key))));
             }
@@ -270,13 +308,75 @@ public sealed class ConnectionService
         }
 
         var values = new Dictionary<string, string?>(connection.Values);
-        foreach (var field in _providers.Get(connection.ProviderId).ConnectionFields.Where(f => f.IsSecret))
+        foreach (var field in FieldsFor(connection.ProviderId).Where(f => f.IsSecret))
         {
             values[field.Key] = _secrets.Get(SecretKey(connection.Id, field.Key));
         }
 
         return values;
     }
+
+    /// <summary>The provider's own fields plus the host's SSH block. Everything that classifies a value —
+    /// secret or not, keychain or config file — goes through here, so the SSH password and key passphrase are
+    /// treated exactly like a provider's password without any provider knowing they exist.</summary>
+    private IReadOnlyList<ConnectionField> FieldsFor(string providerId) =>
+        [.. _providers.Get(providerId).ConnectionFields, .. SshConnectionFields.All];
+
+    /// <summary>
+    /// The values a provider should actually build its connection string from: the host's <c>ssh.*</c> keys
+    /// removed, and — when a tunnel is configured — the server's host and port replaced by the local end of
+    /// that tunnel. Rewriting the values rather than the finished connection string is what keeps this
+    /// provider-agnostic: each provider re-derives its own syntax from the same keys.
+    /// </summary>
+    private Dictionary<string, string?> ThroughTunnel(IDbProvider provider, IReadOnlyDictionary<string, string?> values)
+    {
+        var effective = values
+            .Where(kv => !SshConnectionFields.IsSshKey(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        if (SshTunnelSettings.From(values) is not { } settings)
+        {
+            return effective;
+        }
+
+        if (_tunnels is null)
+        {
+            throw new InvalidOperationException("This connection asks for an SSH tunnel, but no tunnel service is available.");
+        }
+
+        if (Target(provider, values) is not { } target)
+        {
+            throw new InvalidOperationException(
+                "An SSH tunnel needs a server host and port to forward to, and this connection has neither.");
+        }
+
+        var endpoint = _tunnels.Open(settings, target.Host, target.Port);
+        effective[HostKeyOf(effective) ?? SshConnectionFields.TargetHostKeys[0]] = endpoint.Host;
+        effective[SshConnectionFields.TargetPortKey] = endpoint.Port.ToString(CultureInfo.InvariantCulture);
+        return effective;
+    }
+
+    /// <summary>The server the tunnel should forward to: the connection's own host and port, as they read
+    /// before the rewrite. The port falls back to the provider's declared default, so a form that leaves it
+    /// blank still tunnels to the right place.</summary>
+    private static (string Host, int Port)? Target(IDbProvider provider, IReadOnlyDictionary<string, string?> values)
+    {
+        if (HostKeyOf(values) is not { } hostKey || values[hostKey] is not { } host || string.IsNullOrWhiteSpace(host))
+        {
+            return null;
+        }
+
+        var port = values.TryGetValue(SshConnectionFields.TargetPortKey, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : provider.ConnectionFields.FirstOrDefault(f => f.Key == SshConnectionFields.TargetPortKey)?.Default;
+
+        return int.TryParse(port, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? (host.Trim(), parsed)
+            : null;
+    }
+
+    private static string? HostKeyOf(IReadOnlyDictionary<string, string?> values) =>
+        SshConnectionFields.TargetHostKeys.FirstOrDefault(values.ContainsKey);
 
     private static string SecretKey(string id, string field) => $"conn:{id}:{field}";
 }
