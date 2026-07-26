@@ -871,7 +871,20 @@ public partial class DocumentView : UserControl
             var picker = new CalendarDatePicker
             {
                 BorderThickness = new Thickness(0),
-                VerticalAlignment = VerticalAlignment.Center
+                Background = Brushes.Transparent,
+                // The default template is sized for a form, not a dense grid row: without stretching it
+                // and flattening the padding, the picker's own box gets squeezed and the calendar button
+                // clips against the row.
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(8, 0, 0, 0),
+                Margin = new Thickness(0)
+                // Note: the picker shows the machine's short date format, which is ambiguous ("3/4/2026").
+                // Avalonia 12.0.5's CalendarDatePicker has no custom-format property — CalendarDatePickerFormat
+                // has a Custom member but there is no format string to go with it — so pinning this to ISO
+                // means replacing the control, not configuring it.
             };
             picker.Bind(CalendarDatePicker.SelectedDateProperty, new Binding($"Cells[{index}].DateValue")
             {
