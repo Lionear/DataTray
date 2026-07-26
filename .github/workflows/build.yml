@@ -472,7 +472,19 @@ jobs:
                 # A PR, not a direct push: when develop has advanced the cherry-pick conflicts, and the PR
                 # is where that gets resolved. Best-effort — never fail an already-published release.
                 SYNC_BRANCH="chore/changelog-roll-$VERSION"
-                if git fetch origin develop && git checkout -B "$SYNC_BRANCH" origin/develop; then
+                if ! git ls-remote --exit-code --heads origin develop >/dev/null 2>&1; then
+                  # develop is gone. Merging the release PR with "delete branch" deletes the
+                  # integration branch itself, which is how 0.5.0 lost it (SE-200). Nothing can be
+                  # lost in that state — main's head is the roll on top of everything develop held —
+                  # so recreate it there rather than only warn: that is what the sync PR would have
+                  # produced anyway. Only safe because the branch is *absent*; never force a branch
+                  # that exists.
+                  if git push origin "$ROLL_SHA:refs/heads/develop"; then
+                    echo "::warning::develop was missing (deleted by the release merge?) and has been recreated at the changelog roll ($ROLL_SHA)"
+                  else
+                    echo "::warning::develop is missing and could not be recreated; branch it off main by hand"
+                  fi
+                elif git fetch origin develop && git checkout -B "$SYNC_BRANCH" origin/develop; then
                   if git cherry-pick -x "$ROLL_SHA"; then
                     if git push -f origin "$SYNC_BRANCH"; then
                       gh pr create --base develop --head "$SYNC_BRANCH" \
