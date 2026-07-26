@@ -70,13 +70,18 @@ def fragments(folder: Path) -> tuple[dict[str, list[str]], list[Path], list[str]
 
 
 def split_changelog(text: str) -> tuple[str, str, str]:
-    """The changelog around its [Unreleased] body: (before, unreleased body, after).
+    r"""The changelog around its [Unreleased] body: (before, unreleased body, after).
 
     Anchored to the start of a line: the file's own header explains the convention and contains the
     literal `## [Unreleased]` in prose, so a plain substring search matches that first and splits the
     file in the wrong place.
+
+    Trailing whitespace is matched as `[ \t]*`, not `\s*`: `\s` includes newlines, so under MULTILINE
+    the greedy match ran past the end of the heading line and swallowed the blank line after it. That
+    line ended up in `before`, while render() starts its body with a blank line of its own — one extra
+    blank line per render, growing with every release.
     """
-    heading = re.search(rf"^{re.escape(UNRELEASED)}\s*$", text, flags=re.MULTILINE)
+    heading = re.search(rf"^{re.escape(UNRELEASED)}[ \t]*$", text, flags=re.MULTILINE)
     if heading is None:
         raise ValueError(f"no '{UNRELEASED}' heading")
 
