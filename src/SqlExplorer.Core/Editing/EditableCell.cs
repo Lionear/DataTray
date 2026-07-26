@@ -46,6 +46,7 @@ public sealed class EditableCell : INotifyPropertyChanged
             OnPropertyChanged(nameof(BoolValue));
             OnPropertyChanged(nameof(DateValue));
             OnPropertyChanged(nameof(DateText));
+            OnPropertyChanged(nameof(TimeText));
             OnPropertyChanged(nameof(IsModified));
             _row.NotifyCellEdited();
         }
@@ -162,6 +163,26 @@ public sealed class EditableCell : INotifyPropertyChanged
             Value = DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
                 ? parsed
                 : value;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for the time half of a date editor (<c>HH:mm:ss</c>). A calendar only picks
+    /// a date, so this is where the time of a timestamp is edited. Text that isn't a time yet is ignored
+    /// rather than written, so typing through "1", "13", "13:" doesn't rewrite the cell three times.
+    /// Setting a time on a NULL cell dates it today — otherwise the input would vanish with no feedback.
+    /// </summary>
+    public string? TimeText
+    {
+        get => DateValue is { } date ? date.ToString("HH:mm:ss", CultureInfo.InvariantCulture) : string.Empty;
+        set
+        {
+            if (!TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var time))
+            {
+                return;
+            }
+
+            Value = (DateValue?.Date ?? DateTime.Today) + time;
         }
     }
 

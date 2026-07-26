@@ -153,4 +153,33 @@ public class TypeAwareCellEditorTests
         // Kept, not discarded: the save reports it, the same way a bad date did before typed editors.
         Assert.Equal("not a date", row[0]);
     }
+
+    [Fact]
+    public void TimeText_ReadsTheTimeHalf()
+    {
+        var row = EditableRow.Existing([new DateTime(2026, 3, 4, 13, 45, 30)]);
+
+        Assert.Equal("13:45:30", row.Cells[0].TimeText);
+    }
+
+    [Fact]
+    public void TimeText_Set_KeepsTheDate()
+    {
+        var row = EditableRow.Existing([new DateTime(2026, 3, 4, 13, 45, 30)]);
+
+        row.Cells[0].TimeText = "08:00:00";
+
+        Assert.Equal(new DateTime(2026, 3, 4, 8, 0, 0), row[0]);
+    }
+
+    [Fact]
+    public void TimeText_PartialInput_IsIgnored()
+    {
+        var row = EditableRow.Existing([new DateTime(2026, 3, 4, 13, 45, 30)]);
+
+        // Typing "13:45:30" passes through "1", "13", "13:" — none of those may rewrite the cell.
+        row.Cells[0].TimeText = "13:";
+
+        Assert.Equal(new DateTime(2026, 3, 4, 13, 45, 30), row[0]);
+    }
 }

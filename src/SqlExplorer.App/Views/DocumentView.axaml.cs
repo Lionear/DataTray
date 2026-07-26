@@ -869,7 +869,7 @@ public partial class DocumentView : UserControl
     // property to go with it. So: an ISO text box you can type in or clear, with a calendar button beside
     // it. Both halves bind to the same cell, so they stay in step, and clearing the text is NULL.
     private static IDataTemplate BuildDateEditingTemplate(int index) =>
-        new FuncDataTemplate<EditableRow>((_, _) =>
+        new FuncDataTemplate<EditableRow>((row, _) =>
         {
             var box = new TextBox
             {
@@ -880,7 +880,14 @@ public partial class DocumentView : UserControl
             };
             box.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].DateText") { Mode = BindingMode.TwoWay });
 
-            var calendar = new Calendar();
+            var calendar = new Calendar
+            {
+                // A flyout's content is not a child of the cell, so it does not inherit the row as its
+                // DataContext — without this the bindings below silently find nothing and the calendar
+                // opens on today instead of the cell's date.
+                DataContext = row,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
             calendar.Bind(Calendar.SelectedDateProperty, new Binding($"Cells[{index}].DateValue")
             {
                 Mode = BindingMode.TwoWay
@@ -897,6 +904,41 @@ public partial class DocumentView : UserControl
             glyph[!Avalonia.Controls.Shapes.Shape.StrokeProperty] =
                 new DynamicResourceExtension("SETextSecondaryBrush");
 
+            // The time half: a calendar picks a date and nothing else, so a timestamp column needs its own
+            // field or the time is only reachable by typing it into the ISO box.
+            var timeBox = new TextBox
+            {
+                DataContext = row,
+                Width = 90,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(8, 4)
+            };
+            timeBox.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].TimeText") { Mode = BindingMode.TwoWay });
+
+            var timeLabel = new TextBlock
+            {
+                Text = "Time",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0),
+                [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SETextSecondaryBrush")
+            };
+
+            var timeRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children = { timeLabel, timeBox }
+            };
+
+            var flyoutContent = new Border
+            {
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(10),
+                [!Border.BackgroundProperty] = new DynamicResourceExtension("SEPanelBgBrush"),
+                [!Border.BorderBrushProperty] = new DynamicResourceExtension("SEHairlineBrush"),
+                Child = new StackPanel { Children = { calendar, timeRow } }
+            };
+
             var button = new Button
             {
                 Content = glyph,
@@ -905,8 +947,21 @@ public partial class DocumentView : UserControl
                 Padding = new Thickness(6, 0),
                 VerticalAlignment = VerticalAlignment.Stretch,
                 Cursor = new Cursor(StandardCursorType.Hand),
-                Flyout = new Flyout { Content = calendar, Placement = PlacementMode.BottomEdgeAlignedLeft }
+                Flyout = new Flyout
+                {
+                    Content = flyoutContent,
+                    Placement = PlacementMode.BottomEdgeAlignedLeft,
+                    ShowMode = FlyoutShowMode.Standard
+                }
             };
+
+            // Open on the cell's month rather than the current one — and re-read it every time, since the
+            // value may have changed since the template was built.
+            if (button.Flyout is Flyout flyout)
+            {
+                flyout.Opening += (_, _) =>
+                    calendar.DisplayDate = row.Cells[index].DateValue ?? DateTime.Today;
+            }
 
             var panel = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(button, Dock.Right);
