@@ -43,6 +43,8 @@ public sealed class EditableCell : INotifyPropertyChanged
 
             OnPropertyChanged();
             OnPropertyChanged(nameof(EditText));
+            OnPropertyChanged(nameof(BoolValue));
+            OnPropertyChanged(nameof(DateValue));
             OnPropertyChanged(nameof(IsModified));
             _row.NotifyCellEdited();
         }
@@ -74,6 +76,63 @@ public sealed class EditableCell : INotifyPropertyChanged
             }
 
             Value = value;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for a checkbox editor on a boolean column: the value as a nullable bool,
+    /// where null is SQL NULL. Clearing a three-state checkbox therefore sets NULL deliberately rather
+    /// than falling back to false — on a nullable column those are different rows.
+    /// </summary>
+    public bool? BoolValue
+    {
+        get => _value switch
+        {
+            null => null,
+            bool b => b,
+            string s when bool.TryParse(s, out var parsed) => parsed,
+            // Numeric booleans: SQLite has no bool type, MySQL's is tinyint(1).
+            string s when int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) => n != 0,
+            IConvertible c => System.Convert.ToInt64(c, CultureInfo.InvariantCulture) != 0,
+            _ => null
+        };
+        set
+        {
+            if (value is null)
+            {
+                SetNull();
+                return;
+            }
+
+            Value = value.Value;
+        }
+    }
+
+    /// <summary>
+    /// Two-way binding target for a date-picker editor: the value as a nullable date, where null is SQL
+    /// NULL. Picking a date keeps the cell's existing time of day — a picker only edits the date half,
+    /// and a datetime column would otherwise silently lose its time.
+    /// </summary>
+    public DateTime? DateValue
+    {
+        get => _value switch
+        {
+            null => null,
+            DateTime d => d,
+            DateTimeOffset o => o.DateTime,
+            string s when DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
+            _ => null
+        };
+        set
+        {
+            if (value is null)
+            {
+                SetNull();
+                return;
+            }
+
+            var time = DateValue?.TimeOfDay ?? TimeSpan.Zero;
+            Value = value.Value.Date + time;
         }
     }
 

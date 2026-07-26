@@ -737,7 +737,7 @@ public partial class DocumentView : UserControl
                 IsReadOnly = column.IsReadOnly,
                 CanUserSort = sortable,
                 CellTemplate = BuildCellTemplate(i, mayHaveActions),
-                CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i)
+                CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i, column)
             };
 
             // The Tag carries the base column name the server-side ORDER BY needs.
@@ -814,8 +814,24 @@ public partial class DocumentView : UserControl
         return button;
     }
 
-    private static IDataTemplate BuildCellEditingTemplate(int index) =>
-        new FuncDataTemplate<EditableRow>((_, _) =>
+    // The editor matches the column's type (SE-30): a checkbox for booleans, a date picker for dates,
+    // a text box for everything else. Every editor writes through EditableCell, so SE-29's rule — an
+    // empty editor over a NULL cell leaves the NULL alone — holds for all of them.
+    private static IDataTemplate BuildCellEditingTemplate(int index, ResultColumn column)
+    {
+        var type = Nullable.GetUnderlyingType(column.ClrType) ?? column.ClrType;
+
+        if (type == typeof(bool))
+        {
+            return BuildBoolEditingTemplate(index, column.AllowDbNull);
+        }
+
+        if (type == typeof(DateTime) || type == typeof(DateTimeOffset))
+        {
+            return BuildDateEditingTemplate(index);
+        }
+
+        return new FuncDataTemplate<EditableRow>((_, _) =>
         {
             var box = new TextBox
             {
@@ -826,5 +842,41 @@ public partial class DocumentView : UserControl
             // tabbing through a NULL can't quietly turn it into an empty string (SE-29).
             box.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].EditText") { Mode = BindingMode.TwoWay });
             return box;
+        });
+    }
+
+    private static IDataTemplate BuildBoolEditingTemplate(int index, bool nullable) =>
+        new FuncDataTemplate<EditableRow>((_, _) =>
+        {
+            // A checkbox has two states, a nullable boolean has three. Only a column that accepts NULL
+            // gets the indeterminate state, so a NOT NULL column can't be left in a state it can't store.
+            var box = new CheckBox
+            {
+                IsThreeState = nullable,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            box.Bind(CheckBox.IsCheckedProperty, new Binding($"Cells[{index}].BoolValue")
+            {
+                Mode = BindingMode.TwoWay
+            });
+            return box;
+        });
+
+    private static IDataTemplate BuildDateEditingTemplate(int index) =>
+        new FuncDataTemplate<EditableRow>((_, _) =>
+        {
+            // CalendarDatePicker, not DatePicker: it keeps a text box you can clear, which is how a date
+            // cell is set back to NULL. The cell's time of day survives the pick (see EditableCell).
+            var picker = new CalendarDatePicker
+            {
+                BorderThickness = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            picker.Bind(CalendarDatePicker.SelectedDateProperty, new Binding($"Cells[{index}].DateValue")
+            {
+                Mode = BindingMode.TwoWay
+            });
+            return picker;
         });
 }
