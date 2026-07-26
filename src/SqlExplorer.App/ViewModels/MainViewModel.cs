@@ -517,9 +517,28 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        foreach (var entry in _history.Search(HistorySearch).Take(200))
+        var rows = _history.Search(HistorySearch)
+            .Take(200)
+            .Select(e => HistoryRow.ForEntry(e, _favoriteQueries.FindBySql(e.Sql) is not null))
+            .ToList();
+
+        // A starred query stays in the list even when history no longer holds it — after Clear, or once it
+        // has rolled out of the ring buffer. Starring it is the promise that it sticks around; hiding it
+        // behind the filter toggle would break that promise at exactly the moment it matters.
+        var known = rows.Select(r => r.Sql.Trim()).ToHashSet(StringComparer.Ordinal);
+        var orphans = _favoriteQueries.GetAll()
+            .Where(f => !known.Contains(f.Sql.Trim()))
+            .Where(f => string.IsNullOrWhiteSpace(HistorySearch)
+                        || f.Sql.Contains(HistorySearch, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var favorite in orphans)
         {
-            HistoryEntries.Add(HistoryRow.ForEntry(entry, _favoriteQueries.FindBySql(entry.Sql) is not null));
+            HistoryEntries.Add(HistoryRow.ForFavorite(favorite));
+        }
+
+        foreach (var row in rows)
+        {
+            HistoryEntries.Add(row);
         }
     }
 

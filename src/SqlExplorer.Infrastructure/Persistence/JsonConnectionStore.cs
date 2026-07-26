@@ -152,6 +152,7 @@ public sealed class JsonConnectionStore : IConnectionStore
         ExcludeFromMcp = dto.ExcludeFromMcp,
         Values = dto.Values ?? new Dictionary<string, string?>(),
         SortOrder = dto.SortOrder,
+        Favorite = dto.Favorite,
         Origin = dto.Origin
     };
 
@@ -167,6 +168,7 @@ public sealed class JsonConnectionStore : IConnectionStore
         ExcludeFromMcp = connection.ExcludeFromMcp,
         Values = connection.Values.ToDictionary(kv => kv.Key, kv => kv.Value),
         SortOrder = connection.SortOrder,
+        Favorite = connection.Favorite,
         Origin = connection.Origin
     };
 
@@ -203,6 +205,10 @@ public sealed class JsonConnectionStore : IConnectionStore
         public bool ExcludeFromMcp { get; init; }
         public Dictionary<string, string?>? Values { get; init; }
         public int SortOrder { get; init; }
+
+        /// <summary>Starred for the tree's Favorites section (SE-31). Absent = false, so files written
+        /// before it load unchanged.</summary>
+        public bool Favorite { get; init; }
 
         /// <summary>The plugin that created this connection (SE-164), or null for a user connection.
         /// Persisted so the "Managed" badge and origin-scoped IManagedConnections survive a restart.</summary>
