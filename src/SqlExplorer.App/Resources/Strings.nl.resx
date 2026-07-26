@@ -1131,6 +1131,12 @@
   <data name="Favorites" xml:space="preserve">
     <value>Favorieten</value>
   </data>
+  <data name="KeepFavoritesInTheirFolder" xml:space="preserve">
+    <value>Favorieten ook in hun map tonen</value>
+  </data>
+  <data name="KeepFavoritesInTheirFolderHint" xml:space="preserve">
+    <value>Aan: een connectie met ster staat zowel onder Favorieten als in z'n eigen map. Uit: hij verhuist naar Favorieten en staat alleen daar.</value>
+  </data>
   <data name="AddToFavorites" xml:space="preserve">
     <value>Aan favorieten toevoegen</value>
   </data>

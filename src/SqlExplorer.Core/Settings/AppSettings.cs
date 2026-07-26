@@ -88,6 +88,11 @@ public sealed class AppSettings
     /// are shown in the schema tree.</summary>
     public bool ShowSystemDatabases { get; set; }
 
+    /// <summary>Whether a starred connection also stays visible in its own folder (SE-31). On (default) the
+    /// Favorites section is a shortcut list and the connection appears twice; off moves it, so it shows up
+    /// only under Favorites and its folder keeps the rest.</summary>
+    public bool KeepFavoritesInTheirFolder { get; set; } = true;
+
     /// <summary>Whether closing the app asks for confirmation first. Cleared when the user ticks
     /// "always close without asking" in the exit dialog.</summary>
     public bool ConfirmOnExit { get; set; } = true;

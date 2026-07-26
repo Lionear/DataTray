@@ -1131,6 +1131,12 @@
   <data name="Favorites" xml:space="preserve">
     <value>Favorites</value>
   </data>
+  <data name="KeepFavoritesInTheirFolder" xml:space="preserve">
+    <value>Keep favorites in their folder too</value>
+  </data>
+  <data name="KeepFavoritesInTheirFolderHint" xml:space="preserve">
+    <value>On: a starred connection appears both under Favorites and in its own folder. Off: it moves to Favorites and is shown only there.</value>
+  </data>
   <data name="AddToFavorites" xml:space="preserve">
     <value>Add to favorites</value>
   </data>

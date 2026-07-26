@@ -442,6 +442,9 @@ public partial class SettingsViewModel : ViewModelBase
     private bool _showSystemDatabases;
 
     [ObservableProperty]
+    private bool _keepFavoritesInTheirFolder;
+
+    [ObservableProperty]
     private bool _confirmOnExit;
 
     [ObservableProperty]
@@ -959,6 +962,7 @@ public partial class SettingsViewModel : ViewModelBase
         SelectedUpdateIntervalMinutes = settings.UpdateCheckIntervalMinutes;
         UpdateCheckStatus = null;
         ShowSystemDatabases = settings.ShowSystemDatabases;
+        KeepFavoritesInTheirFolder = settings.KeepFavoritesInTheirFolder;
         SingleBottomPanel = settings.SingleBottomPanel;
         ConfirmOnExit = settings.ConfirmOnExit;
         CloseToTray = settings.CloseToTray;
@@ -1123,6 +1127,7 @@ public partial class SettingsViewModel : ViewModelBase
         CheckForUpdatesOnStartup = defaults.CheckForUpdatesOnStartup;
         SelectedUpdateIntervalMinutes = defaults.UpdateCheckIntervalMinutes;
         ShowSystemDatabases = defaults.ShowSystemDatabases;
+        KeepFavoritesInTheirFolder = defaults.KeepFavoritesInTheirFolder;
         SingleBottomPanel = defaults.SingleBottomPanel;
         ConfirmOnExit = defaults.ConfirmOnExit;
         CloseToTray = defaults.CloseToTray;
@@ -1198,6 +1203,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.CheckForUpdatesOnStartup = CheckForUpdatesOnStartup;
         settings.UpdateCheckIntervalMinutes = SelectedUpdateIntervalMinutes;
         settings.ShowSystemDatabases = ShowSystemDatabases;
+        settings.KeepFavoritesInTheirFolder = KeepFavoritesInTheirFolder;
         settings.SingleBottomPanel = SingleBottomPanel;
         settings.ConfirmOnExit = ConfirmOnExit;
         settings.CloseToTray = CloseToTray;
