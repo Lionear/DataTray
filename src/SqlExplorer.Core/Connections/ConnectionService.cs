@@ -166,6 +166,16 @@ public sealed class ConnectionService
         return updated;
     }
 
+    /// <summary>Star or unstar a connection for the tree's Favorites section (SE-31). Edits the stored
+    /// record in place, like <see cref="SetFolder"/> — the full <see cref="Save"/> path re-derives secrets
+    /// and could wipe a password while the vault is locked (SE-174).</summary>
+    public SavedConnection SetFavorite(SavedConnection connection, bool favorite)
+    {
+        var updated = connection with { Favorite = favorite };
+        _store.Save(updated);
+        return updated;
+    }
+
     /// <summary>
     /// Update only the AI-access metadata (the tree's "AI access" submenu, SE-158) without rewriting field
     /// values or touching the keychain. The full <see cref="Save"/> path re-derives secrets from the passed

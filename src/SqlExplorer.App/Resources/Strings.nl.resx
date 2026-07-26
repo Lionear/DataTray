@@ -1128,6 +1128,15 @@
   <data name="SetNull" xml:space="preserve">
     <value>NULL instellen</value>
   </data>
+  <data name="Favorites" xml:space="preserve">
+    <value>Favorieten</value>
+  </data>
+  <data name="AddToFavorites" xml:space="preserve">
+    <value>Aan favorieten toevoegen</value>
+  </data>
+  <data name="RemoveFromFavorites" xml:space="preserve">
+    <value>Uit favorieten verwijderen</value>
+  </data>
   <data name="SetEmpty" xml:space="preserve">
     <value>Lege tekst instellen</value>
   </data>

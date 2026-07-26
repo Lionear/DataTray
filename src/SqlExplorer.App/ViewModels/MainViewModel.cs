@@ -1114,11 +1114,79 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Every connection root, whether at the tree root or nested inside folders.</summary>
     private IEnumerable<TreeNodeViewModel> AllConnectionNodes() => FlattenConnections(ConnectionNodes);
 
+    // --- Favorites section (SE-31) ---
+
+    /// <summary>
+    /// Rebuild the Favorites section at the top of the tree from the starred connections. It is a view:
+    /// its nodes are separate <see cref="TreeNodeViewModel"/> instances over the same
+    /// <see cref="SavedConnection"/>, so expanding one there connects independently of the copy in its
+    /// folder. Rebuilt wholesale rather than patched — it holds no state worth preserving, and every path
+    /// that changes a connection already ends up here.
+    /// </summary>
+    private void RebuildFavoritesSection()
+    {
+        var existing = ConnectionNodes.FirstOrDefault(n => n.IsFavoritesSection);
+        var favorites = AllConnectionNodes()
+            .Where(n => n.Connection.Favorite)
+            .Select(n => n.Connection)
+            .OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (favorites.Count == 0)
+        {
+            if (existing is not null)
+            {
+                ConnectionNodes.Remove(existing);
+            }
+
+            return;
+        }
+
+        var section = existing ?? TreeNodeViewModel.ForFavoritesSection(Loc["Favorites"]);
+        section.Children.Clear();
+        foreach (var connection in favorites)
+        {
+            section.Children.Add(BuildConnectionNode(connection));
+        }
+
+        if (existing is null)
+        {
+            ConnectionNodes.Insert(0, section);
+        }
+    }
+
+    /// <summary>Star or unstar the selected connection, then refresh the Favorites section.</summary>
+    [RelayCommand]
+    private void ToggleFavorite()
+    {
+        if (SelectedNode is not { IsConnectionNode: true } node || node.Connection.IsTransient)
+        {
+            return;
+        }
+
+        var saved = _connections.SetFavorite(node.Connection, !node.Connection.Favorite);
+
+        // The node in the real folder carries the flag; the section is a view rebuilt from it. When the
+        // click came from inside the section, that copy is not the canonical one — find the real node.
+        var canonical = FindConnectionNode(saved.Id);
+        canonical?.UpdateConnection(saved);
+        node.UpdateConnection(saved);
+        RebuildFavoritesSection();
+    }
+
     // Recurse into folder nodes only; a connection root's own children are schema nodes, not connections.
     private static IEnumerable<TreeNodeViewModel> FlattenConnections(IEnumerable<TreeNodeViewModel> nodes)
     {
         foreach (var node in nodes)
         {
+            // The Favorites section holds a second view of connections that already live in a folder
+            // (SE-31). Skipping it keeps "one node per connection" true for every caller — find, rename,
+            // remove and the Connection Manager reconcile all target the node in its real place.
+            if (node.IsFavoritesSection)
+            {
+                continue;
+            }
+
             if (node.IsFolder)
             {
                 foreach (var nested in FlattenConnections(node.Children))
@@ -1247,12 +1315,14 @@ public partial class MainViewModel : ViewModelBase
     {
         var folderOrder = _connections.ListFolderOrder();
         SortScope(ConnectionNodes, folderOrder);
+        RebuildFavoritesSection();
     }
 
     private static void SortScope(ObservableCollection<TreeNodeViewModel> children, IReadOnlyDictionary<string, int> folderOrder)
     {
         var desired = children
-            .OrderBy(n => ManualSlot(n, folderOrder))
+            .OrderBy(n => n.IsFavoritesSection ? 0 : 1) // the Favorites view stays pinned to the top
+            .ThenBy(n => ManualSlot(n, folderOrder))
             .ThenBy(n => n.IsFolder ? 0 : 1) // fallback tie: folders above connections
             .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();

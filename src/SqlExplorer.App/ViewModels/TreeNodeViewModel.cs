@@ -91,6 +91,21 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// full /-joined path to this folder (e.g. "Klanten/Klant A"); nested folders live in <see cref="Children"/>.</summary>
     public static TreeNodeViewModel ForFolder(string name, string fullPath) => new(name, fullPath, NodeIcons.Folder);
 
+    /// <summary>
+    /// The Favorites section at the top of the tree (SE-31): a folder-shaped node holding a second view of
+    /// the starred connections. It is not a real folder — nothing is stored under it, and the connection
+    /// traversal skips it so every "find/update/remove this connection" path keeps seeing exactly one node
+    /// per connection, the one in its actual folder.
+    /// </summary>
+    public static TreeNodeViewModel ForFavoritesSection(string title) =>
+        new(title, FavoritesPath, NodeIcons.Star) { IsFavoritesSection = true };
+
+    /// <summary>Sentinel path of the Favorites section; not a folder anyone can save into.</summary>
+    public const string FavoritesPath = "::favorites";
+
+    /// <summary>True for the Favorites section node — a view, not a folder (see <see cref="ForFavoritesSection"/>).</summary>
+    public bool IsFavoritesSection { get; private init; }
+
     /// <summary>True for a folder grouping node (not a connection, not a database object).</summary>
     public bool IsFolder { get; }
 
@@ -151,6 +166,15 @@ public partial class TreeNodeViewModel : ViewModelBase
 
     /// <summary>True for an in-memory, session-only connection (SE-155) — drives a "Temporary" tree badge.</summary>
     public bool IsTransientConnection => IsConnectionNode && Connection.IsTransient;
+
+    /// <summary>Starred for the tree's Favorites section (SE-31).</summary>
+    public bool IsFavoriteConnection => IsConnectionNode && Connection.Favorite;
+
+    /// <summary>The two halves of the context menu's favorites item: one entry each, so the menu names the
+    /// action it will perform. A transient connection is session-only, so starring it would outlive it.</summary>
+    public bool CanAddToFavorites => IsConnectionNode && !Connection.IsTransient && !Connection.Favorite;
+
+    public bool CanRemoveFromFavorites => IsConnectionNode && !Connection.IsTransient && Connection.Favorite;
 
     /// <summary>True when this connection is reachable by the MCP server — opted in (AiAccess ≠ None) and not
     /// hard-excluded (SE-158). Drives an "AI" tree badge with the access level as its tooltip.</summary>
@@ -328,6 +352,9 @@ public partial class TreeNodeViewModel : ViewModelBase
         // shows on the existing node without rebuilding it — which would move it and drop its live state.
         OnPropertyChanged(nameof(IsManagedConnection));
         OnPropertyChanged(nameof(IsTransientConnection));
+        OnPropertyChanged(nameof(IsFavoriteConnection));
+        OnPropertyChanged(nameof(CanAddToFavorites));
+        OnPropertyChanged(nameof(CanRemoveFromFavorites));
         OnPropertyChanged(nameof(IsAiReachable));
         OnPropertyChanged(nameof(AiAccessLabel));
         OnPropertyChanged(nameof(CanSetAiAccess));

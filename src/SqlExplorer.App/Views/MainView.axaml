@@ -294,6 +294,12 @@
                           IsVisible="{Binding SelectedNode.IsConnectionNode, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[Delete]}" Command="{Binding DeleteConnectionCommand}"
                           IsVisible="{Binding SelectedNode.IsConnectionNode, FallbackValue=False}" />
+                <!-- Favorites (SE-31): one item that flips label with the connection's own flag, so the
+                     menu says what the click will do instead of showing both directions. -->
+                <MenuItem Header="{Binding Loc[AddToFavorites]}" Command="{Binding ToggleFavoriteCommand}"
+                          IsVisible="{Binding SelectedNode.CanAddToFavorites, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[RemoveFromFavorites]}" Command="{Binding ToggleFavoriteCommand}"
+                          IsVisible="{Binding SelectedNode.CanRemoveFromFavorites, FallbackValue=False}" />
                 <!-- Quick AI (MCP) access on a connection root (SE-158): set the level or exclude it, without
                      opening the Connection Manager. Hidden for transient MCP connections (AI-managed). -->
                 <MenuItem Header="{Binding Loc[AiAccess]}"

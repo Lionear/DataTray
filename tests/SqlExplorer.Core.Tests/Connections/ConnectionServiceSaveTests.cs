@@ -62,4 +62,28 @@ public class ConnectionServiceSaveTests
 
         Assert.False(secrets.Secrets.ContainsKey("conn:c1:password"));
     }
+
+    [Fact] // SE-31: starring is metadata-only, like SetAiAccess — it must not disturb values or the secret.
+    public void SetFavorite_stars_without_touching_values_or_secret()
+    {
+        var (service, secrets) = NewService();
+        var saved = service.Save("c1", "Conn", "fake", Values("myhost", password: "pw"));
+
+        var starred = service.SetFavorite(saved, favorite: true);
+
+        Assert.True(starred.Favorite);
+        Assert.Equal("myhost", starred.Values["host"]);
+        Assert.Equal("pw", secrets.Secrets["conn:c1:password"]);
+    }
+
+    [Fact] // SE-31: unstarring is the same path back.
+    public void SetFavorite_unstars_again()
+    {
+        var (service, _) = NewService();
+        var saved = service.Save("c1", "Conn", "fake", Values("myhost"));
+
+        var unstarred = service.SetFavorite(service.SetFavorite(saved, true), false);
+
+        Assert.False(unstarred.Favorite);
+    }
 }
