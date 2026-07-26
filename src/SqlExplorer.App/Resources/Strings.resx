@@ -1131,6 +1131,9 @@
   <data name="Favorites" xml:space="preserve">
     <value>Favorites</value>
   </data>
+  <data name="ShowFavoriteQueriesOnly" xml:space="preserve">
+    <value>Show starred queries only</value>
+  </data>
   <data name="KeepFavoritesInTheirFolder" xml:space="preserve">
     <value>Keep favorites in their folder too</value>
   </data>

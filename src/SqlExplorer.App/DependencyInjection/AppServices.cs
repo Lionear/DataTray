@@ -255,6 +255,7 @@ public static class AppServices
 
         // Query history (searchable, re-runnable) beside connections.json.
         services.AddSingleton<IQueryHistoryStore>(new JsonQueryHistoryStore());
+        services.AddSingleton<IFavoriteQueryStore>(new JsonFavoriteQueryStore());
         // Opt-in query log (audit): append-only JSONL, policy applied at startup / on settings save.
         services.AddSingleton<IQueryLog>(new JsonlQueryLogStore());
         services.AddTransient<QueryLogViewModel>();

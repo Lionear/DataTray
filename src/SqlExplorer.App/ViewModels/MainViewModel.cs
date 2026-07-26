@@ -42,6 +42,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly ISqlFormatter _formatter;
     private readonly ConnectionService _connections;
     private readonly IQueryHistoryStore _history;
+    private readonly IFavoriteQueryStore _favoriteQueries;
     private readonly IQueryLog _queryLog;
     private readonly Func<QueryLogViewModel> _queryLogFactory;
     private readonly Func<AboutViewModel> _aboutFactory;
@@ -86,6 +87,7 @@ public partial class MainViewModel : ViewModelBase
         ISqlFormatter formatter,
         ConnectionService connections,
         IQueryHistoryStore history,
+        IFavoriteQueryStore favoriteQueries,
         IQueryLog queryLog,
         Func<QueryLogViewModel> queryLogFactory,
         Func<AboutViewModel> aboutFactory,
@@ -113,6 +115,7 @@ public partial class MainViewModel : ViewModelBase
         _formatter = formatter;
         _connections = connections;
         _history = history;
+        _favoriteQueries = favoriteQueries;
         _queryLog = queryLog;
         _queryLogFactory = queryLogFactory;
         _aboutFactory = aboutFactory;
@@ -159,6 +162,7 @@ public partial class MainViewModel : ViewModelBase
         // Plugin panels (SE-164) are appended to ToolWindows/SubsystemPanels after startup activation.
 
         _history.Changed += OnHistoryChanged;
+        _favoriteQueries.Changed += OnHistoryChanged;
         _connections.Saved += OnConnectionSavedExternally;
         _connections.Removed += OnConnectionRemovedExternally;
         RefreshConnections();
@@ -303,7 +307,35 @@ public partial class MainViewModel : ViewModelBase
         SubsystemConnectionMenuItems.Add(new SubsystemConnectionMenuItem(title, appliesTo, invoke));
 
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
-    public ObservableCollection<QueryHistoryEntry> HistoryEntries { get; } = [];
+    public ObservableCollection<HistoryRow> HistoryEntries { get; } = [];
+
+    /// <summary>Show only starred queries instead of the history (SE-31). Favorites live in their own
+    /// store, so this list survives Clear history and the ring buffer rolling over.</summary>
+    [ObservableProperty]
+    private bool _showFavoriteQueriesOnly;
+
+    partial void OnShowFavoriteQueriesOnlyChanged(bool value) => RefreshHistory();
+
+    /// <summary>Star or unstar a history row's SQL.</summary>
+    [RelayCommand]
+    private void ToggleQueryFavorite(HistoryRow? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        if (_favoriteQueries.FindBySql(row.Sql) is { } existing)
+        {
+            _favoriteQueries.Remove(existing.Id);
+            row.IsFavorite = false;
+        }
+        else
+        {
+            _favoriteQueries.Add(row.Sql, row.ConnectionName);
+            row.IsFavorite = true;
+        }
+    }
 
     [RelayCommand]
     private void ToggleHistory()
@@ -431,14 +463,14 @@ public partial class MainViewModel : ViewModelBase
     // Re-run a history entry: drop its SQL into a fresh query tab on its own connection (or the current
     // one if that connection is gone).
     [RelayCommand]
-    private void OpenHistoryEntry(QueryHistoryEntry? entry)
+    private void OpenHistoryEntry(HistoryRow? row)
     {
-        if (entry is null)
+        if (row is null)
         {
             return;
         }
 
-        var connection = _connections.List().FirstOrDefault(c => c.Id == entry.ConnectionId)
+        var connection = _connections.List().FirstOrDefault(c => c.Id == row.Entry?.ConnectionId)
             ?? SelectedConnection
             ?? _connections.List().FirstOrDefault();
         if (connection is null)
@@ -448,7 +480,7 @@ public partial class MainViewModel : ViewModelBase
 
         var document = NewDocument();
         document.InitQuery(connection);
-        document.Sql = entry.Sql;
+        document.Sql = row.Sql;
         AddDocument(document);
     }
 
@@ -471,9 +503,42 @@ public partial class MainViewModel : ViewModelBase
     private void RefreshHistory()
     {
         HistoryEntries.Clear();
-        foreach (var entry in _history.Search(HistorySearch).Take(200))
+
+        if (ShowFavoriteQueriesOnly)
         {
-            HistoryEntries.Add(entry);
+            var matches = _favoriteQueries.GetAll()
+                .Where(f => string.IsNullOrWhiteSpace(HistorySearch)
+                            || f.Sql.Contains(HistorySearch, StringComparison.OrdinalIgnoreCase));
+            foreach (var favorite in matches)
+            {
+                HistoryEntries.Add(HistoryRow.ForFavorite(favorite));
+            }
+
+            return;
+        }
+
+        var rows = _history.Search(HistorySearch)
+            .Take(200)
+            .Select(e => HistoryRow.ForEntry(e, _favoriteQueries.FindBySql(e.Sql) is not null))
+            .ToList();
+
+        // A starred query stays in the list even when history no longer holds it — after Clear, or once it
+        // has rolled out of the ring buffer. Starring it is the promise that it sticks around; hiding it
+        // behind the filter toggle would break that promise at exactly the moment it matters.
+        var known = rows.Select(r => r.Sql.Trim()).ToHashSet(StringComparer.Ordinal);
+        var orphans = _favoriteQueries.GetAll()
+            .Where(f => !known.Contains(f.Sql.Trim()))
+            .Where(f => string.IsNullOrWhiteSpace(HistorySearch)
+                        || f.Sql.Contains(HistorySearch, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var favorite in orphans)
+        {
+            HistoryEntries.Add(HistoryRow.ForFavorite(favorite));
+        }
+
+        foreach (var row in rows)
+        {
+            HistoryEntries.Add(row);
         }
     }
 

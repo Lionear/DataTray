@@ -1131,6 +1131,9 @@
   <data name="Favorites" xml:space="preserve">
     <value>Favorieten</value>
   </data>
+  <data name="ShowFavoriteQueriesOnly" xml:space="preserve">
+    <value>Alleen queries met ster tonen</value>
+  </data>
   <data name="KeepFavoritesInTheirFolder" xml:space="preserve">
     <value>Favorieten ook in hun map tonen</value>
   </data>

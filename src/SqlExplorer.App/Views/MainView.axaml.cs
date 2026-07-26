@@ -425,10 +425,10 @@ public partial class MainView : UserControl
     // Double-click a history row: re-run its SQL in a new query tab.
     private void OnHistoryDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is ListBox { SelectedItem: QueryHistoryEntry entry }
-            && _viewModel?.OpenHistoryEntryCommand.CanExecute(entry) == true)
+        if (sender is ListBox { SelectedItem: HistoryRow row }
+            && _viewModel?.OpenHistoryEntryCommand.CanExecute(row) == true)
         {
-            _viewModel.OpenHistoryEntryCommand.Execute(entry);
+            _viewModel.OpenHistoryEntryCommand.Execute(row);
         }
     }
 

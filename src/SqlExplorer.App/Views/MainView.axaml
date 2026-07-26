@@ -537,8 +537,18 @@
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,8,8,6">
             <TextBlock Grid.Column="0" Text="{Binding Loc[History]}" FontWeight="SemiBold" FontSize="12"
                        Foreground="{DynamicResource SETextSecondaryBrush}" VerticalAlignment="Center" />
-            <Button Grid.Column="1" Classes="Subtle" Padding="8,2"
-                    Content="{Binding Loc[ClearHistory]}" Command="{Binding ClearHistoryCommand}" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+              <!-- Not Classes="Subtle": Avalonia type selectors are exact, so a Button.Subtle style
+                   never reaches a ToggleButton. Styled inline instead of adding a one-use style. -->
+              <ToggleButton Padding="6,2" Background="Transparent" BorderThickness="0"
+                            IsChecked="{Binding ShowFavoriteQueriesOnly}"
+                            ToolTip.Tip="{Binding Loc[ShowFavoriteQueriesOnly]}">
+                <Path Width="12" Height="12" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Star}"
+                      Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="2" />
+              </ToggleButton>
+              <Button Classes="Subtle" Padding="8,2"
+                      Content="{Binding Loc[ClearHistory]}" Command="{Binding ClearHistoryCommand}" />
+            </StackPanel>
           </Grid>
           <TextBox Grid.Row="1" Margin="10,0,10,6" Text="{Binding HistorySearch}"
                    PlaceholderText="{Binding Loc[SearchHistory]}" />
@@ -547,18 +557,30 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <StackPanel Spacing="1" Margin="0,2">
-                  <Grid ColumnDefinitions="Auto,*">
+                  <Grid ColumnDefinitions="Auto,Auto,*">
                     <!-- AI badge: this entry was run by an AI client over MCP. -->
                     <Border Grid.Column="0" Margin="0,0,6,0" VerticalAlignment="Center"
                             Background="#223574F0" CornerRadius="4" Padding="4,0"
                             IsVisible="{Binding Source, Converter={x:Static cvt:EqualsConverter.Instance}, ConverterParameter=Ai}">
                       <TextBlock Text="AI" FontSize="9" FontWeight="SemiBold" Foreground="{DynamicResource SEAccentBrush}" />
                     </Border>
-                    <TextBlock Grid.Column="1" Text="{Binding Sql}" TextWrapping="Wrap" MaxLines="2"
+                    <!-- Star this query (SE-31): kept in its own store, so it survives Clear history.
+                         No type cast in the command path: that binding is parsed at runtime, where the
+                         XAML's vm: prefix no longer resolves — with a cast it crashed the panel outright. -->
+                    <Button Grid.Column="1" Classes="Subtle" Padding="4,0" Margin="0,0,4,0"
+                            VerticalAlignment="Center"
+                            Command="{Binding $parent[ListBox].DataContext.ToggleQueryFavoriteCommand}"
+                            CommandParameter="{Binding}">
+                      <Path Width="11" Height="11" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Star}"
+                            Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="2"
+                            Fill="{Binding IsFavorite, Converter={x:Static cvt:FavoriteStarFillConverter.Instance}}" />
+                    </Button>
+                    <TextBlock Grid.Column="2" Text="{Binding Sql}" TextWrapping="Wrap" MaxLines="2"
                                TextTrimming="CharacterEllipsis" FontSize="12"
                                FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
                   </Grid>
-                  <TextBlock FontSize="10" Foreground="{DynamicResource SETextFaintBrush}">
+                  <TextBlock FontSize="10" Foreground="{DynamicResource SETextFaintBrush}"
+                             IsVisible="{Binding HasStats}">
                     <TextBlock.Text>
                       <MultiBinding StringFormat="{}{0} · {1} rows · {2} ms">
                         <Binding Path="ConnectionName" />
