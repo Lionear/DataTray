@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.0] - 2026-07-26
+
 ### Added
 
 - **Schema Diff now reads secondary indexes and supports SQLite.** A migration includes the `CREATE INDEX` /
@@ -28,6 +32,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Tools can own their whole dialog** — a tool plugin's own view may now render the run's progress and result
   itself (stepped checklist with per-step detail and progress, and its own footer buttons) instead of the
   generic checklist and action bar. Copy Table is the first tool to use it; every other tool is unchanged.
+- **Switching to a release channel that's behind you now says so, and offers the switch.** Moving from Nightly
+  to Stable while Stable is on an older version used to do nothing visible: an update notification never
+  offers a lower version — correctly — so there was no signal and no way through. Picking such a channel now
+  asks outright, naming both versions, and "Switch & downgrade" queues that build for install. Automatic
+  update checks still never present an older build as an update.
+- **Generate Scripts (store-only tool plugin) — script a whole database as `CREATE` statements.** Right-click a
+  database or a connection and get every table as DDL, optionally with its indexes and foreign keys, and
+  optionally preceded by `DROP TABLE`. The script opens in a query tab, or is written to a `.sql` file for
+  checking into a repository. Foreign keys are emitted after every table exists and drops run in reverse, so
+  the file runs top to bottom; tables come out in a stable order, so re-running produces the same file.
+  Postgres, MySQL, SQL Server and SQLite.
+
+### Changed
+
+- **Changelog entries are now written as fragments** under `changelog.d/`, one file per change, instead
+  of appending to `CHANGELOG.md` directly. Nothing changes about the released changelog — the release
+  folds the fragments into it — but two branches can no longer collide on the same line while both are
+  in flight. See `changelog.d/README.md`.
 
 ### Fixed
 
@@ -300,7 +322,8 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Lionear/SqlExplorer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Lionear/SqlExplorer/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Lionear/SqlExplorer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Lionear/SqlExplorer/releases/tag/v0.2.0
