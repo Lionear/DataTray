@@ -36,11 +36,58 @@ public sealed class EditableCell : INotifyPropertyChanged
             }
 
             _value = value;
+            if (value is not null)
+            {
+                IsExplicitNull = false;
+            }
+
             OnPropertyChanged();
+            OnPropertyChanged(nameof(EditText));
             OnPropertyChanged(nameof(IsModified));
             _row.NotifyCellEdited();
         }
     }
+
+    /// <summary>
+    /// True when this cell was deliberately set to NULL rather than never filled in. Only meaningful on
+    /// an added row: an INSERT leaves unset columns to the database (defaults, auto-increment keys), but
+    /// a column the user pointed at and set to NULL has to be written as an explicit NULL — otherwise a
+    /// column with a DEFAULT silently gets the default instead of the NULL that was asked for.
+    /// </summary>
+    public bool IsExplicitNull { get; private set; }
+
+    /// <summary>
+    /// Two-way binding target for the grid's cell editor: the value as text, with one rule — empty text
+    /// over a NULL cell leaves the NULL alone. Opening a NULL cell's editor and leaving it must not
+    /// silently rewrite the NULL to an empty string, and the editor cannot tell "the user cleared this"
+    /// from "the editor handed back what it was given". Writing an empty string into a NULL cell is
+    /// therefore a deliberate action (<see cref="SetEmpty"/>), not something tabbing through can do.
+    /// </summary>
+    public string? EditText
+    {
+        get => _value is null ? string.Empty : Convert.ToString(_value, CultureInfo.InvariantCulture);
+        set
+        {
+            if (string.IsNullOrEmpty(value) && _value is null)
+            {
+                return;
+            }
+
+            Value = value;
+        }
+    }
+
+    /// <summary>Set this cell to NULL deliberately — see <see cref="IsExplicitNull"/>.</summary>
+    public void SetNull()
+    {
+        // Set the flag first: assigning null to an already-null cell short-circuits in the setter, and an
+        // added row's cells start out null, which is exactly the case the flag exists for.
+        IsExplicitNull = true;
+        Value = null;
+    }
+
+    /// <summary>Set this cell to an empty string — the counterpart to <see cref="SetNull"/>.</summary>
+    public void SetEmpty() => Value = string.Empty;
 
     /// <summary>True when this cell of an existing row differs from its loaded value.</summary>
     public bool IsModified => _row.State != RowState.Added && !SameValue(_value, Original);

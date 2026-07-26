@@ -197,6 +197,8 @@
             <Separator IsVisible="{Binding IsMonitorMode}" />
             <MenuItem Header="{Binding Loc[SetNull]}" Click="OnSetNullClick"
                       IsVisible="{Binding IsResultEditable}" />
+            <MenuItem Header="{Binding Loc[SetEmpty]}" Click="OnSetEmptyClick"
+                      IsVisible="{Binding IsResultEditable}" />
             <MenuItem Header="{Binding Loc[GenerateGuid]}" IsVisible="{Binding IsResultEditable}">
               <MenuItem Header="{Binding Loc[GuidV4]}" Click="OnGridGuidV4Click" />
               <MenuItem Header="{Binding Loc[GuidV7]}" Click="OnGridGuidV7Click" />

@@ -245,7 +245,15 @@ public partial class DocumentView : UserControl
     }
 
     // Set the last-clicked column of each selected row to SQL NULL (a pending edit until Save).
-    private void OnSetNullClick(object? sender, RoutedEventArgs e)
+    private void OnSetNullClick(object? sender, RoutedEventArgs e) =>
+        SetCellsInSelection(cell => cell.SetNull());
+
+    // The counterpart to Set NULL: an empty string is a value, and on a NULL cell the editor alone cannot
+    // express it — empty text there deliberately leaves the NULL alone (SE-29).
+    private void OnSetEmptyClick(object? sender, RoutedEventArgs e) =>
+        SetCellsInSelection(cell => cell.SetEmpty());
+
+    private void SetCellsInSelection(Action<EditableCell> apply)
     {
         if (_viewModel is not { IsResultEditable: true } || _resultsGrid is null)
         {
@@ -261,7 +269,10 @@ public partial class DocumentView : UserControl
 
         foreach (var row in rows)
         {
-            row[_currentColumnIndex] = null;
+            if (_currentColumnIndex >= 0 && _currentColumnIndex < row.Cells.Count)
+            {
+                apply(row.Cells[_currentColumnIndex]);
+            }
         }
     }
 
@@ -811,7 +822,9 @@ public partial class DocumentView : UserControl
                 BorderThickness = new Thickness(0),
                 VerticalContentAlignment = VerticalAlignment.Center
             };
-            box.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].Value") { Mode = BindingMode.TwoWay });
+            // EditText, not Value: it keeps a NULL cell NULL when the editor hands back empty text, so
+            // tabbing through a NULL can't quietly turn it into an empty string (SE-29).
+            box.Bind(TextBox.TextProperty, new Binding($"Cells[{index}].EditText") { Mode = BindingMode.TwoWay });
             return box;
         });
 }
