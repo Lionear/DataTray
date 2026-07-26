@@ -561,10 +561,12 @@
                             IsVisible="{Binding Source, Converter={x:Static cvt:EqualsConverter.Instance}, ConverterParameter=Ai}">
                       <TextBlock Text="AI" FontSize="9" FontWeight="SemiBold" Foreground="{DynamicResource SEAccentBrush}" />
                     </Border>
-                    <!-- Star this query (SE-31): kept in its own store, so it survives Clear history. -->
+                    <!-- Star this query (SE-31): kept in its own store, so it survives Clear history.
+                         No type cast in the command path: that binding is parsed at runtime, where the
+                         XAML's vm: prefix no longer resolves — with a cast it crashed the panel outright. -->
                     <Button Grid.Column="1" Classes="Subtle" Padding="4,0" Margin="0,0,4,0"
                             VerticalAlignment="Center"
-                            Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ToggleQueryFavoriteCommand}"
+                            Command="{Binding $parent[ListBox].DataContext.ToggleQueryFavoriteCommand}"
                             CommandParameter="{Binding}">
                       <Path Width="11" Height="11" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Star}"
                             Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="2"
