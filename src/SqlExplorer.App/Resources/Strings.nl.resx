@@ -1128,6 +1128,9 @@
   <data name="SetNull" xml:space="preserve">
     <value>NULL instellen</value>
   </data>
+  <data name="SetEmpty" xml:space="preserve">
+    <value>Lege tekst instellen</value>
+  </data>
   <data name="ConfirmDeleteConnection" xml:space="preserve">
     <value>Connectie "{0}" verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
   </data>

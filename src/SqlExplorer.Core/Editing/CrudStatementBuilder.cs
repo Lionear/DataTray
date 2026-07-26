@@ -63,8 +63,10 @@ public static class CrudStatementBuilder
         foreach (var i in writable)
         {
             var value = Coerce(row.CurrentAt(i), columns[i].ClrType);
-            // Leave unset columns (e.g. auto-increment keys, defaulted columns) to the database.
-            if (value is null)
+            // Leave unset columns (e.g. auto-increment keys, defaulted columns) to the database — but a
+            // cell the user deliberately set to NULL is a value, not an omission: a column with a DEFAULT
+            // would otherwise silently get the default instead of the NULL that was asked for.
+            if (value is null && !row.Cells[i].IsExplicitNull)
             {
                 continue;
             }

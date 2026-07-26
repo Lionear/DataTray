@@ -49,8 +49,10 @@ public static class ChangeSetBuilder
 
     private static RowChange BuildAdded(EditableRow row, IReadOnlyList<ResultColumn> columns, int[] writable)
     {
+        // Same rule as the SQL builder: an unset cell is left to the provider's own defaults, but a cell
+        // deliberately set to NULL is written as one.
         var cells = writable
-            .Where(i => row.CurrentAt(i) is not null)
+            .Where(i => row.CurrentAt(i) is not null || row.Cells[i].IsExplicitNull)
             .Select(i => new CellChange(ColumnName(columns[i]), row.CurrentAt(i)))
             .ToList();
         return new RowChange(RowChangeKind.Added, new Dictionary<string, object?>(), cells);

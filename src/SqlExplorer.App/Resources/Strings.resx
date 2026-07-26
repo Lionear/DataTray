@@ -1128,6 +1128,9 @@
   <data name="SetNull" xml:space="preserve">
     <value>Set NULL</value>
   </data>
+  <data name="SetEmpty" xml:space="preserve">
+    <value>Set empty</value>
+  </data>
   <data name="ConfirmDeleteConnection" xml:space="preserve">
     <value>Delete the connection "{0}"? This cannot be undone.</value>
   </data>
