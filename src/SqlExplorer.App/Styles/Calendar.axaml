@@ -35,6 +35,10 @@
     <SolidColorBrush x:Key="CalendarViewSelectedPressedBorderBrush" Color="Transparent" />
     <SolidColorBrush x:Key="CalendarViewHoverBorderBrush" Color="Transparent" />
     <SolidColorBrush x:Key="CalendarViewPressedBorderBrush" Color="Transparent" />
+    <!-- Fluent sizes the calendar for touch: 20pt day numbers in 40x40 cells. In a grid cell's flyout that
+         dwarfs everything around it, so the type drops to the app's own reading size and the cells with it. -->
+    <x:Double x:Key="CalendarFontSize">15</x:Double>
+    <x:Double x:Key="CalendarDayButtonFontSize">14</x:Double>
   </Styles.Resources>
 
   <!-- Chrome: the flyout is the frame. -->
@@ -46,6 +50,12 @@
   <Style Selector="CalendarItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <!-- Fluent floors the layout at its own touch metrics (294 wide, a 290-high month grid). Left in place,
+       smaller cells would just leave a band of dead space instead of a smaller calendar. -->
+  <Style Selector="CalendarItem /template/ Grid">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
   </Style>
 
   <!-- Month/year header and the two navigation arrows: chromeless like Button.Subtle. Without this they
@@ -62,6 +72,10 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="4" />
     <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+    <!-- The header row is what sets the calendar's width: Fluent's 42x40 arrows made it wider than the day
+         grid needs, so the grid stretched to match. At arrow size the day grid decides again. -->
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
   </Style>
   <Style Selector="Button#PART_HeaderButton:pointerover /template/ ContentPresenter, Button#PART_PreviousButton:pointerover /template/ ContentPresenter, Button#PART_NextButton:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
@@ -76,12 +90,13 @@
 
   <!-- Day-of-week row (Su, Mo, …): a label, not data. Scoped to the direct children of the month grid so
        it cannot reach the day numbers, which live one level deeper inside the day buttons. -->
+  <!-- Size is not settable here: CalendarItem stamps these with CalendarDayButtonFontSize as a local value,
+       which no style can beat. Colour is all this rule can (and needs to) do. -->
   <Style Selector="CalendarItem Grid#PART_MonthView > TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
-    <Setter Property="FontSize" Value="11" />
   </Style>
 
-  <!-- Cells: rounded, unfilled by default. -->
+  <!-- Cells: rounded, unfilled. -->
   <Style Selector="CalendarDayButton /template/ Border#Root, CalendarButton /template/ Border#Root">
     <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
   </Style>

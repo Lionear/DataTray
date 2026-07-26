@@ -929,6 +929,17 @@ public partial class DocumentView : UserControl
                 Children = { timeLabel, timeBox }
             };
 
+            // Fluent floors the calendar's layout at its touch metrics (294 wide, a 290-high month grid)
+            // from inside the control template, where Template priority puts it out of a stylesheet's
+            // reach — so smaller cells would only buy a band of dead space, not a smaller calendar. A
+            // layout transform is the lever that is left: it scales the measured layout, so the flyout
+            // lands at a size that suits a grid cell, and the text stays vector-crisp (SE-201).
+            var scaledCalendar = new LayoutTransformControl
+            {
+                LayoutTransform = new ScaleTransform(0.85, 0.85),
+                Child = calendar
+            };
+
             var flyoutContent = new Border
             {
                 BorderThickness = new Thickness(1),
@@ -936,7 +947,7 @@ public partial class DocumentView : UserControl
                 Padding = new Thickness(10),
                 [!Border.BackgroundProperty] = new DynamicResourceExtension("SEPanelBgBrush"),
                 [!Border.BorderBrushProperty] = new DynamicResourceExtension("SEHairlineBrush"),
-                Child = new StackPanel { Children = { calendar, timeRow } }
+                Child = new StackPanel { Children = { scaledCalendar, timeRow } }
             };
 
             var button = new Button
