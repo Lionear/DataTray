@@ -57,4 +57,9 @@ public sealed record SavedConnection
     /// <summary>Manual sort index within this connection's folder scope; 0 for legacy/unsorted (falls back
     /// to alphabetical by <see cref="Name"/>). Assigned by the Connection Manager's drag-to-reorder flow.</summary>
     public int SortOrder { get; init; }
+
+    /// <summary>Starred for quick access: the connection also appears in the tree's Favorites section, on
+    /// top of its normal place under <see cref="Folder"/>. Absent = false, so existing configs load
+    /// unchanged. Purely a view — the connection itself is stored once (SE-31).</summary>
+    public bool Favorite { get; init; }
 }

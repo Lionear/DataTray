@@ -20,6 +20,7 @@ public static class NodeIcons
     public static readonly Geometry Database = Icons.Database;
     public static readonly Geometry Schema = Icons.Box;
     public static readonly Geometry Folder = Icons.Folder;
+    public static readonly Geometry Star = Icons.Star;
     public static readonly Geometry Table = Icons.Table;
     public static readonly Geometry View = Icons.Eye;
     public static readonly Geometry Column = Icons.RectangleVertical;

@@ -1112,16 +1112,133 @@ public partial class MainViewModel : ViewModelBase
     // original FR-6 shape) still work — they're just a one-deep path. ---
 
     /// <summary>Every connection root, whether at the tree root or nested inside folders.</summary>
-    private IEnumerable<TreeNodeViewModel> AllConnectionNodes() => FlattenConnections(ConnectionNodes);
+    private IEnumerable<TreeNodeViewModel> AllConnectionNodes() =>
+        // Which nodes are canonical depends on the mode: shortcut mode duplicates a favorite into the
+        // section (skip it — the node in the folder is the real one), move mode relocates the node itself
+        // (walk into it — that IS the real one). Getting this wrong would make rename/remove miss.
+        FlattenConnections(ConnectionNodes, includeFavoritesSection: !KeepFavoritesInTheirFolder);
+
+    private bool KeepFavoritesInTheirFolder => _settingsStore.Load().KeepFavoritesInTheirFolder;
+
+    // --- Favorites section (SE-31) ---
+
+    /// <summary>
+    /// Rebuild the Favorites section at the top of the tree from the starred connections. It is a view:
+    /// its nodes are separate <see cref="TreeNodeViewModel"/> instances over the same
+    /// <see cref="SavedConnection"/>, so expanding one there connects independently of the copy in its
+    /// folder. Rebuilt wholesale rather than patched — it holds no state worth preserving, and every path
+    /// that changes a connection already ends up here.
+    /// </summary>
+    private void RebuildFavoritesSection()
+    {
+        var keepInFolder = KeepFavoritesInTheirFolder;
+
+        // Switching the setting changes which nodes are canonical, so the tree is rebuilt from scratch
+        // rather than migrated — anything else would leave duplicates behind or strand a moved node.
+        if (_favoritesKeepInFolderApplied is { } applied && applied != keepInFolder)
+        {
+            _favoritesKeepInFolderApplied = keepInFolder;
+            RefreshConnections();
+            return;
+        }
+
+        _favoritesKeepInFolderApplied = keepInFolder;
+
+        var existing = ConnectionNodes.FirstOrDefault(n => n.IsFavoritesSection);
+        var favorites = AllConnectionNodes()
+            .Where(n => n.Connection.Favorite)
+            .OrderBy(n => n.Connection.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (favorites.Count == 0)
+        {
+            if (existing is not null)
+            {
+                // Move mode may have left nodes parked in the section — put them back before dropping it.
+                foreach (var node in existing.Children.ToList())
+                {
+                    existing.Children.Remove(node);
+                    PlaceConnectionNode(node);
+                }
+
+                ConnectionNodes.Remove(existing);
+            }
+
+            return;
+        }
+
+        var section = existing ?? TreeNodeViewModel.ForFavoritesSection(Loc["Favorites"]);
+
+        if (keepInFolder)
+        {
+            // Shortcut list: the section gets its own nodes over the same connections, and the originals
+            // stay where they are.
+            section.Children.Clear();
+            foreach (var node in favorites)
+            {
+                section.Children.Add(BuildConnectionNode(node.Connection));
+            }
+        }
+        else
+        {
+            // Move: the node itself relocates, so an open connection and its loaded subtree survive
+            // starring — and unstarring puts that same node back in its folder.
+            foreach (var node in section.Children.Where(n => !n.Connection.Favorite).ToList())
+            {
+                section.Children.Remove(node);
+                PlaceConnectionNode(node);
+            }
+
+            foreach (var node in favorites.Where(n => !section.Children.Contains(n)))
+            {
+                DetachConnectionNode(node);
+                section.Children.Add(node);
+            }
+        }
+
+        if (existing is null)
+        {
+            ConnectionNodes.Insert(0, section);
+        }
+    }
+
+    // Null until the first rebuild: only a *change* of the setting forces a full tree rebuild.
+    private bool? _favoritesKeepInFolderApplied;
+
+    /// <summary>Star or unstar the selected connection, then refresh the Favorites section.</summary>
+    [RelayCommand]
+    private void ToggleFavorite()
+    {
+        if (SelectedNode is not { IsConnectionNode: true } node || node.Connection.IsTransient)
+        {
+            return;
+        }
+
+        var saved = _connections.SetFavorite(node.Connection, !node.Connection.Favorite);
+
+        // The node in the real folder carries the flag; the section is a view rebuilt from it. When the
+        // click came from inside the section, that copy is not the canonical one — find the real node.
+        var canonical = FindConnectionNode(saved.Id);
+        canonical?.UpdateConnection(saved);
+        node.UpdateConnection(saved);
+        RebuildFavoritesSection();
+    }
 
     // Recurse into folder nodes only; a connection root's own children are schema nodes, not connections.
-    private static IEnumerable<TreeNodeViewModel> FlattenConnections(IEnumerable<TreeNodeViewModel> nodes)
+    private static IEnumerable<TreeNodeViewModel> FlattenConnections(
+        IEnumerable<TreeNodeViewModel> nodes,
+        bool includeFavoritesSection)
     {
         foreach (var node in nodes)
         {
-            if (node.IsFolder)
+            if (node.IsFavoritesSection && !includeFavoritesSection)
             {
-                foreach (var nested in FlattenConnections(node.Children))
+                continue;
+            }
+
+            if (node.IsFolder || node.IsFavoritesSection)
+            {
+                foreach (var nested in FlattenConnections(node.Children, includeFavoritesSection))
                 {
                     yield return nested;
                 }
@@ -1247,12 +1364,14 @@ public partial class MainViewModel : ViewModelBase
     {
         var folderOrder = _connections.ListFolderOrder();
         SortScope(ConnectionNodes, folderOrder);
+        RebuildFavoritesSection();
     }
 
     private static void SortScope(ObservableCollection<TreeNodeViewModel> children, IReadOnlyDictionary<string, int> folderOrder)
     {
         var desired = children
-            .OrderBy(n => ManualSlot(n, folderOrder))
+            .OrderBy(n => n.IsFavoritesSection ? 0 : 1) // the Favorites view stays pinned to the top
+            .ThenBy(n => ManualSlot(n, folderOrder))
             .ThenBy(n => n.IsFolder ? 0 : 1) // fallback tie: folders above connections
             .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
