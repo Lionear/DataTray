@@ -7,5 +7,7 @@
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <!-- Lionear tokens + control styling; last so it overrides the Fluent defaults above. -->
     <StyleInclude Source="avares://SqlExplorer.App/Styles/Theme.axaml" />
+    <!-- After Theme.axaml: the calendar's header buttons have to beat the generic Button style there. -->
+    <StyleInclude Source="avares://SqlExplorer.App/Styles/Calendar.axaml" />
   </Application.Styles>
 </Application>
