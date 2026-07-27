@@ -1,4 +1,4 @@
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// <see cref="IContainerRegistryStore"/> backed by the host's plugin-scoped storage seam

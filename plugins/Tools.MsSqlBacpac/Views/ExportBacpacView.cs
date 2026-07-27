@@ -3,10 +3,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
-using SqlExplorer.Sdk.Query;
-using SqlExplorer.Sdk.Ui;
+using DataTray.Sdk.Query;
+using DataTray.Sdk.Ui;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Route-B view for <see cref="ExportBacpacTool"/>: a pre-filled <c>.bacpac</c> destination and a

@@ -5,7 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// The Containers panel (SE-164 panel + background seams): a live table of the app-managed containers with

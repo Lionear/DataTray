@@ -2,7 +2,7 @@ using System.Globalization;
 using System.IO;
 using Microsoft.SqlServer.Dac;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Reads the always-available header of a <c>.bacpac</c>/<c>.dacpac</c> so the Import/Publish dialogs can

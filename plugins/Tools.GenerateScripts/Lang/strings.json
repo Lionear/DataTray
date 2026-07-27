@@ -9,7 +9,7 @@
   "gen.error.unsupported": "Generate Scripts doesn't support the '{0}' engine yet (Postgres, MySQL, SQL Server and SQLite).",
   "gen.progress.reading": "Reading the schema of {0}…",
   "gen.progress.scripted": "Scripted {0} table(s).",
-  "gen.script.header": "-- Schema of {0} — {1} table(s), scripted by SQL Explorer.\n-- Review before running: this creates objects and does not check whether they already exist.",
+  "gen.script.header": "-- Schema of {0} — {1} table(s), scripted by DataTray.\n-- Review before running: this creates objects and does not check whether they already exist.",
   "gen.result.empty": "{0} has no tables to script.",
   "gen.result.opened": "Opened a script for {0} table(s) from {1} in a query tab.",
   "gen.result.written": "Wrote {0} table(s) to {1}.",

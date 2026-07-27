@@ -1,4 +1,4 @@
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// One container the app created and now manages, as persisted in the registry (<c>containers.json</c>, via

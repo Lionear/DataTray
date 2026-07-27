@@ -3,11 +3,11 @@ using System.Text.RegularExpressions;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Driver;
-using SqlExplorer.Sdk;
-using SqlExplorer.Sdk.Editing;
-using SqlExplorer.Sdk.Provisioning;
+using DataTray.Sdk;
+using DataTray.Sdk.Editing;
+using DataTray.Sdk.Provisioning;
 
-namespace SqlExplorer.Providers.MongoDb;
+namespace DataTray.Providers.MongoDb;
 
 /// <summary>
 /// A MongoDB provider. Mongo is a document store, not a SQL engine, so this maps its world onto the

@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk;
+using DataTray.Sdk;
 
-namespace SqlExplorer.Providers.Elasticsearch;
+namespace DataTray.Providers.Elasticsearch;
 
 /// <summary>
 /// Elasticsearch has no SQL dialect — this exists only to satisfy the <see cref="IDbProvider.Dialect"/>

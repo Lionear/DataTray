@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace SqlExplorer.Plugins.Schema;
+namespace DataTray.Plugins.Schema;
 
 /// <summary>
 /// The per-engine SQL differences the writer needs: how identifiers are quoted, and how a column is

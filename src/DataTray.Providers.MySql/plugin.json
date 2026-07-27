@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "mysql",
+  "type": "provider",
+  "name": "MySQL / MariaDB",
+  "version": "0.3.0",
+  "hostApiVersion": 27,
+  "entryAssembly": "DataTray.Providers.MySql.dll"
+}

@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using SqlExplorer.Sdk;
-using SqlExplorer.Sdk.Settings;
-using SqlExplorer.Sdk.Shortcuts;
+using DataTray.Sdk;
+using DataTray.Sdk.Settings;
+using DataTray.Sdk.Shortcuts;
 
-namespace SqlExplorer.Providers.Template;
+namespace DataTray.Providers.Template;
 
 /// <summary>
 /// A reference / example provider. It does not talk to any database — its purpose is to be a readable

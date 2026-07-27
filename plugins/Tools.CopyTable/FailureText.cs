@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.CopyTable;
+namespace DataTray.Tools.CopyTable;
 
 /// <summary>
 /// Turns an engine's failure message into something a banner can show. Kept out of the view so it can be

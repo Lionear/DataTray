@@ -1,11 +1,11 @@
-# Writing Plugins for SQL Explorer
+# Writing Plugins for DataTray
 
 This document explains the plugin system: what a plugin is, how it is loaded,
 and how to build one.
 
 ## Overview
 
-SQL Explorer ships **no database drivers in the host binaries**. Every
+DataTray ships **no database drivers in the host binaries**. Every
 database engine (PostgreSQL, MySQL, SQL Server, SQLite, ...) is a separate
 plugin, discovered at startup and loaded in its own isolated
 `AssemblyLoadContext`. This keeps the host provider-agnostic and lets each
@@ -37,7 +37,7 @@ All of these are documented in
 [Optional capabilities](plugins/capabilities.md).
 
 All plugin contracts live in the single public SDK assembly
-`SqlExplorer.Sdk` (`src/Sdk`, namespace `SqlExplorer.Sdk.*`) —
+`DataTray.Sdk` (`src/Sdk`, namespace `DataTray.Sdk.*`) —
 the only assembly a plugin references from this repository.
 
 ## Guides

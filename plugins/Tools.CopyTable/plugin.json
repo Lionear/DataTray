@@ -5,6 +5,6 @@
   "name": "Copy Table",
   "version": "0.2.0",
   "hostApiVersion": 5,
-  "entryAssembly": "SqlExplorer.Tools.CopyTable.dll",
+  "entryAssembly": "DataTray.Tools.CopyTable.dll",
   "localization": "Lang/strings"
 }

@@ -3,9 +3,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
-using SqlExplorer.Sdk.Ui;
+using DataTray.Sdk.Ui;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Route-B view for <see cref="PublishDacpacTool"/>: a <c>.dacpac</c> picker with an inline header, a

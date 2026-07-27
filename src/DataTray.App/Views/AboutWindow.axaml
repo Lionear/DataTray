@@ -1,0 +1,164 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DataTray.App.ViewModels"
+        x:Class="DataTray.App.Views.AboutWindow"
+        x:DataType="vm:AboutViewModel"
+        Title="{Binding Loc[About]}"
+        Width="520" SizeToContent="Height" MaxHeight="760"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  <Window.Styles>
+    <Style Selector="Border.Card">
+      <Setter Property="Background" Value="{DynamicResource SEPanelBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="12" />
+    </Style>
+    <!-- Link-styled buttons: text only, accent on hover. Not real hyperlinks — they open a browser. -->
+    <Style Selector="Button.Link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource SEAccentBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.Link:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SEAccentHoverBrush}" />
+    </Style>
+    <!-- System-card values: monospace so versions line up under each other. -->
+    <Style Selector="TextBlock.Mono">
+      <Setter Property="FontFamily" Value="Cascadia Code,Consolas,Menlo,monospace" />
+      <Setter Property="FontSize" Value="11.5" />
+    </Style>
+  </Window.Styles>
+
+  <StackPanel Margin="20" Spacing="14">
+
+    <!-- ===== Hero: identity at a glance ===== -->
+    <StackPanel Orientation="Horizontal" Spacing="14">
+      <!-- The real app icon (same asset as the window/tray icon), not a stand-in glyph. -->
+      <Image Width="52" Height="52" RenderOptions.BitmapInterpolationMode="HighQuality"
+             Source="avares://DataTray.App/Assets/icon.png" />
+      <StackPanel VerticalAlignment="Center" Spacing="4">
+        <TextBlock Text="{Binding Loc[AboutText]}" FontSize="17" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding VersionLine}" FontSize="12"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="·" Foreground="{DynamicResource SETextFaintBrush}" VerticalAlignment="Center" />
+          <Border Background="#223574F0" CornerRadius="9" Padding="7,1" VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding HostApiTooltip}">
+            <TextBlock Text="{Binding HostApiChip}" FontSize="10.5"
+                       Foreground="{DynamicResource SEAccentBrush}" />
+          </Border>
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+
+    <TextBlock Text="{Binding Loc[AboutTagline]}" FontSize="12" TextWrapping="Wrap"
+               Foreground="{DynamicResource SETextSecondaryBrush}" />
+
+    <!-- ===== System ===== -->
+    <Border Classes="Card">
+      <StackPanel Spacing="8">
+        <TextBlock Text="{Binding Loc[AboutSystem]}" FontSize="11" FontWeight="SemiBold"
+                   Foreground="{DynamicResource SETextSecondaryBrush}" />
+        <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Loc[AboutOs]}" FontSize="11.5"
+                     Foreground="{DynamicResource SETextFaintBrush}" Margin="0,0,0,3" />
+          <TextBlock Grid.Row="0" Grid.Column="1" Classes="Mono" Text="{Binding OsInfo}" Margin="0,0,0,3" />
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Loc[AboutRuntime]}" FontSize="11.5"
+                     Foreground="{DynamicResource SETextFaintBrush}" Margin="0,0,0,3" />
+          <TextBlock Grid.Row="1" Grid.Column="1" Classes="Mono" Text="{Binding RuntimeInfo}" Margin="0,0,0,3" />
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding Loc[AboutAvalonia]}" FontSize="11.5"
+                     Foreground="{DynamicResource SETextFaintBrush}" Margin="0,0,0,3" />
+          <TextBlock Grid.Row="2" Grid.Column="1" Classes="Mono" Text="{Binding AvaloniaVersion}" Margin="0,0,0,3" />
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding Loc[AboutLanguage]}" FontSize="11.5"
+                     Foreground="{DynamicResource SETextFaintBrush}" Margin="0,0,0,3" />
+          <TextBlock Grid.Row="3" Grid.Column="1" Classes="Mono" Text="{Binding LanguageInfo}" Margin="0,0,0,3" />
+
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding Loc[AboutConfig]}" FontSize="11.5"
+                     Foreground="{DynamicResource SETextFaintBrush}" />
+          <TextBlock Grid.Row="4" Grid.Column="1" Classes="Mono" Text="{Binding ConfigPath}"
+                     Foreground="{DynamicResource SETextFaintBrush}" TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding ConfigPath}" />
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <!-- ===== Plugins: read-only diagnostics. Managing them stays in the Store and Settings. ===== -->
+    <Border Classes="Card">
+      <StackPanel Spacing="8">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding Loc[AboutPlugins]}" FontSize="11" FontWeight="SemiBold"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+          <TextBlock Grid.Column="1" Text="{Binding PluginCountLine}" FontSize="10.5"
+                     Foreground="{DynamicResource SETextFaintBrush}" />
+        </Grid>
+        <ScrollViewer MaxHeight="200" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Plugins}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:AboutPluginRow">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,2">
+                  <Ellipse Grid.Column="0" Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,8,0"
+                           Fill="{DynamicResource SEStatusConnectedBrush}" IsVisible="{Binding IsEnabled}" />
+                  <Ellipse Grid.Column="0" Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,8,0"
+                           Fill="{DynamicResource SETextFaintBrush}" IsVisible="{Binding IsDisabled}" />
+                  <TextBlock Grid.Column="1" Text="{Binding Id}" FontSize="12" VerticalAlignment="Center"
+                             Foreground="{DynamicResource SETextFaintBrush}" IsVisible="{Binding IsDisabled}" />
+                  <TextBlock Grid.Column="1" Text="{Binding Id}" FontSize="12" VerticalAlignment="Center"
+                             IsVisible="{Binding IsEnabled}" />
+                  <TextBlock Grid.Column="2" Classes="Mono" Text="{Binding Version}" VerticalAlignment="Center"
+                             Margin="8,0" Foreground="{DynamicResource SETextSecondaryBrush}" />
+                  <Border Grid.Column="3" Background="{DynamicResource SEToolbarBgBrush}" CornerRadius="8"
+                          Padding="6,1" VerticalAlignment="Center" Margin="0,0,6,0">
+                    <TextBlock Text="{Binding SourceLabel}" FontSize="9.5"
+                               Foreground="{DynamicResource SETextFaintBrush}" />
+                  </Border>
+                  <Border Grid.Column="4" Background="#223574F0" CornerRadius="8" Padding="6,1"
+                          VerticalAlignment="Center" IsVisible="{Binding HasFlag}">
+                    <TextBlock Text="{Binding FlagLabel}" FontSize="9.5"
+                               Foreground="{DynamicResource SEAccentBrush}" />
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </StackPanel>
+    </Border>
+
+    <!-- ===== Links + licence ===== -->
+    <StackPanel Orientation="Horizontal" Spacing="7">
+      <Button Classes="Link" Content="{Binding Loc[AboutWebsite]}" Click="OnWebsite" />
+      <TextBlock Text="·" Foreground="{DynamicResource SETextFaintBrush}" />
+      <Button Classes="Link" Content="{Binding Loc[AboutRepository]}" Click="OnRepository" />
+      <TextBlock Text="·" Foreground="{DynamicResource SETextFaintBrush}" />
+      <Button Classes="Link" Content="{Binding Loc[AboutLicense]}" Click="OnLicense" />
+      <TextBlock Text="·" Foreground="{DynamicResource SETextFaintBrush}" />
+      <Button Classes="Link" Content="{Binding Loc[AboutThirdParty]}" Click="OnThirdParty" />
+    </StackPanel>
+
+    <TextBlock Text="{Binding Loc[AboutCopyright]}" FontSize="10.5" TextWrapping="Wrap"
+               Foreground="{DynamicResource SETextFaintBrush}" />
+
+    <!-- ===== Footer: Copy diagnostics (the button that earns its keep) + OK ===== -->
+    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,0">
+      <Button Grid.Column="0" Classes="Subtle" Command="{Binding CopyDiagnosticsCommand}">
+        <StackPanel Orientation="Horizontal" Spacing="7">
+          <Path Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center"
+                Data="M5.5,5.5 H13.5 V13.5 H5.5 Z M10.5,5.5 V4 A1.5,1.5 0 0 0 9,2.5 H4 A1.5,1.5 0 0 0 2.5,4 V9 A1.5,1.5 0 0 0 4,10.5 H5.5"
+                Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.2"
+                StrokeJoin="Round" StrokeLineCap="Round" />
+          <TextBlock Text="{Binding CopyLabel}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Grid.Column="2" Classes="Accent" Content="OK" Click="OnOk" IsDefault="True" />
+    </Grid>
+  </StackPanel>
+</Window>

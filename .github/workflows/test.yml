@@ -40,31 +40,31 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Test (Core)
-        run: dotnet test tests/SqlExplorer.Core.Tests/SqlExplorer.Core.Tests.csproj -c Release
+        run: dotnet test tests/DataTray.Core.Tests/DataTray.Core.Tests.csproj -c Release
 
       # App view-model tests: references the App class library (Avalonia), constructs view-models only.
       - name: Test (App)
-        run: dotnet test tests/SqlExplorer.App.Tests/SqlExplorer.App.Tests.csproj -c Release
+        run: dotnet test tests/DataTray.App.Tests/DataTray.App.Tests.csproj -c Release
 
       # The Docker backend plugin's unit tests (SE-164 migration): its own assembly, compiled directly against
       # the plugin (which references Avalonia), so this step is heavier than the Core-only one above.
       - name: Test (Backends.Docker)
-        run: dotnet test tests/SqlExplorer.Backends.Docker.Tests/SqlExplorer.Backends.Docker.Tests.csproj -c Release
+        run: dotnet test tests/DataTray.Backends.Docker.Tests/DataTray.Backends.Docker.Tests.csproj -c Release
 
       # Copy Table plugin (SE-100/SE-188): the pure CREATE-TABLE / identity rendering, no database or host.
       - name: Test (Tools.CopyTable)
-        run: dotnet test tests/SqlExplorer.Tools.CopyTable.Tests/SqlExplorer.Tools.CopyTable.Tests.csproj -c Release
+        run: dotnet test tests/DataTray.Tools.CopyTable.Tests/DataTray.Tools.CopyTable.Tests.csproj -c Release
 
       # Schema Diff plugin (SE-99/SE-186/SE-190/SE-191): the differ, the ALTER writer, the per-dialect
       # rendering and the readers' pure mapping halves — all string/logic work, no database.
       - name: Test (Tools.SchemaDiff)
-        run: dotnet test tests/SqlExplorer.Tools.SchemaDiff.Tests/SqlExplorer.Tools.SchemaDiff.Tests.csproj -c Release
+        run: dotnet test tests/DataTray.Tools.SchemaDiff.Tests/DataTray.Tools.SchemaDiff.Tests.csproj -c Release
 
       # Generate Scripts plugin (SE-98): assembling a whole schema into one ordered script.
       - name: Test (Tools.GenerateScripts)
-        run: dotnet test tests/SqlExplorer.Tools.GenerateScripts.Tests/SqlExplorer.Tools.GenerateScripts.Tests.csproj -c Release
+        run: dotnet test tests/DataTray.Tools.GenerateScripts.Tests/DataTray.Tools.GenerateScripts.Tests.csproj -c Release
 
-      # The steps above name their projects one by one, which is how SqlExplorer.Tools.SchemaDiff.Tests
+      # The steps above name their projects one by one, which is how DataTray.Tools.SchemaDiff.Tests
       # managed to sit outside CI from the day it was added: adding a test project doesn't fail anything,
       # it just quietly runs nowhere. This fails the build instead of letting the next one slip through.
       - name: Every test project is actually run

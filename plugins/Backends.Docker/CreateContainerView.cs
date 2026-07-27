@@ -5,7 +5,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// The "New local Docker instance" dialog the plugin builds and the host shows modally (SE-164 menu seam).

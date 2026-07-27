@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Tools.MsSqlAdmin</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contract only. No SqlClient dependency: this tool reaches SQL Server purely through the host's
+         IDbProvider (ExecuteDdlAsync for DBCC, IToolUiContext.QueryAsync for the live file listing).
+         Private=false keeps Sdk.dll out of the plugin folder so the host's copy is used across the ALC
+         boundary (single type identity). -->
+    <ProjectReference Include="..\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+    <!-- Route B: the Shrink dialogs return Avalonia Controls, so Avalonia is a compile-time reference.
+         ExcludeAssets=runtime — the host owns Avalonia and ToolLoadContext shares it, so the plugin must
+         not ship its own copy (same pattern as Providers.MsSql's Route B view). -->
+    <PackageReference Include="Avalonia" Version="12.0.5" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Localization embedded into the main DLL. WithCulture=false stops MSBuild routing the ".nl." file
+         to a satellite assembly; LogicalName fixes the resource name the host's PluginLocalizer expects. -->
+    <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
+    <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Branding" />
+    <Using Include="DataTray.Sdk.Localization" />
+    <Using Include="DataTray.Sdk.Tools" />
+    <Using Include="DataTray.Sdk.Ui" />
+  </ItemGroup>
+
+</Project>

@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using SqlExplorer.Sdk;
-using SqlExplorer.Sdk.Provisioning;
+using DataTray.Sdk;
+using DataTray.Sdk.Provisioning;
 using StackExchange.Redis;
 
-namespace SqlExplorer.Providers.Redis;
+namespace DataTray.Providers.Redis;
 
 /// <summary>
 /// A Redis provider. Redis is a typed key-value store, not a SQL engine, so this maps its world onto the

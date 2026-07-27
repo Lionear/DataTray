@@ -1,8 +1,8 @@
-; Windows installer for SQL Explorer (Inno Setup 6).
+; Windows installer for DataTray (Inno Setup 6).
 ;
 ; Per-user install by design: no admin prompt, and it matches where the app already writes — the Plugin
 ; Store installs into %APPDATA%\Lionear\SqlExplorer\plugins, so an installer needing elevation would be
-; the only part of the product that does.
+; the only part of the product that does. (That path still carries the old product name; SE-206 moves it.)
 ;
 ; Built by .github/workflows/build.yml, which passes the values that change per run:
 ;   ISCC.exe tools\windows-installer.iss /DAppVersion=0.1.0-nightly.20260717.42 /DArch=x64 /DSourceDir=... /DOutputDir=...
@@ -10,10 +10,10 @@
 ; The .zip stays the primary artifact; this is the convenience path (Start-menu entry + uninstaller).
 ; Unsigned, so first run shows a SmartScreen warning — a code-signing certificate is the only fix.
 
-#define AppName "SQL Explorer"
+#define AppName "DataTray"
 #define AppPublisher "Lionear"
 #define AppUrl "https://lionear.dev"
-#define ExeName "SqlExplorer.Desktop.exe"
+#define ExeName "DataTray.Desktop.exe"
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -30,6 +30,10 @@
 
 [Setup]
 ; Stable AppId: upgrades replace the previous install instead of stacking a second copy. Never change it.
+; It survived the SQL Explorer -> DataTray rename (SE-202) for exactly that reason. Consequence worth
+; knowing: Inno resolves an upgrade's target from the AppId's registry entry, not from DefaultDirName, so
+; a machine that already has SQL Explorer keeps installing into the old "SQL Explorer" directory and its
+; old Start-menu group, now under the DataTray name. Only fresh installs land in a DataTray folder.
 AppId={{8F3A6C21-4E7B-4D19-9A2E-6C5B1D0E7F84}
 AppName={#AppName}
 AppVersion={#AppVersion}
@@ -43,7 +47,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir={#OutputDir}
-OutputBaseFilename=LionearSqlExplorer-{#AppVersion}-win-{#Arch}-setup
+OutputBaseFilename=LionearDataTray-{#AppVersion}-win-{#Arch}-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

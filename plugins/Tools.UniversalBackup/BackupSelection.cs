@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>
 /// One chosen object in the backup/restore selection. <see cref="Kind"/> is "table" or a

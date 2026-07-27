@@ -1,4 +1,4 @@
-# SQL Explorer
+# DataTray
 
 A cross-platform, multilingual SQL explorer built in .NET. Database drivers ship
 as plugins, result sets are editable with a reviewable save flow, and connections
@@ -11,20 +11,20 @@ Desktop (Windows / Linux / macOS) is the current focus; mobile heads
 
 Browsing a table with the editable result grid — all data shown is synthetic:
 
-![SQL Explorer browsing a demo database](docs/images/hero.png)
+![DataTray browsing a demo database](docs/images/hero.png)
 
 Every database engine ships as a plugin; the Plugin Store manages them:
 
 ![The Plugin Store listing the built-in database providers alongside the ones installed from the store](docs/images/plugin-store.png)
 
 > Screenshots are rendered headlessly from the real app (no display, no real database) by
-> [`SqlExplorer.Screenshots`](src/SqlExplorer.Screenshots) — regenerate with `tools/screenshots.sh`.
+> [`DataTray.Screenshots`](src/DataTray.Screenshots) — regenerate with `tools/screenshots.sh`.
 
 ## Project layout
 
 | Project | Role |
 |---------|------|
-| `src/Provider.Sdk` | **Public contract** (`SqlExplorer.Sdk`): `IDbProvider`, `ISqlDialect`, schema/query DTOs. Interfaces and DTOs only — no host internals. This is the only assembly external providers reference. **MIT-licensed** (see below). |
+| `src/Provider.Sdk` | **Public contract** (`DataTray.Sdk`): `IDbProvider`, `ISqlDialect`, schema/query DTOs. Interfaces and DTOs only — no host internals. This is the only assembly external providers reference. **MIT-licensed** (see below). |
 | `src/Core` | Host domain: formatter, i18n seam, provider registry, edit models. No UI, no driver dependencies. References `Provider.Sdk`. |
 | `src/Providers.Postgres` | `IDbProvider` for PostgreSQL (Npgsql). **References only `Provider.Sdk`** — proof that a provider builds independently of the host. |
 | `src/App` | Avalonia UI (MVVM, CommunityToolkit.Mvvm): views, view models, resx localization, DI. Platform-agnostic. |
@@ -60,6 +60,8 @@ dotnet run --project src/Desktop
   primary key (otherwise read-only, with the reason shown).
 - Connection management with **secure credential storage** (OS keychain via
   `ISecretStore`).
+- **SSH tunnelling** to reach a database behind a bastion: host-side, so every
+  provider gets it without knowing about it. Optional host-key pinning.
 - **Runtime language switch** NL ⇄ EN (resx + `ILocalizer`).
 
 ## Not yet (roadmap)
@@ -79,7 +81,7 @@ Contributions are welcome, but the bar is high for a one-person project. **Read
 [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request** — it covers the PR policy,
 coding conventions, the plugin boundary for adding a database, commit style and the changelog flow.
 
-- **Bugs or feature requests:** [open an issue](https://github.com/Lionear/SqlExplorer/issues).
+- **Bugs or feature requests:** [open an issue](https://github.com/Lionear/DataTray/issues).
 - **Adding a database or tool:** it's a plugin, not a host change — see [`docs/PLUGINS.md`](docs/PLUGINS.md).
 - **What changed between releases:** [`CHANGELOG.md`](CHANGELOG.md).
 

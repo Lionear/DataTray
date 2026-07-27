@@ -1,4 +1,4 @@
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>Everything needed to create one local container from a connection's engine + values.</summary>
 public sealed record CreateContainerRequest(
@@ -136,7 +136,10 @@ public sealed class ContainerService
     private static string Sanitize(string name) =>
         string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
 
+    // Duplicates DataTray.Core.AppPaths on purpose: a plugin references only the Sdk, never Core, so the
+    // host's helper is out of reach across the plugin boundary. Keep the two in step — this folder sits
+    // inside the app data root, so AppDataMigration carries it along with everything else.
     private static string DefaultContainersDir() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Lionear", "SqlExplorer", "containers");
+        "Lionear", "DataTray", "containers");
 }

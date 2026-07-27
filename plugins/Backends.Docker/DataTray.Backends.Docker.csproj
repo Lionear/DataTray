@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Backends.Docker</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contract only. Private=false keeps DataTray.Sdk.dll out of the plugin folder so the host's copy
+         is used across the ALC boundary (single ISubsystemPlugin/IPluginRuntimeContext type identity). -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+    <!-- The panel seam (IPanelPlugin) returns an Avalonia Control, and the SDK keeps Avalonia PrivateAssets,
+         so this plugin references Avalonia itself. ExcludeAssets="runtime" keeps the DLLs out of the plugin
+         folder — the host's copy is shared across the ALC, so the Control has one type identity. -->
+    <PackageReference Include="Avalonia" Version="12.0.5" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Brand icon, staged beside the plugin so the host reads it from the plugin dir (extension/mcp plugins
+         have no SDK icon property; the host falls back to <pluginDir>/icon.png). -->
+    <Content Include="icon.png" CopyToOutputDirectory="PreserveNewest" Condition="Exists('icon.png')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The unit-test project drives internal helpers (ContainerMonitor) directly. -->
+    <InternalsVisibleTo Include="DataTray.Backends.Docker.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DataTray.Sdk.Extensibility" />
+    <!-- Shared Lucide icon set (SE-172): the panel/action glyphs come from the SDK, not a local copy. -->
+    <Using Include="DataTray.Sdk.Ui" />
+  </ItemGroup>
+
+</Project>

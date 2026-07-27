@@ -1,4 +1,4 @@
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// Persistent registry of the containers this plugin manages, surviving restarts. A <see cref="Changed"/>

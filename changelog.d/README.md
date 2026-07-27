@@ -23,8 +23,8 @@ changelog.d/<ticket>.<category>.md
   the statement — semicolon and all.
 ```
 
-Same writing rules as before: user-facing, describing what changed for the person *using* SQL
-Explorer. Several bullets in one file is fine, and one ticket may have a file per category
+Same writing rules as before: user-facing, describing what changed for the person *using* DataTray.
+Several bullets in one file is fine, and one ticket may have a file per category
 (`SE-197.added.md` and `SE-197.fixed.md`).
 
 ## What happens to them

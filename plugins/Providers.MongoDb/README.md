@@ -1,6 +1,6 @@
 # MongoDB provider
 
-A database provider that plugs MongoDB into SQL Explorer. It is **not shipped by default**: it lives
+A database provider that plugs MongoDB into DataTray. It is **not shipped by default**: it lives
 under the repo-root `plugins/` folder (not `src/`) and is staged only in **Debug** builds, so it is
 directly usable while developing but never part of a Release/MVP.
 
@@ -131,13 +131,13 @@ size) to change it.
 ## Development notes
 
 - **Naming** follows the existing providers (`MySql`, `MsSql`, `Sqlite`): acronyms are single-cap
-  PascalCase words, so it's `MongoDb`. The `plugins/` folder drops the `SqlExplorer.` prefix
-  (`Providers.MongoDb`), while the csproj/namespace keep the full `SqlExplorer.Providers.MongoDb`.
+  PascalCase words, so it's `MongoDb`. The `plugins/` folder drops the `DataTray.` prefix
+  (`Providers.MongoDb`), while the csproj/namespace keep the full `DataTray.Providers.MongoDb`.
 - **Manifest** (`plugin.json`): `id` = `mongodb`, `type` = `provider`, `hostApiVersion` = 23.
 - **Driver:** `MongoDB.Driver`; `CopyLocalLockFileAssemblies` emits its full closure into the plugin
   folder for isolated (ALC) loading, independent of any other plugin's driver version.
-- **Debug wiring:** a Debug-only `ProjectReference` in `src/SqlExplorer.App` forces the build, and a
-  Debug-only `ProviderPluginFile` (`PluginId` = `mongodb`) in `src/SqlExplorer.Desktop` stages it into
+- **Debug wiring:** a Debug-only `ProjectReference` in `src/DataTray.App` forces the build, and a
+  Debug-only `ProviderPluginFile` (`PluginId` = `mongodb`) in `src/DataTray.Desktop` stages it into
   `plugins/mongodb/` beside the executable.
 - **Icon:** drop a square `icon.png` in this folder — it is embedded automatically and shown on the
   provider's connection nodes (falls back to a 🍃 glyph when absent).

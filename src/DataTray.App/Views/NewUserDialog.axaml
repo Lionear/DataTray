@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="using:Avalonia.Data.Converters"
+        x:Class="DataTray.App.Views.NewUserDialog"
+        Title="{Binding Loc[NewUser]}"
+        Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="16" Spacing="10">
+
+    <TextBlock Text="{Binding Loc[UserName]}" />
+    <TextBox Text="{Binding Name}" />
+
+    <!-- Provider fields (password/host/attribute toggles): one DataTemplate, per-type controls gated by
+         the input's IsText/IsPassword/IsBool/IsChoice flags. -->
+    <ItemsControl ItemsSource="{Binding Fields}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <StackPanel Spacing="4" Margin="0,4,0,0">
+            <TextBlock Text="{Binding Label}" IsVisible="{Binding !IsBool}" />
+            <TextBox Text="{Binding Value}" IsVisible="{Binding IsText}" />
+            <TextBox Text="{Binding Value}" PasswordChar="•" IsVisible="{Binding IsPassword}" />
+            <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Value}"
+                      HorizontalAlignment="Stretch" IsVisible="{Binding IsChoice}" />
+            <CheckBox Content="{Binding Label}" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBool}" />
+            <TextBlock Text="{Binding Hint}" FontSize="11" IsVisible="{Binding HasHint}"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </StackPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <!-- Optional role membership: a checkbox per assignable role (empty → hidden). -->
+    <StackPanel Spacing="4" IsVisible="{Binding HasRoles}">
+      <TextBlock Text="{Binding Loc[UserRoles]}" Margin="0,4,0,0" />
+      <Border BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+              CornerRadius="{StaticResource SEControlRadius}" Padding="8" MaxHeight="140">
+        <ScrollViewer>
+          <ItemsControl ItemsSource="{Binding Roles}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+    </StackPanel>
+
+    <TextBlock Text="{Binding Loc[SqlPreview]}" Margin="0,4,0,0" />
+    <TextBox Text="{Binding SqlPreview}" AcceptsReturn="True" TextWrapping="Wrap"
+             FontFamily="Cascadia Code,Consolas,Menlo,monospace" FontSize="12"
+             Height="90" />
+
+    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+      <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[Cancel]}" Click="OnCancel" Margin="0,0,8,0" />
+      <Button Grid.Column="2" Classes="Accent" Content="{Binding Loc[Create]}" Click="OnCreate"
+              IsEnabled="{Binding CanSave}" IsDefault="True" />
+    </Grid>
+  </StackPanel>
+</Window>

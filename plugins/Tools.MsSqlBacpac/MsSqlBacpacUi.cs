@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>Small shared view helpers so the four dialogs share one look (preview header box + warn/danger
 /// banners) matching the signed-off mockup. Colours come from the host's theme brushes via

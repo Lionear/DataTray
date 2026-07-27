@@ -5,13 +5,13 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Path = Avalonia.Controls.Shapes.Path;
 
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// Stroked vector glyphs for the Docker panel/dialogs, built in code. The host draws its own icons as Paths
 /// for a reason: Linux/Avalonia has no colour-emoji fallback, so symbol characters (↻, ⚠, …) render as tofu
 /// boxes. The shared panel/action glyphs (refresh, play, stop, logs, trash, plus, container) now come from
-/// the SDK's <see cref="SqlExplorer.Sdk.Ui.Icons"/> set — one source of truth for host and plugins (SE-172),
+/// the SDK's <see cref="DataTray.Sdk.Ui.Icons"/> set — one source of truth for host and plugins (SE-172),
 /// no more copy-drift. Only the plugin-specific step glyphs below (warning/check/cross, 16×16) live here.
 /// All are drawn Stretch="Uniform".
 /// </summary>

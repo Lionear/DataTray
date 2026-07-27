@@ -5,5 +5,5 @@
   "name": "Elasticsearch",
   "version": "1.3.0",
   "hostApiVersion": 27,
-  "entryAssembly": "SqlExplorer.Providers.Elasticsearch.dll"
+  "entryAssembly": "DataTray.Providers.Elasticsearch.dll"
 }

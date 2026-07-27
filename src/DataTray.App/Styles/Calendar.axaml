@@ -1,0 +1,142 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Calendar on the Lionear tokens. The date editor's flyout already draws the frame, so the control
+       itself is chromeless here: no border, no background of its own. Fluent paints today as a solid blue
+       block and the selection as a thin blue ring — the loud half of that pair is the one you did not
+       pick. Swapped here: the selection is the filled cell, today is a quiet accent tint.
+
+       Two things about the selectors below, both learned by dumping the live control tree:
+       - Fluent's cell colours come from state rules (:inactive, :today, :selected), which land at
+         StyleTrigger priority — above a plain style, however late it is loaded. So each fill is
+         overridden on its own state rather than reset by one blanket rule.
+       - The text inside a cell is a TextBlock the ContentPresenter creates, which has no templated
+         parent, so /template/ does not reach it. Those rules use a plain descendant selector — which
+         also has to beat Theme.axaml's blanket ":is(TextBlock)" rule, hence colours are set on the
+         TextBlock itself and not inherited down.
+
+       CalendarDayButton (days) and CalendarButton (months/years in the drill-up views) share a template —
+       Border#Root carries the fill, Border#Border carries Fluent's selection ring — but not a base type
+       we can select on, so each rule names both. -->
+
+  <!-- Fluent hardcodes a few of these into the control template itself, where a style setter cannot reach
+       them (Template beats Style). Those are neutralised at the source, by redefining the theme keys the
+       template resolves; the rest is styled below. All of them are colours we want gone in every variant,
+       so one variant-invariant block covers both. -->
+  <Styles.Resources>
+    <!-- Frame + the backdrop behind the month grid: the flyout already draws a panel. -->
+    <SolidColorBrush x:Key="CalendarViewBackground" Color="Transparent" />
+    <SolidColorBrush x:Key="CalendarViewBorderBrush" Color="Transparent" />
+    <!-- Days from the neighbouring months: a fill here reads as a second block of selection. -->
+    <SolidColorBrush x:Key="CalendarViewOutOfScopeBackground" Color="Transparent" />
+    <!-- Fluent's blue ring on the selected/hovered/pressed cell; replaced by a filled cell below. -->
+    <SolidColorBrush x:Key="CalendarViewSelectedBorderBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="CalendarViewSelectedHoverBorderBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="CalendarViewSelectedPressedBorderBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="CalendarViewHoverBorderBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="CalendarViewPressedBorderBrush" Color="Transparent" />
+    <!-- Fluent sizes the calendar for touch: 20pt day numbers in 40x40 cells. In a grid cell's flyout that
+         dwarfs everything around it, so the type drops to the app's own reading size and the cells with it. -->
+    <x:Double x:Key="CalendarFontSize">15</x:Double>
+    <x:Double x:Key="CalendarDayButtonFontSize">14</x:Double>
+  </Styles.Resources>
+
+  <!-- Chrome: the flyout is the frame. -->
+  <Style Selector="Calendar">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+  </Style>
+  <Style Selector="CalendarItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <!-- Fluent floors the layout at its own touch metrics (294 wide, a 290-high month grid). Left in place,
+       smaller cells would just leave a band of dead space instead of a smaller calendar. -->
+  <Style Selector="CalendarItem /template/ Grid">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <!-- Month/year header and the two navigation arrows: chromeless like Button.Subtle. Without this they
+       pick up the app's default Button style (panel fill + hairline) and read as three boxed buttons. -->
+  <Style Selector="CalendarItem /template/ Button#PART_HeaderButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+  </Style>
+  <Style Selector="CalendarItem /template/ Button#PART_PreviousButton, CalendarItem /template/ Button#PART_NextButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+    <!-- The header row is what sets the calendar's width: Fluent's 42x40 arrows made it wider than the day
+         grid needs, so the grid stretched to match. At arrow size the day grid decides again. -->
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+  </Style>
+  <Style Selector="Button#PART_HeaderButton:pointerover /template/ ContentPresenter, Button#PART_PreviousButton:pointerover /template/ ContentPresenter, Button#PART_NextButton:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+  </Style>
+  <!-- The arrows are Paths, so they take Stroke rather than the button's Foreground. -->
+  <Style Selector="Button#PART_PreviousButton Path, Button#PART_NextButton Path">
+    <Setter Property="Stroke" Value="{DynamicResource SETextSecondaryBrush}" />
+  </Style>
+  <Style Selector="Button#PART_PreviousButton:pointerover Path, Button#PART_NextButton:pointerover Path">
+    <Setter Property="Stroke" Value="{DynamicResource SETextPrimaryBrush}" />
+  </Style>
+
+  <!-- Day-of-week row (Su, Mo, …): a label, not data. Scoped to the direct children of the month grid so
+       it cannot reach the day numbers, which live one level deeper inside the day buttons. -->
+  <!-- Size is not settable here: CalendarItem stamps these with CalendarDayButtonFontSize as a local value,
+       which no style can beat. Colour is all this rule can (and needs to) do. -->
+  <Style Selector="CalendarItem Grid#PART_MonthView > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+  </Style>
+
+  <!-- Cells: rounded, unfilled. -->
+  <Style Selector="CalendarDayButton /template/ Border#Root, CalendarButton /template/ Border#Root">
+    <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+  </Style>
+  <Style Selector="CalendarDayButton TextBlock, CalendarButton TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+  </Style>
+
+  <!-- Days outside the displayed month stay readable but recede. -->
+  <Style Selector="CalendarDayButton:inactive TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+  </Style>
+
+  <!-- Today: accent-tinted text only. It marks the date without competing with the selected cell. -->
+  <Style Selector="CalendarDayButton:today /template/ Border#Root">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="CalendarDayButton:today TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource SEAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="CalendarDayButton:pointerover /template/ Border#Root, CalendarButton:pointerover /template/ Border#Root">
+    <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+  </Style>
+
+  <!-- Selection last: it must win over :today and :pointerover, which it does on equal priority by being
+       declared later. -->
+  <Style Selector="CalendarDayButton:selected /template/ Border#Root, CalendarButton:selected /template/ Border#Root">
+    <Setter Property="Background" Value="{DynamicResource SEAccentBrush}" />
+  </Style>
+  <Style Selector="CalendarDayButton:selected TextBlock, CalendarButton:selected TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource SEAccentFgBrush}" />
+  </Style>
+  <Style Selector="CalendarDayButton:selected:pointerover /template/ Border#Root, CalendarButton:selected:pointerover /template/ Border#Root">
+    <Setter Property="Background" Value="{DynamicResource SEAccentHoverBrush}" />
+  </Style>
+
+  <!-- Dates the calendar refuses (blackout ranges, out-of-range months). -->
+  <Style Selector="CalendarDayButton:blackout, CalendarDayButton:disabled, CalendarButton:disabled">
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
+
+</Styles>

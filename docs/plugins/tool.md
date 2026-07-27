@@ -5,7 +5,7 @@
 A **tool** contributes an action rather than a database engine: it shows up as a
 menu item on the schema tree, collects some inputs in a dialog, and runs against
 the selected connection/node. The Universal Backup & Restore feature is itself a
-tool plugin. Tools reference the same `SqlExplorer.Sdk` assembly as
+tool plugin. Tools reference the same `DataTray.Sdk` assembly as
 providers and are staged into `plugins/` the same way.
 
 ### The contract: `IToolPlugin`
@@ -121,7 +121,7 @@ separately from the provider contract:
   "name": "Universal Backup & Restore",
   "version": "1.0.0",
   "hostApiVersion": 1,
-  "entryAssembly": "SqlExplorer.Tools.UniversalBackup.dll"
+  "entryAssembly": "DataTray.Tools.UniversalBackup.dll"
 }
 ```
 

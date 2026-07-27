@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk.Branding;
+using DataTray.Sdk.Branding;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Export a SQL Server database to a portable <c>.bacpac</c> (schema + selected data). Read-only against

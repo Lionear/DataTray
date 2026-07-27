@@ -12,7 +12,7 @@
 #   PUBLISHED_AT   ISO-8601 timestamp. Required.
 #   ASSET_DIR      directory holding the build assets. Required.
 #   DOWNLOAD_BASE  URL prefix the asset download links are built from (no trailing slash), e.g.
-#                  https://github.com/Lionear/SqlExplorer/releases/download/nightly. Required.
+#                  https://github.com/Lionear/DataTray/releases/download/nightly. Required.
 #   NOTES_FILE     markdown release notes to embed (optional; empty if unset/missing).
 #   OUT            output path for update.json. Required.
 set -euo pipefail

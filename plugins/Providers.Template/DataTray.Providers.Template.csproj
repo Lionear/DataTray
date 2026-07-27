@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Providers.Template</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared contract only. Private=false keeps Sdk.dll OUT of the plugin folder so the host's copy
+         is used across the ALC boundary (single type identity for IDbProvider / IPluginSettings). -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" Condition="Exists('icon.png')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Ddl" />
+    <Using Include="DataTray.Sdk.Branding" />
+    <Using Include="DataTray.Sdk.Settings" />
+  </ItemGroup>
+
+</Project>
