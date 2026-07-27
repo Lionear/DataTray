@@ -12,13 +12,28 @@ namespace DataTray.Infrastructure.Secrets;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsCredentialStore : ISecretStore
 {
-    private const string TargetPrefix = "SqlExplorer:";
-    // Pre-rebrand prefix. Credentials written by older builds are migrated to TargetPrefix on first use.
-    private const string LegacyTargetPrefix = "Lionear.SqlExplorer:";
+    /// <summary>
+    /// The prefix used before the DataTray rename (SE-202). Still holds every credential written by a
+    /// SQL Explorer build; <see cref="LegacyFallbackSecretStore"/> pulls those forward when they are read.
+    /// </summary>
+    public const string LegacyPrefix = "SqlExplorer:";
+
+    private const string DefaultPrefix = "DataTray:";
+
+    // Two renames back. Credentials this old are migrated straight to the current prefix on construction,
+    // rather than hopping through LegacyPrefix — the enumerate is cheap and it keeps the chain shallow.
+    private const string OldestPrefix = "Lionear.SqlExplorer:";
+
     private const uint CRED_TYPE_GENERIC = 1;
     private const uint CRED_PERSIST_LOCAL_MACHINE = 2;
 
-    public WindowsCredentialStore() => MigrateLegacyCredentials();
+    private readonly string _targetPrefix;
+
+    public WindowsCredentialStore(string? targetPrefix = null)
+    {
+        _targetPrefix = targetPrefix ?? DefaultPrefix;
+        MigrateLegacyCredentials();
+    }
 
     public void Set(string key, string secret)
     {
@@ -30,7 +45,7 @@ public sealed class WindowsCredentialStore : ISecretStore
             var credential = new CREDENTIAL
             {
                 Type = CRED_TYPE_GENERIC,
-                TargetName = TargetPrefix + key,
+                TargetName = _targetPrefix + key,
                 CredentialBlobSize = (uint)blob.Length,
                 CredentialBlob = blobPtr,
                 Persist = CRED_PERSIST_LOCAL_MACHINE,
@@ -50,7 +65,7 @@ public sealed class WindowsCredentialStore : ISecretStore
 
     public string? Get(string key)
     {
-        if (!CredRead(TargetPrefix + key, CRED_TYPE_GENERIC, 0, out var handle))
+        if (!CredRead(_targetPrefix + key, CRED_TYPE_GENERIC, 0, out var handle))
         {
             return null;
         }
@@ -73,16 +88,21 @@ public sealed class WindowsCredentialStore : ISecretStore
         }
     }
 
-    public void Delete(string key) => CredDelete(TargetPrefix + key, CRED_TYPE_GENERIC, 0);
+    public void Delete(string key) => CredDelete(_targetPrefix + key, CRED_TYPE_GENERIC, 0);
 
     /// <summary>
-    /// One-time, idempotent migration of pre-rebrand credentials: any entry stored under the legacy
-    /// "Lionear.SqlExplorer:" prefix is rewritten under the current "SqlExplorer:" prefix and the old
-    /// entry removed. A no-op once migrated (the enumerate filter then matches nothing).
+    /// One-time, idempotent migration of the oldest credentials: any entry stored under the
+    /// "Lionear.SqlExplorer:" prefix is rewritten under the current prefix and the old entry removed.
+    /// A no-op once migrated (the enumerate filter then matches nothing).
     /// </summary>
+    /// <remarks>
+    /// This one deletes as it goes, unlike the SqlExplorer: -> DataTray: step in
+    /// <see cref="LegacyFallbackSecretStore"/>. The prefix it drains predates the DataTray rename by a
+    /// full generation, so there is no build still reading it that anyone could fall back to.
+    /// </remarks>
     private void MigrateLegacyCredentials()
     {
-        if (!CredEnumerate(LegacyTargetPrefix + "*", 0, out var count, out var credsPtr) || credsPtr == IntPtr.Zero)
+        if (!CredEnumerate(OldestPrefix + "*", 0, out var count, out var credsPtr) || credsPtr == IntPtr.Zero)
         {
             return;
         }
@@ -93,12 +113,12 @@ public sealed class WindowsCredentialStore : ISecretStore
             {
                 var entryPtr = Marshal.ReadIntPtr(credsPtr, i * IntPtr.Size);
                 var cred = Marshal.PtrToStructure<CREDENTIAL>(entryPtr);
-                if (cred.TargetName is null || !cred.TargetName.StartsWith(LegacyTargetPrefix, StringComparison.Ordinal))
+                if (cred.TargetName is null || !cred.TargetName.StartsWith(OldestPrefix, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var key = cred.TargetName[LegacyTargetPrefix.Length..];
+                var key = cred.TargetName[OldestPrefix.Length..];
                 var secret = cred.CredentialBlob != IntPtr.Zero && cred.CredentialBlobSize > 0
                     ? Encoding.Unicode.GetString(ReadBlob(cred.CredentialBlob, (int)cred.CredentialBlobSize))
                     : string.Empty;

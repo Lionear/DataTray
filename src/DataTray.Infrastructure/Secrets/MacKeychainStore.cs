@@ -12,13 +12,20 @@ namespace DataTray.Infrastructure.Secrets;
 [SupportedOSPlatform("macos")]
 public sealed class MacKeychainStore : ISecretStore
 {
-    private const string Service = "com.lionear.sqlexplorer";
+    /// <summary>The pre-rename service id. Items written by SQL Explorer builds still live under it.</summary>
+    public const string LegacyService = "com.lionear.sqlexplorer";
+
+    private const string DefaultService = "com.lionear.datatray";
+
+    private readonly string _service;
+
+    public MacKeychainStore(string? service = null) => _service = service ?? DefaultService;
     private const string Security = "/System/Library/Frameworks/Security.framework/Security";
     private const string CoreFoundation = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
 
     public void Set(string key, string secret)
     {
-        var service = Encoding.UTF8.GetBytes(Service);
+        var service = Encoding.UTF8.GetBytes(_service);
         var account = Encoding.UTF8.GetBytes(key);
         var password = Encoding.UTF8.GetBytes(secret);
 
@@ -50,7 +57,7 @@ public sealed class MacKeychainStore : ISecretStore
 
     public string? Get(string key)
     {
-        var service = Encoding.UTF8.GetBytes(Service);
+        var service = Encoding.UTF8.GetBytes(_service);
         var account = Encoding.UTF8.GetBytes(key);
 
         var status = SecKeychainFindGenericPassword(IntPtr.Zero,
@@ -79,7 +86,7 @@ public sealed class MacKeychainStore : ISecretStore
 
     public void Delete(string key)
     {
-        var service = Encoding.UTF8.GetBytes(Service);
+        var service = Encoding.UTF8.GetBytes(_service);
         var account = Encoding.UTF8.GetBytes(key);
 
         var status = SecKeychainFindGenericPassword(IntPtr.Zero,

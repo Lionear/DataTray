@@ -15,12 +15,19 @@ namespace DataTray.Infrastructure.Secrets;
 /// </remarks>
 public sealed class LinuxSecretServiceStore : ISecretStore
 {
-    private const string Service = "com.lionear.sqlexplorer";
+    /// <summary>The pre-rename service id. Items written by SQL Explorer builds still live under it.</summary>
+    public const string LegacyService = "com.lionear.sqlexplorer";
+
+    private const string DefaultService = "com.lionear.datatray";
+
+    private readonly string _service;
+
+    public LinuxSecretServiceStore(string? service = null) => _service = service ?? DefaultService;
 
     public void Set(string key, string secret)
     {
         // secret-tool store reads the password from stdin.
-        var psi = NewStartInfo("store", "--label", "DataTray", "service", Service, "account", key);
+        var psi = NewStartInfo("store", "--label", "DataTray", "service", _service, "account", key);
         psi.RedirectStandardInput = true;
 
         using var process = Start(psi);
@@ -37,7 +44,7 @@ public sealed class LinuxSecretServiceStore : ISecretStore
 
     public string? Get(string key)
     {
-        var psi = NewStartInfo("lookup", "service", Service, "account", key);
+        var psi = NewStartInfo("lookup", "service", _service, "account", key);
 
         using var process = Start(psi);
         var output = process.StandardOutput.ReadToEnd();
@@ -49,7 +56,7 @@ public sealed class LinuxSecretServiceStore : ISecretStore
 
     public void Delete(string key)
     {
-        var psi = NewStartInfo("clear", "service", Service, "account", key);
+        var psi = NewStartInfo("clear", "service", _service, "account", key);
         using var process = Start(psi);
         process.WaitForExit();
     }
