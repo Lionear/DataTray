@@ -76,6 +76,26 @@ Name: "dutch"; MessagesFile: "compiler:Languages\Dutch.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[InstallDelete]
+; Upgrading a SQL Explorer install (SE-202): every assembly was renamed SqlExplorer.* -> DataTray.*, and
+; Inno only overwrites what the new payload contains — it never removes files a previous version left.
+; Without this the folder keeps a full second set of binaries, ~90 MB of them, including a launchable
+; SqlExplorer.Desktop.exe that still runs the OLD app against the pre-rename %APPDATA% folder. Someone
+; starting it from a pinned taskbar button would silently be back on the old build with the old data.
+; Runs before [Files], so it can never delete what we are about to install.
+Type: files; Name: "{app}\SqlExplorer.*"
+
+; Same problem one level down, and worse: the bundled plugin folders kept their ids but every assembly
+; inside them was renamed, and sql-explorer-mcp became datatray-mcp. [Files] lays this tree down whole,
+; and Store-installed plugins live in %APPDATA% rather than here (see [UninstallDelete]), so clearing it
+; first is both safe and simpler than matching SqlExplorer.* inside each folder.
+Type: filesandordirs; Name: "{app}\plugins"
+
+; The pre-rename shortcuts. {group} resolves to the folder recorded at first install, so an upgraded
+; machine keeps its "SQL Explorer" Start-menu folder and would otherwise show both names side by side.
+Type: files; Name: "{group}\SQL Explorer.lnk"
+Type: files; Name: "{autodesktop}\SQL Explorer.lnk"
+
 [Files]
 ; The whole self-contained publish tree: single-file exe, the bundled plugins/ folder, LICENSE and
 ; THIRD-PARTY-NOTICES.md (attribution has to travel with the binaries — SE-127).
