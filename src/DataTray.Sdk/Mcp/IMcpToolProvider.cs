@@ -8,7 +8,7 @@ namespace DataTray.Sdk.Mcp;
 /// string — the host owns the transport (loopback listener, auth, Origin check, audit) and the
 /// authorization boundary (<see cref="IMcpHost"/>). A tool handler can only act through the
 /// <see cref="IMcpHost"/> it is handed, so even a third-party tool plugin is confined to the same
-/// reachability/write-guard/caps the built-in tools obey. The first-party <c>sql-explorer-mcp</c> plugin
+/// reachability/write-guard/caps the built-in tools obey. The first-party <c>datatray-mcp</c> plugin
 /// ships the four core tools (list_connections/get_schema/run_query/explain_query) this way.
 /// </summary>
 /// <remarks>

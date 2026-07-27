@@ -16,6 +16,10 @@ internal static class Program
         // Directory.CreateDirectory on the root before writing a line. Keep this call above it.
         var migration = DataTray.Core.Migration.AppDataMigration.Migrate();
 
+        // Strictly after the copy above (it rewrites files inside the new root) and before anything reads
+        // plugin state, which AppServices does while building the container.
+        var pluginIds = DataTray.Core.Migration.PluginIdMigration.Migrate();
+
         // A relaunch (Restart-app button / in-app updater) must always take over the UI. Skip the
         // single-instance probe when relaunched, so the new instance doesn't connect to the old one's pipe
         // (still open while it shuts down), defer to it and exit — which left no window at all (SE-125).
@@ -28,6 +32,12 @@ internal static class Program
             DataTray.App.RestartDiagnostics.Log(migration.Error is { } error
                 ? $"start: app-data migration {migration.Outcome} — {error.GetType().Name}: {error.Message}"
                 : $"start: app-data migration {migration.Outcome} ({migration.FilesCopied} file(s))");
+        }
+
+        if (pluginIds.DidAnything)
+        {
+            DataTray.App.RestartDiagnostics.Log(
+                $"start: plugin-id migration rewrote {string.Join(", ", pluginIds.Changed)}");
         }
 
         // Single instance: if the app is already running (possibly hidden in the tray), tell it to surface

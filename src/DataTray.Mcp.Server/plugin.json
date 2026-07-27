@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "sql-explorer-mcp",
+  "id": "datatray-mcp",
   "type": "mcp",
   "name": "DataTray MCP tools",
   "version": "0.2.0",

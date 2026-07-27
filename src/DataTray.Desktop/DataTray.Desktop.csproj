@@ -56,7 +56,7 @@
       </ProviderPluginFile>
       <!-- First-party MCP tools plugin, staged unconditionally like the providers/admin tool. -->
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\DataTray.Mcp.Server\bin\$(Configuration)\$(TargetFramework)\**\*">
-        <PluginId>sql-explorer-mcp</PluginId>
+        <PluginId>datatray-mcp</PluginId>
       </ProviderPluginFile>
       <!-- Debug-only, non-shipped plugins from the repo-root plugins/ folder (see App.csproj). Absent
            from Release/publish staging. Future dev-only tool plugins (plugins/Tools.*) go here too. -->
