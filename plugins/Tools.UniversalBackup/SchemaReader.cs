@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk;
+using DataTray.Sdk;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>A table found in the schema walk: the tree path to it, its owning schema (null if none)
 /// and its name.</summary>

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>
 /// Restore-side sink for a streamed v2 payload. Pure-scalar rows are batched into multi-row INSERTs (fast

@@ -5,6 +5,6 @@
   "name": "Generate Scripts",
   "version": "0.1.0",
   "hostApiVersion": 4,
-  "entryAssembly": "SqlExplorer.Tools.GenerateScripts.dll",
+  "entryAssembly": "DataTray.Tools.GenerateScripts.dll",
   "localization": "Lang/strings"
 }

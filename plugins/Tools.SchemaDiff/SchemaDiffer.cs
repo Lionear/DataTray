@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace DataTray.Tools.SchemaDiff;
 
 /// <summary>
 /// Compares two schema snapshots and yields the ordered set of <see cref="SchemaChange"/>s that turn

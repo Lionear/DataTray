@@ -37,7 +37,7 @@ All of these are documented in
 [Optional capabilities](plugins/capabilities.md).
 
 All plugin contracts live in the single public SDK assembly
-`SqlExplorer.Sdk` (`src/Sdk`, namespace `SqlExplorer.Sdk.*`) —
+`DataTray.Sdk` (`src/Sdk`, namespace `DataTray.Sdk.*`) —
 the only assembly a plugin references from this repository.
 
 ## Guides

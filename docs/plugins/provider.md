@@ -4,7 +4,7 @@
 
 A provider plugin teaches the host how to talk to one database engine. It
 implements a single interface, `IDbProvider`, from the public SDK project
-`src/Sdk` (namespace `SqlExplorer.Sdk`). `Sdk` is
+`src/Sdk` (namespace `DataTray.Sdk`). `Sdk` is
 MIT-licensed specifically so third parties can build and ship their own
 providers freely — it is the *only* assembly a provider plugin references
 from this repository; no reference to `Core`, `App`, or any driver-specific
@@ -185,7 +185,7 @@ Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>SqlExplorer.Providers.MyEngine</RootNamespace>
+    <RootNamespace>DataTray.Providers.MyEngine</RootNamespace>
     <!-- Required: emit the full private dependency closure (driver + its own
          dependencies) so the plugin loads correctly in its own ALC. -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
@@ -195,7 +195,7 @@ Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
     <!-- Private=false keeps Sdk.dll OUT of the plugin's own output
          folder, so the host's copy is used across the ALC boundary and
          IDbProvider keeps a single type identity. -->
-    <ProjectReference Include="..\Sdk\SqlExplorer.Sdk.csproj" Private="false" />
+    <ProjectReference Include="..\Sdk\DataTray.Sdk.csproj" Private="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -222,9 +222,9 @@ engine with server → database → schema layering, see
 Minimal skeleton:
 
 ```csharp
-using SqlExplorer.Sdk;
+using DataTray.Sdk;
 
-namespace SqlExplorer.Providers.MyEngine;
+namespace DataTray.Providers.MyEngine;
 
 public sealed class MyEngineProvider : IDbProvider
 {
@@ -270,7 +270,7 @@ Every plugin folder needs a `plugin.json` describing it:
   "name": "MyEngine",
   "version": "1.0.0",
   "hostApiVersion": 25,
-  "entryAssembly": "SqlExplorer.Providers.MyEngine.dll"
+  "entryAssembly": "DataTray.Providers.MyEngine.dll"
 }
 ```
 
@@ -292,14 +292,14 @@ A plugin is a folder next to the host executable:
 plugins/
   myengine/
     plugin.json
-    SqlExplorer.Providers.MyEngine.dll
-    SqlExplorer.Providers.MyEngine.deps.json
+    DataTray.Providers.MyEngine.dll
+    DataTray.Providers.MyEngine.deps.json
     MyEngine.Driver.dll
     ... (rest of the build output)
 ```
 
 For the first-party providers this copy is automated by an MSBuild target,
-`StageProviderPlugins`, in `src/Desktop/SqlExplorer.Desktop.csproj`,
+`StageProviderPlugins`, in `src/Desktop/DataTray.Desktop.csproj`,
 which runs after build and copies each `Providers.*` project's full output
 into `<TargetDir>/plugins/<id>/`. A genuinely third-party/out-of-tree plugin
 ships the same way manually — just place the built output (including the

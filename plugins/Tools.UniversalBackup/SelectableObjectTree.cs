@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>One row's spec for <see cref="SelectableObjectTree"/>. <see cref="DataAllowed"/> shows/hides the
 /// Data checkbox's meaning for the row's kind (only tables have a data half); <see cref="DataChecked"/>/

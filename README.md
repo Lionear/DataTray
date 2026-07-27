@@ -18,13 +18,13 @@ Every database engine ships as a plugin; the Plugin Store manages them:
 ![The Plugin Store listing the built-in database providers alongside the ones installed from the store](docs/images/plugin-store.png)
 
 > Screenshots are rendered headlessly from the real app (no display, no real database) by
-> [`SqlExplorer.Screenshots`](src/SqlExplorer.Screenshots) — regenerate with `tools/screenshots.sh`.
+> [`DataTray.Screenshots`](src/DataTray.Screenshots) — regenerate with `tools/screenshots.sh`.
 
 ## Project layout
 
 | Project | Role |
 |---------|------|
-| `src/Provider.Sdk` | **Public contract** (`SqlExplorer.Sdk`): `IDbProvider`, `ISqlDialect`, schema/query DTOs. Interfaces and DTOs only — no host internals. This is the only assembly external providers reference. **MIT-licensed** (see below). |
+| `src/Provider.Sdk` | **Public contract** (`DataTray.Sdk`): `IDbProvider`, `ISqlDialect`, schema/query DTOs. Interfaces and DTOs only — no host internals. This is the only assembly external providers reference. **MIT-licensed** (see below). |
 | `src/Core` | Host domain: formatter, i18n seam, provider registry, edit models. No UI, no driver dependencies. References `Provider.Sdk`. |
 | `src/Providers.Postgres` | `IDbProvider` for PostgreSQL (Npgsql). **References only `Provider.Sdk`** — proof that a provider builds independently of the host. |
 | `src/App` | Avalonia UI (MVVM, CommunityToolkit.Mvvm): views, view models, resx localization, DI. Platform-agnostic. |

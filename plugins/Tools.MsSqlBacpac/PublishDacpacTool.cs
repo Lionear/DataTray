@@ -1,7 +1,7 @@
 using Microsoft.SqlServer.Dac;
-using SqlExplorer.Sdk.Branding;
+using DataTray.Sdk.Branding;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Publish a <c>.dacpac</c> against the selected (existing) database, updating its schema to match.

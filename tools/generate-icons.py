@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SVG_DIR = ROOT / "tools" / "lucide"
-OUT = ROOT / "src" / "SqlExplorer.Sdk" / "Ui" / "Icons.g.cs"
+OUT = ROOT / "src" / "DataTray.Sdk" / "Ui" / "Icons.g.cs"
 
 # Match a self-closing SVG primitive element and capture its tag + raw attribute blob.
 ELEMENT_RE = re.compile(
@@ -196,7 +196,7 @@ def main() -> int:
         "",
         "using Avalonia.Media;",
         "",
-        "namespace SqlExplorer.Sdk.Ui;",
+        "namespace DataTray.Sdk.Ui;",
         "",
         "/// <summary>",
         "/// Line-icon geometries flattened from Lucide SVGs, drawn as stroked Paths. Shared by the host and",

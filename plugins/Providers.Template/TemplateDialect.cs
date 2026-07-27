@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk;
+using DataTray.Sdk;
 
-namespace SqlExplorer.Providers.Template;
+namespace DataTray.Providers.Template;
 
 /// <summary>Minimal ANSI-ish dialect for the example provider — enough to satisfy the contract.</summary>
 public sealed class TemplateDialect : ISqlDialect

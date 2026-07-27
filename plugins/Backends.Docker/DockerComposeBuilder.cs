@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using SqlExplorer.Sdk.Provisioning;
+using DataTray.Sdk.Provisioning;
 
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>The snippet flavour to emit for a container recipe.</summary>
 public enum SnippetFormat

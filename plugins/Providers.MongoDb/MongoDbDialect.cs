@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk;
+using DataTray.Sdk;
 
-namespace SqlExplorer.Providers.MongoDb;
+namespace DataTray.Providers.MongoDb;
 
 /// <summary>
 /// MongoDB has no SQL dialect — this exists only to satisfy the <see cref="IDbProvider.Dialect"/>

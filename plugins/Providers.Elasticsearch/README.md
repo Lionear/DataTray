@@ -172,14 +172,14 @@ Connection details are stored as an ADO-style `Key=Value;…` string (robust quo
 
 ## Development notes
 
-- **Naming:** `plugins/Providers.Elasticsearch`, namespace `SqlExplorer.Providers.Elasticsearch`,
+- **Naming:** `plugins/Providers.Elasticsearch`, namespace `DataTray.Providers.Elasticsearch`,
   manifest `id` = `elasticsearch`, `hostApiVersion` = 25.
 - **Driver:** `Elastic.Clients.Elasticsearch` (official v8+; NEST is legacy). The provider uses the
   low-level `client.Transport` for raw request passthrough — the console, browse (`_search`), and
   writeback (`_bulk`) all go through it as raw JSON, so the full REST surface is reachable and
   version-tolerant. A client is created per call (no shared state), mirroring Mongo/Redis.
-- **Debug wiring:** a Debug-only `ProjectReference` in `src/SqlExplorer.App` forces the build, and a
-  Debug-only `ProviderPluginFile` (`PluginId` = `elasticsearch`) in `src/SqlExplorer.Desktop` stages it
+- **Debug wiring:** a Debug-only `ProjectReference` in `src/DataTray.App` forces the build, and a
+  Debug-only `ProviderPluginFile` (`PluginId` = `elasticsearch`) in `src/DataTray.Desktop` stages it
   into `plugins/elasticsearch/` beside the executable.
 - **Icon:** drop a square `icon.png` in this folder — it is embedded automatically (falls back to a 🔍
   glyph when absent).

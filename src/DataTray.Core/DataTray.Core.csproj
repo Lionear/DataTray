@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataTray.Sdk\DataTray.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SDK namespaces mirror its folders; import the sub-namespaces project-wide so consumer
+         files keep a single `using DataTray.Sdk` at the top. -->
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Ddl" />
+    <Using Include="DataTray.Sdk.Branding" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" Version="2025.1.0" />
+  </ItemGroup>
+
+</Project>

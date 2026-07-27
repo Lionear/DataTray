@@ -7,9 +7,9 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
-using SqlExplorer.Sdk.Localization;
+using DataTray.Sdk.Localization;
 
-namespace SqlExplorer.Tools.CopyTable;
+namespace DataTray.Tools.CopyTable;
 
 /// <summary>
 /// Copy Table's own dialog view (Route B), and — via <see cref="IToolDialogLifecycle"/> — the owner of the

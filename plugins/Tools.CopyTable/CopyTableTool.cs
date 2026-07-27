@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk.Scripting;
+using DataTray.Sdk.Scripting;
 
-namespace SqlExplorer.Tools.CopyTable;
+namespace DataTray.Tools.CopyTable;
 
 /// <summary>
 /// Copies the selected table to another connection and database the user picks. Reads the table's shape

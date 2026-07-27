@@ -1,4 +1,4 @@
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>Reads the live run-state of every managed container in one pass (the background seam's poll step,
 /// factored out so it's testable without the loop/UI). Fault-tolerant: <see cref="ContainerService.StatusAsync"/>

@@ -1,8 +1,8 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.SqlServer.Dac;
-using SqlExplorer.Sdk.Localization;
+using DataTray.Sdk.Localization;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// The single seam onto <see cref="DacServices"/> shared by all four tools (Export/Import BACPAC,

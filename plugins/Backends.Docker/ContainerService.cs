@@ -1,4 +1,4 @@
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>Everything needed to create one local container from a connection's engine + values.</summary>
 public sealed record CreateContainerRequest(

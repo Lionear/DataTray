@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using SqlExplorer.Sdk;
-using SqlExplorer.Sdk.Provisioning;
+using DataTray.Sdk;
+using DataTray.Sdk.Provisioning;
 using StackExchange.Redis;
 
-namespace SqlExplorer.Providers.DragonflyDb;
+namespace DataTray.Providers.DragonflyDb;
 
 /// <summary>
 /// A DragonflyDB provider. DragonflyDB is RESP2/RESP3-protocol compatible with Redis (a drop-in

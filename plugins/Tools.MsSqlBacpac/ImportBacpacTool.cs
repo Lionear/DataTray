@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk.Branding;
+using DataTray.Sdk.Branding;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Import a <c>.bacpac</c> as a brand-new database on the connected server. Destructive in that it creates

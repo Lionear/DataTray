@@ -20,7 +20,7 @@ License: Apache License, Version 2.0
 Licensor: Lionear
 
 Note: This condition applies to all of SQL Explorer EXCEPT the code in
-`src/Provider.Sdk` (the `SqlExplorer.Provider.Sdk` project), which is
+`src/Provider.Sdk` (the `DataTray.Provider.Sdk` project), which is
 licensed separately under the MIT License with no Commons Clause restriction.
 See `src/Provider.Sdk/LICENSE`.
 

@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>One backed-up column's definition (schema half of a table).</summary>
 public sealed record BackupColumn(string Name, string DeclaredType, bool Nullable, bool PrimaryKey);
@@ -18,7 +18,7 @@ public enum LbakObjectKind : byte
 }
 
 /// <summary>One non-table object in a v3 backup: its kind, name and the raw CREATE text from
-/// <see cref="SqlExplorer.Sdk.IDbProvider.GetObjectDefinitionAsync"/>. <see cref="ParentTable"/> is set for
+/// <see cref="DataTray.Sdk.IDbProvider.GetObjectDefinitionAsync"/>. <see cref="ParentTable"/> is set for
 /// a trigger (the table/view it hangs on), empty otherwise.</summary>
 public sealed record BackupObject(LbakObjectKind Kind, string SchemaName, string Name, string ParentTable, string Definition);
 

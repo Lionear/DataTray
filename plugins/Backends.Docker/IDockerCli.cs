@@ -1,4 +1,4 @@
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>The outcome of one <c>docker</c> invocation: exit code plus captured output.</summary>
 public sealed record DockerResult(int ExitCode, string StdOut, string StdErr)

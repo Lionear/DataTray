@@ -3,9 +3,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
-using SqlExplorer.Sdk.Ui;
+using DataTray.Sdk.Ui;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>
 /// Route-B view for <see cref="UniversalBackupTool"/>: a pre-filled destination path + optional passphrase,
@@ -118,7 +118,7 @@ public sealed class BackupSelectionView : UserControl
     // "<default folder or home>/<database>.lbak" — always something, so no hard "no file chosen" error.
     private string DefaultPath()
     {
-        var folder = (_context as SqlExplorer.Sdk.Tools.IToolHost)?.GetPluginSetting("defaultFolder");
+        var folder = (_context as DataTray.Sdk.Tools.IToolHost)?.GetPluginSetting("defaultFolder");
         if (string.IsNullOrWhiteSpace(folder))
         {
             folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

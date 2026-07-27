@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk.Query;
+using DataTray.Sdk.Query;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>Bridges a provider's streamed rows (<see cref="IQueryRowVisitor"/>) into the streaming
 /// <see cref="LbakWriter"/>: scalars go inline, LOB cells stream cell-by-cell so a multi-gigabyte value

@@ -1,4 +1,4 @@
-namespace SqlExplorer.Plugins.Schema;
+namespace DataTray.Plugins.Schema;
 
 /// <summary>
 /// Reads a <see cref="SchemaSnapshot"/> from SQLite, which has no <c>information_schema</c>. Everything

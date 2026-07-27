@@ -2,9 +2,9 @@ using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using SqlExplorer.Sdk.Ui;
+using DataTray.Sdk.Ui;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Route-B view for <see cref="ExtractDacpacTool"/>: a <c>.dacpac</c> destination, an application name +

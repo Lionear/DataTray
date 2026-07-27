@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace DataTray.Tools.SchemaDiff;
 
 /// <summary>
 /// Compares this database against a second one the user picks (another connection + one of its databases)

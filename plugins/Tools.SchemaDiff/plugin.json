@@ -5,6 +5,6 @@
   "name": "Schema Diff",
   "version": "0.3.0",
   "hostApiVersion": 4,
-  "entryAssembly": "SqlExplorer.Tools.SchemaDiff.dll",
+  "entryAssembly": "DataTray.Tools.SchemaDiff.dll",
   "localization": "Lang/strings"
 }

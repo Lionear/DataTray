@@ -3,9 +3,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
-using SqlExplorer.Sdk.Ui;
+using DataTray.Sdk.Ui;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>
 /// Route-B view for <see cref="UniversalRestoreTool"/>: a backup-file picker + optional passphrase, a

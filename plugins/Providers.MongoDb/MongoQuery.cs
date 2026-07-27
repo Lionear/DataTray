@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using MongoDB.Bson;
 
-namespace SqlExplorer.Providers.MongoDb;
+namespace DataTray.Providers.MongoDb;
 
 /// <summary>What kind of native Mongo operation a parsed query resolves to.</summary>
 internal enum MongoQueryKind

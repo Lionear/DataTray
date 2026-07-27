@@ -7,7 +7,7 @@ already in `project.assets.json` (the resolved closure, transitives included) pl
 `.nuspec` in the local NuGet cache, and ~97% of packages carry a machine-readable SPDX expression.
 
 Scope is the *shipped* set only: projects under `src/`. The `plugins/` projects are Debug-only (see the
-conditional ProjectReferences in SqlExplorer.App.csproj) and Store-installed plugins carry their own
+conditional ProjectReferences in DataTray.App.csproj) and Store-installed plugins carry their own
 notices — bundling those here would mean rewriting this file on every Store install.
 
 Run after changing dependencies, then commit the result:

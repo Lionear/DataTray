@@ -1,4 +1,4 @@
-namespace SqlExplorer.Providers.Redis;
+namespace DataTray.Providers.Redis;
 
 /// <summary>
 /// Tokenizes one Redis command line the way <c>redis-cli</c> does: whitespace-separated words, with

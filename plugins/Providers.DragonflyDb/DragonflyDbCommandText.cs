@@ -1,4 +1,4 @@
-namespace SqlExplorer.Providers.DragonflyDb;
+namespace DataTray.Providers.DragonflyDb;
 
 /// <summary>
 /// Tokenizes one Redis/Dragonfly command line the way <c>redis-cli</c> does: whitespace-separated words,

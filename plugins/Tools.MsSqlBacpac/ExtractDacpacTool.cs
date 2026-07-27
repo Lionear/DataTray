@@ -1,7 +1,7 @@
 using Microsoft.SqlServer.Dac;
-using SqlExplorer.Sdk.Branding;
+using DataTray.Sdk.Branding;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Extract a SQL Server database's schema (no data) to a <c>.dacpac</c> for CI/CD or schema compare.

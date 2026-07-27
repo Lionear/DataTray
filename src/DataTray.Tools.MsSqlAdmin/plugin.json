@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "mssql-admin",
+  "type": "tool",
+  "name": "SQL Server Admin Dialogs",
+  "version": "0.1.0",
+  "hostApiVersion": 2,
+  "entryAssembly": "DataTray.Tools.MsSqlAdmin.dll",
+  "localization": "Lang/strings"
+}

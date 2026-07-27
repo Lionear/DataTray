@@ -1,12 +1,12 @@
 using System.IO;
-using SqlExplorer.Sdk.Branding;
-using SqlExplorer.Sdk.Settings;
+using DataTray.Sdk.Branding;
+using DataTray.Sdk.Settings;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>
 /// Backs up a database to a single <c>.lbak</c> file, engine-agnostically: it walks the schema, reads
-/// each table and writes the rows — all through the host's <see cref="SqlExplorer.Sdk.IDbProvider"/>,
+/// each table and writes the rows — all through the host's <see cref="DataTray.Sdk.IDbProvider"/>,
 /// so it works for every current and future provider without bundling any driver. Read-only, hence not
 /// destructive. Also declares a persistent "default backup folder" setting (Settings ▸ Plugins) so the
 /// file field can be left empty for an automatic <c>&lt;database&gt;-&lt;timestamp&gt;.lbak</c> name there.

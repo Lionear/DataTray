@@ -36,14 +36,14 @@ command console, the Hash-only editable grid — is identical to the Redis provi
 
 ## Development notes
 
-- **Naming:** `plugins/Providers.DragonflyDb`, namespace `SqlExplorer.Providers.DragonflyDb`, manifest
+- **Naming:** `plugins/Providers.DragonflyDb`, namespace `DataTray.Providers.DragonflyDb`, manifest
   `id` = `dragonflydb`.
 - **Manifest** (`plugin.json`): `id` = `dragonflydb`, `type` = `provider`, `hostApiVersion` = 23.
 - **Driver:** `StackExchange.Redis` (same package/version as Providers.Redis); `CopyLocalLockFileAssemblies`
   emits its closure into the plugin folder for isolated (ALC) loading. A `ConnectionMultiplexer` is
   opened per call, mirroring the Redis provider — no shared/cached connection state.
-- **Debug wiring:** a Debug-only `ProjectReference` in `src/SqlExplorer.App` forces the build, and a
-  Debug-only `ProviderPluginFile` (`PluginId` = `dragonflydb`) in `src/SqlExplorer.Desktop` stages it
+- **Debug wiring:** a Debug-only `ProjectReference` in `src/DataTray.App` forces the build, and a
+  Debug-only `ProviderPluginFile` (`PluginId` = `dragonflydb`) in `src/DataTray.Desktop` stages it
   into `plugins/dragonflydb/` beside the executable.
 - **Icon:** drop a square `icon.png` in this folder — it is embedded automatically and shown on the
   provider's connection nodes (falls back to a 🐉 glyph when absent).

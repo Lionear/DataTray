@@ -5,12 +5,12 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
-using SqlExplorer.Sdk;
-using SqlExplorer.Sdk.Provisioning;
-using SqlExplorer.Sdk.Editing;
+using DataTray.Sdk;
+using DataTray.Sdk.Provisioning;
+using DataTray.Sdk.Editing;
 using EsHttpMethod = Elastic.Transport.HttpMethod;
 
-namespace SqlExplorer.Providers.Elasticsearch;
+namespace DataTray.Providers.Elasticsearch;
 
 /// <summary>
 /// An Elasticsearch provider. Elasticsearch is a document search engine, not a SQL engine, so this maps

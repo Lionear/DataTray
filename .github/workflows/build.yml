@@ -209,7 +209,7 @@ jobs:
       - name: Publish
         shell: bash
         run: |
-          dotnet publish src/SqlExplorer.Desktop/SqlExplorer.Desktop.csproj \
+          dotnet publish src/DataTray.Desktop/DataTray.Desktop.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
             --self-contained true \
@@ -267,18 +267,18 @@ jobs:
           rm -rf "$APPDIR"
           mkdir -p "$APPDIR/usr/bin"
           cp -r publish/${{ matrix.rid }}/* "$APPDIR/usr/bin/"
-          chmod +x "$APPDIR/usr/bin/SqlExplorer.Desktop"
+          chmod +x "$APPDIR/usr/bin/DataTray.Desktop"
 
           # Icon (top-level + hicolor path both referenced by the .desktop entry)
-          cp src/SqlExplorer.App/Assets/icon.png "$APPDIR/lionear-sql-explorer.png"
+          cp src/DataTray.App/Assets/icon.png "$APPDIR/lionear-sql-explorer.png"
           mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-          cp src/SqlExplorer.App/Assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/lionear-sql-explorer.png"
+          cp src/DataTray.App/Assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/lionear-sql-explorer.png"
 
           cat > "$APPDIR/lionear-sql-explorer.desktop" <<'EOF'
           [Desktop Entry]
           Type=Application
           Name=SQL Explorer
-          Exec=SqlExplorer.Desktop
+          Exec=DataTray.Desktop
           Icon=lionear-sql-explorer
           Categories=Development;Database;
           Terminal=false
@@ -287,7 +287,7 @@ jobs:
           cat > "$APPDIR/AppRun" <<'EOF'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
-          exec "$HERE/usr/bin/SqlExplorer.Desktop" "$@"
+          exec "$HERE/usr/bin/DataTray.Desktop" "$@"
           EOF
           chmod +x "$APPDIR/AppRun"
 

@@ -1,7 +1,7 @@
 ; Windows installer for SQL Explorer (Inno Setup 6).
 ;
 ; Per-user install by design: no admin prompt, and it matches where the app already writes — the Plugin
-; Store installs into %APPDATA%\Lionear\SqlExplorer\plugins, so an installer needing elevation would be
+; Store installs into %APPDATA%\Lionear\DataTray\plugins, so an installer needing elevation would be
 ; the only part of the product that does.
 ;
 ; Built by .github/workflows/build.yml, which passes the values that change per run:
@@ -13,7 +13,7 @@
 #define AppName "SQL Explorer"
 #define AppPublisher "Lionear"
 #define AppUrl "https://lionear.dev"
-#define ExeName "SqlExplorer.Desktop.exe"
+#define ExeName "DataTray.Desktop.exe"
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
