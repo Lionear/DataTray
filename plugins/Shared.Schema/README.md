@@ -14,7 +14,7 @@ It is **not a project**. The files are source-linked into each plugin that needs
 ```
 
 so each plugin compiles its own copy into its own assembly. That is deliberate: plugins load into isolated
-`AssemblyLoadContext`s and only `SqlExplorer.Sdk` and `Avalonia*` are shared with the host, so a separate
+`AssemblyLoadContext`s and only `DataTray.Sdk` and `Avalonia*` are shared with the host, so a separate
 `Shared.Schema.dll` would either have to be duplicated per plugin folder anyway or be promoted into the
 SDK — and the SDK is a public contract we would then owe compatibility to. These types never cross the ALC
 boundary, so two identical copies are harmless.
@@ -33,7 +33,7 @@ boundary, so two identical copies are harmless.
 | `AlterScriptWriter.cs` | Renders those changes into runnable DDL for one dialect. Schema Diff feeds it a diff; Generate Scripts feeds it a whole schema as creates. |
 
 The mapping half of each reader is pure (`BuildTables`) and unit-tested without a database, in
-`tests/SqlExplorer.Tools.SchemaDiff.Tests`.
+`tests/DataTray.Tools.SchemaDiff.Tests`.
 
 ## Scope
 

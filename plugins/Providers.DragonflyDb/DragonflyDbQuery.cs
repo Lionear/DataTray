@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SqlExplorer.Providers.DragonflyDb;
+namespace DataTray.Providers.DragonflyDb;
 
 internal enum DragonflyDbQueryKind { Browse, Command }
 

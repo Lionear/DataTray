@@ -1,4 +1,4 @@
-namespace SqlExplorer.Plugins.Schema;
+namespace DataTray.Plugins.Schema;
 
 /// <summary>One structural difference between two schemas, phrased as an operation that transforms the
 /// <i>from</i> schema into the <i>to</i> schema. <see cref="SchemaDiffer"/> produces them already ordered

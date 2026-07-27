@@ -1,6 +1,6 @@
-# Contributing to SQL Explorer
+# Contributing to DataTray
 
-Thanks for your interest. SQL Explorer is maintained by one person, so the bar for contributions is
+Thanks for your interest. DataTray is maintained by one person, so the bar for contributions is
 high and the rules below are not negotiable. Reading them before you open a pull request saves
 everyone time.
 
@@ -10,7 +10,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 The high bar below applies to **code in pull requests**. A clear, reproducible bug report or a
 well-argued feature idea costs you little and is one of the most helpful things you can send. Open an
-[issue](https://github.com/Lionear/SqlExplorer/issues) for either.
+[issue](https://github.com/Lionear/DataTray/issues) for either.
 
 ## Pull request policy
 
@@ -41,11 +41,11 @@ it keeps a one-person project alive.
    file-scoped namespaces, nullable enabled, Allman braces, primary constructors, `Async` suffix,
    `ct` as the last parameter.
 3. **Build clean.** `dotnet build` with zero warnings. There is no automated test suite yet, so
-   verify behaviour by running the affected flow (`dotnet run --project src/SqlExplorer.Desktop`);
+   verify behaviour by running the affected flow (`dotnet run --project src/DataTray.Desktop`);
    UI changes should be checked visually.
 4. **Respect the plugin boundary.** A new database engine is **not** a change to the host — it is a
-   new `src/SqlExplorer.Providers.*` project (or an external plugin) that references **only**
-   `SqlExplorer.Sdk`, the public contract. No UI change, no `Core` dependency. Read
+   new `src/DataTray.Providers.*` project (or an external plugin) that references **only**
+   `DataTray.Sdk`, the public contract. No UI change, no `Core` dependency. Read
    [`docs/PLUGINS.md`](docs/PLUGINS.md) before adding provider or tool plugins.
 5. **Mind the credential trust boundary.** Connection secrets are stored in the OS keychain via
    `ISecretStore` and never written to disk in plaintext, logged, or transmitted anywhere other than
@@ -92,7 +92,7 @@ collide.
 - Pick the right category: **Added** for new features, **Changed** for changes in existing behaviour,
   **Fixed** for bug fixes, **Removed** for removed features. The commit types map straight onto these:
   `feat:` → **added**, `fix:` → **fixed**, `refactor:`/`perf:` → **changed**.
-- Keep it user-facing: describe what changed for the person *using* SQL Explorer, not the class that
+- Keep it user-facing: describe what changed for the person *using* DataTray, not the class that
   changed.
 - Never write a version heading yourself. `python tools/changelog-render.py --dry-run` shows what the
   next release's `[Unreleased]` section will look like; the release workflow folds the fragments in and
@@ -112,8 +112,8 @@ adds, removes or bumps a dependency, regenerate it (`python tools/generate-third
 
 ## License of contributions
 
-The project is source-available under a split license: `src/SqlExplorer.Sdk` is
-[MIT](src/SqlExplorer.Sdk/LICENSE) (the public plugin contract), everything else is
+The project is source-available under a split license: `src/DataTray.Sdk` is
+[MIT](src/DataTray.Sdk/LICENSE) (the public plugin contract), everything else is
 [Apache-2.0 with the Commons Clause](LICENSE). By submitting a contribution you agree that it is
 licensed under the same terms as the part of the tree it touches. If that doesn't work for you, open
 an issue before contributing.

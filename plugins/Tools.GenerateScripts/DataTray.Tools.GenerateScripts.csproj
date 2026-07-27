@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Tools.GenerateScripts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contract only: the tool reads the schema through the host's IDbProvider and hands the script to a
+         query tab or a file — no driver dependency, no DDL of its own. Route A (declared fields), so no
+         Avalonia reference. Private=false keeps Sdk.dll out of the plugin folder so the host's copy is used
+         across the ALC boundary. -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reading a schema and rendering DDL for a dialect is shared with Schema Diff and Copy Table,
+         source-linked rather than packaged. See plugins/Shared.Schema/README.md. -->
+    <Compile Include="..\Shared.Schema\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
+    <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DataTray.Sdk" />
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Localization" />
+    <Using Include="DataTray.Sdk.Tools" />
+    <Using Include="DataTray.Plugins.Schema" />
+  </ItemGroup>
+
+</Project>

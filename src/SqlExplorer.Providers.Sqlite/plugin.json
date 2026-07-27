@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "sqlite",
-  "type": "provider",
-  "name": "SQLite",
-  "version": "0.3.0",
-  "hostApiVersion": 27,
-  "entryAssembly": "SqlExplorer.Providers.Sqlite.dll"
-}

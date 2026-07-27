@@ -1,0 +1,209 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
+using DataTray.Core.Localization;
+using DataTray.Core.Plugins;
+using DataTray.Core.Store;
+using DataTray.Sdk;
+using DataTray.Sdk.Mcp;
+using DataTray.Sdk.Tools;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace DataTray.App.ViewModels;
+
+/// <summary>One plugin row in the About dialog's diagnostics list: what's loaded, from where, and whether
+/// it's pinned or disabled. Read-only — installing/enabling/pinning stays in the Store and Settings.</summary>
+/// <param name="Source">Raw and English (<see cref="SourceBundled"/>/<see cref="SourceStore"/>). This is what
+/// <see cref="AboutViewModel.BuildDiagnostics"/> emits, so a pasted report reads the same whatever language the
+/// reporter runs in; <see cref="SourceLabel"/> is the localized counterpart the UI binds to.</param>
+public sealed record AboutPluginRow(string Id, string Version, string Source, bool IsEnabled, bool IsPinned, ILocalizer Loc)
+{
+    public const string SourceBundled = "bundled";
+    public const string SourceStore = "store";
+
+    private const string FlagDisabled = "disabled";
+    private const string FlagPinned = "pinned";
+
+    public bool IsDisabled => !IsEnabled;
+
+    /// <summary>Only one flag is ever shown; disabled outranks pinned (it explains why it isn't running).
+    /// Raw and English, same contract as <see cref="Source"/> — the UI binds <see cref="FlagLabel"/>.</summary>
+    public string? Flag => IsDisabled ? FlagDisabled : IsPinned ? FlagPinned : null;
+
+    public bool HasFlag => Flag is not null;
+
+    public string SourceLabel => Loc[Source == SourceBundled ? "AboutSourceBundled" : "AboutSourceStore"];
+
+    public string? FlagLabel => Flag switch
+    {
+        FlagDisabled => Loc["AboutFlagDisabled"],
+        FlagPinned => Loc["AboutFlagPinned"],
+        _ => null
+    };
+}
+
+/// <summary>
+/// Backs the About dialog (SE-126). Answers the two questions About is actually opened for: "which
+/// version am I running?" (host + plugins, whose versions come from three sources since SE-120:
+/// bundled / store / pinned) and "what do I paste into a YouTrack issue?" — see
+/// <see cref="BuildDiagnostics"/>, which renders the whole picture as markdown.
+/// </summary>
+public sealed partial class AboutViewModel : ViewModelBase
+{
+    private readonly PluginCatalogService _plugins;
+    private readonly IPluginPinStore _pins;
+
+    public AboutViewModel(PluginCatalogService plugins, IPluginPinStore pins, ILocalizer localizer)
+    {
+        _plugins = plugins;
+        _pins = pins;
+        Loc = localizer;
+
+        AppVersion = ReadAppVersion();
+        BuildPluginRows();
+    }
+
+    /// <summary>
+    /// The informational version, because that is the only one that survives the build's channel stamp:
+    /// CI publishes with <c>-p:Version=0.1.0-nightly.20260717.42</c>, and .NET drops everything after the
+    /// numbers from AssemblyVersion/FileVersion (both become 0.1.0.0). Reading <see cref="Assembly.GetName"/>
+    /// therefore reported a bare "0.1.0" for nightly, preview and local builds alike.
+    /// The trailing <c>+&lt;sha&gt;</c> is SourceLink's build metadata — the commit is already in the
+    /// diagnostics via the channel stamp, and it makes the hero line unreadable.
+    /// </summary>
+    private static string ReadAppVersion()
+    {
+        var informational = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informational))
+            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "—";
+
+        var plus = informational.IndexOf('+');
+        return plus < 0 ? informational : informational[..plus];
+    }
+
+    public ILocalizer Loc { get; }
+
+    // --- Hero ---------------------------------------------------------------------------------------
+
+    public string AppVersion { get; }
+
+    public string VersionLine => Loc.Get("AboutVersion", AppVersion);
+
+    /// <summary>"Host API · Provider 25 · Tool 2 · MCP 1" — the three independent plugin contracts, each
+    /// deciding which Store plugins of that kind this build is offered. The per-contract minimums live in
+    /// <see cref="HostApiTooltip"/> (and the copied diagnostics) to keep the hero chip compact.</summary>
+    public string HostApiChip =>
+        Loc.Get("AboutHostApiChip", ProviderHostApi.Version, ToolHostApi.Version, McpHostApi.Version);
+
+    /// <summary>Tooltip on the Host API chip: each contract's current version and oldest still-loadable one.</summary>
+    public string HostApiTooltip => Loc.Get(
+        "AboutHostApiTooltip",
+        ProviderHostApi.Version, ProviderHostApi.MinimumSupported,
+        ToolHostApi.Version, ToolHostApi.MinimumSupported,
+        McpHostApi.Version, McpHostApi.MinimumSupported);
+
+    // --- System card --------------------------------------------------------------------------------
+
+    public string OsInfo => $"{RuntimeInformation.OSDescription.Trim()} ({RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant()})";
+
+    public string RuntimeInfo => RuntimeInformation.FrameworkDescription;
+
+    /// <summary>Avalonia's assembly version — read off a type we already reference rather than hardcoding
+    /// the package version, so it can't drift from what actually loaded.</summary>
+    public string AvaloniaVersion =>
+        typeof(Avalonia.Application).Assembly.GetName().Version?.ToString(3) ?? "—";
+
+    public string LanguageInfo => CultureInfo.CurrentUICulture.Name;
+
+    /// <summary>The config directory — the one path worth showing (and the only one in the diagnostics).</summary>
+    public string ConfigPath => Path.GetDirectoryName(PluginPaths.UserRoot) ?? PluginPaths.UserRoot;
+
+    // --- Plugins card -------------------------------------------------------------------------------
+
+    public ObservableCollection<AboutPluginRow> Plugins { get; } = [];
+
+    public string PluginCountLine => Loc.Get("AboutPluginCount", LoadedCount, DisabledCount);
+
+    private int LoadedCount => Plugins.Count(p => p.IsEnabled);
+    private int DisabledCount => Plugins.Count(p => p.IsDisabled);
+
+    private void BuildPluginRows()
+    {
+        var pins = _pins.GetAll();
+        foreach (var plugin in _plugins.Installed.OrderBy(p => p.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            Plugins.Add(new AboutPluginRow(
+                plugin.Id,
+                plugin.Version ?? "—",
+                plugin.Origin == PluginOrigin.Bundled ? AboutPluginRow.SourceBundled : AboutPluginRow.SourceStore,
+                plugin.Enabled,
+                pins.ContainsKey(plugin.Id),
+                Loc));
+        }
+    }
+
+    // --- Copy diagnostics ---------------------------------------------------------------------------
+
+    /// <summary>Set by the view; copies text to the clipboard (the view owns the TopLevel).</summary>
+    public Func<string, Task>? ClipboardRequested { get; set; }
+
+    /// <summary>Flips to the "Copied" label for a moment after a successful copy — an in-place
+    /// confirmation, no toast and no dialog.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyLabel))]
+    private bool _justCopied;
+
+    public string CopyLabel => JustCopied ? Loc["AboutCopied"] : Loc["AboutCopyDiagnostics"];
+
+    [RelayCommand]
+    private async Task CopyDiagnostics()
+    {
+        if (ClipboardRequested is null)
+        {
+            return;
+        }
+
+        await ClipboardRequested(BuildDiagnostics());
+
+        JustCopied = true;
+        await Task.Delay(1600);
+        JustCopied = false;
+    }
+
+    /// <summary>
+    /// The whole picture as markdown, so it pastes straight into a YouTrack issue and renders as a table.
+    /// Deliberately carries no secrets: no connection strings, no hostnames, no paths beyond the config
+    /// directory (which is itself omitted here — it's a local path and adds nothing to a bug report).
+    /// </summary>
+    public string BuildDiagnostics()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"**DataTray** {AppVersion}");
+        sb.AppendLine();
+        sb.AppendLine("| | |");
+        sb.AppendLine("|---|---|");
+        sb.AppendLine($"| Host API (provider) | {ProviderHostApi.Version} (min {ProviderHostApi.MinimumSupported}) |");
+        sb.AppendLine($"| Host API (tool) | {ToolHostApi.Version} (min {ToolHostApi.MinimumSupported}) |");
+        sb.AppendLine($"| Host API (mcp) | {McpHostApi.Version} (min {McpHostApi.MinimumSupported}) |");
+        sb.AppendLine($"| OS | {OsInfo} |");
+        sb.AppendLine($"| Runtime | {RuntimeInfo} |");
+        sb.AppendLine($"| Avalonia | {AvaloniaVersion} |");
+        sb.AppendLine($"| Language | {LanguageInfo} |");
+        sb.AppendLine();
+        sb.AppendLine($"**Plugins** ({LoadedCount} loaded, {DisabledCount} disabled)");
+        sb.AppendLine();
+        sb.AppendLine("| Plugin | Version | Source | |");
+        sb.AppendLine("|---|---|---|---|");
+        foreach (var plugin in Plugins)
+        {
+            sb.AppendLine($"| {plugin.Id} | {plugin.Version} | {plugin.Source} | {plugin.Flag} |");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+}

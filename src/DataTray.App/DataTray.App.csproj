@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.App</RootNamespace>
+    <!-- Skeleton uses reflection bindings (dynamic result columns, string-keyed localization indexer).
+         Views get typed x:DataType + compiled bindings as they stabilise. -->
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The one plugin SDK. Its Ui/ capabilities (ICustomConnectionUi, Route B) live here too now; the
+         host references Avalonia itself, and shares the SDK + Avalonia across the plugin ALC boundary. -->
+    <ProjectReference Include="..\DataTray.Sdk\DataTray.Sdk.csproj" />
+    <ProjectReference Include="..\DataTray.Core\DataTray.Core.csproj" />
+    <ProjectReference Include="..\DataTray.Infrastructure\DataTray.Infrastructure.csproj" />
+    <!-- The host owns the MCP server (loopback listener + transport security); this brings in ASP.NET Core
+         and the MCP SDK. MCP plugins only contribute tools, loaded at runtime like other plugins. -->
+    <ProjectReference Include="..\DataTray.Mcp.Hosting\DataTray.Mcp.Hosting.csproj" />
+    <!-- Providers are loaded at runtime as plugins, not linked. ReferenceOutputAssembly=false
+         keeps them out of the host's bin (no privileged access to their driver deps) while still
+         forcing them to build first so StageProviderPlugins can copy them into plugins/.
+         Private=false additionally stops their content (each provider ships a `plugin.json`) from
+         flowing into the host as transitive copy-to-output items — otherwise all four collide on
+         the same `plugin.json` relative path and break `dotnet publish` (NETSDK1152). -->
+    <ProjectReference Include="..\DataTray.Providers.Postgres\DataTray.Providers.Postgres.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\DataTray.Providers.Sqlite\DataTray.Providers.Sqlite.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\DataTray.Providers.MySql\DataTray.Providers.MySql.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\DataTray.Providers.MsSql\DataTray.Providers.MsSql.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <!-- Core admin tool plugin: SQL Server Shrink Database/Files. A tool plugin (type "tool"), but
+         unconditionally staged like the MVP providers — always present in Debug AND Release, not an
+         optional Store install (plan §3.2, Rick: "kern-feature, altijd aanwezig"). -->
+    <ProjectReference Include="..\DataTray.Tools.MsSqlAdmin\DataTray.Tools.MsSqlAdmin.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <!-- First-party MCP tool plugin (type "mcp"): the four core tools served by the host-owned MCP server.
+         Staged like the providers/admin tool — always present, loaded at runtime, not linked. -->
+    <ProjectReference Include="..\DataTray.Mcp.Server\DataTray.Mcp.Server.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <!-- Optional/non-shipped plugins live under the repo-root plugins/ folder (not src/), so it's clear
+         they aren't part of the core product. Debug-only: they build + get staged during development but
+         never ship in a Release/MVP build. The template demonstrates IPluginSettings (Route A) live. -->
+    <ProjectReference Include="..\..\plugins\Providers.Template\DataTray.Providers.Template.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Providers.DragonflyDb\DataTray.Providers.DragonflyDb.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Providers.Elasticsearch\DataTray.Providers.Elasticsearch.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Providers.MongoDb\DataTray.Providers.MongoDb.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Providers.Redis\DataTray.Providers.Redis.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <!-- Cross-connection schema-diff / copy-table tools (SE-99 / SE-100): store-only, so Debug-staged for
+         development but not bundled in Release — users install them from the Plugin Store (like the other tools). -->
+    <ProjectReference Include="..\..\plugins\Tools.SchemaDiff\DataTray.Tools.SchemaDiff.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Tools.GenerateScripts\DataTray.Tools.GenerateScripts.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Tools.CopyTable\DataTray.Tools.CopyTable.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Tools.UniversalBackup\DataTray.Tools.UniversalBackup.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Tools.MsSqlBacpac\DataTray.Tools.MsSqlBacpac.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Backends.Docker\DataTray.Backends.Docker.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SDK namespaces mirror its folders; import the sub-namespaces project-wide so consumer
+         files keep a single `using DataTray.Sdk` at the top. -->
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Settings" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Ddl" />
+    <Using Include="DataTray.Sdk.Routines" />
+    <Using Include="DataTray.Sdk.Branding" />
+    <Using Include="DataTray.Sdk.Tools" />
+    <Using Include="DataTray.Sdk.Ui" />
+  </ItemGroup>
+
+</Project>

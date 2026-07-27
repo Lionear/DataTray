@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-namespace SqlExplorer.Providers.Elasticsearch;
+namespace DataTray.Providers.Elasticsearch;
 
 internal enum ElasticQueryKind
 {

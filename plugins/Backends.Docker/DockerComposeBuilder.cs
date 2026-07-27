@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using SqlExplorer.Sdk.Provisioning;
+using DataTray.Sdk.Provisioning;
 
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>The snippet flavour to emit for a container recipe.</summary>
 public enum SnippetFormat
@@ -157,7 +157,7 @@ public sealed class DockerComposeBuilder
         sb.Append($"    image: {image}\n");
         sb.Append($"    container_name: {name}\n");
         sb.Append("    restart: unless-stopped\n");
-        // Kontena ownership labels (SE-184): let the Kontena desktop recognise these as SQL-Explorer-managed
+        // Kontena ownership labels (SE-184): let the Kontena desktop recognise these as DataTray-managed
         // containers (docker ps --filter "label=kontena.managed=true") so it won't claim/clean them up.
         sb.Append("    labels:\n");
         sb.Append($"      {KontenaManagedLabel}: \"true\"\n");

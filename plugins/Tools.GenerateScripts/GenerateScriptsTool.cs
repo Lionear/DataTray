@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.GenerateScripts;
+namespace DataTray.Tools.GenerateScripts;
 
 /// <summary>
 /// Scripts a whole database as <c>CREATE</c> DDL — SSMS's "Generate scripts", for every engine the schema

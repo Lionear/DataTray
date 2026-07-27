@@ -1,0 +1,1785 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>SQL Verkenner</value>
+  </data>
+  <data name="ConnectionString" xml:space="preserve">
+    <value>Verbindingsreeks</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Verbinden</value>
+  </data>
+  <data name="Disconnect" xml:space="preserve">
+    <value>Verbinding verbreken</value>
+  </data>
+  <data name="Run" xml:space="preserve">
+    <value>Uitvoeren</value>
+  </data>
+  <data name="Format" xml:space="preserve">
+    <value>Opmaken</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Taal</value>
+  </data>
+  <data name="StatusConnected" xml:space="preserve">
+    <value>Verbonden met {0} · {1} schema('s)</value>
+  </data>
+  <data name="StatusRows" xml:space="preserve">
+    <value>{0} rijen · {1:F0} ms</value>
+  </data>
+  <data name="StatusBarRows" xml:space="preserve">
+    <value>{0} rijen</value>
+  </data>
+  <data name="StatusBarMs" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="StatusScriptCapped" xml:space="preserve">
+    <value>Elke SELECT in het script is beperkt tot de eerste {0} rijen — zet “Query-resultaten pagen” uit in Instellingen om ze onbegrensd te draaien.</value>
+  </data>
+  <data name="StatusAffected" xml:space="preserve">
+    <value>{0} gewijzigd · {1:F0} ms</value>
+  </data>
+  <data name="NewConnection" xml:space="preserve">
+    <value>Nieuwe connectie</value>
+  </data>
+  <data name="Connections" xml:space="preserve">
+    <value>Connecties</value>
+  </data>
+  <data name="SelectRows" xml:space="preserve">
+    <value>Rijen tonen (top 100)</value>
+  </data>
+  <data name="CopyName" xml:space="preserve">
+    <value>Naam kopiëren</value>
+  </data>
+  <data name="EditConnection" xml:space="preserve">
+    <value>Connectie bewerken</value>
+  </data>
+  <data name="ConnectionName" xml:space="preserve">
+    <value>Naam</value>
+  </data>
+  <data name="Provider" xml:space="preserve">
+    <value>Aanbieder</value>
+  </data>
+  <data name="Test" xml:space="preserve">
+    <value>Testen</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Opslaan</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Annuleren</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Sluiten</value>
+  </data>
+  <data name="Properties" xml:space="preserve">
+    <value>Eigenschappen</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Verwijderen</value>
+  </data>
+  <data name="Browse" xml:space="preserve">
+    <value>Bladeren</value>
+  </data>
+  <data name="TestOk" xml:space="preserve">
+    <value>Verbinding OK</value>
+  </data>
+  <data name="TestFailed" xml:space="preserve">
+    <value>Verbinding mislukt</value>
+  </data>
+  <data name="AddRow" xml:space="preserve">
+    <value>Rij toevoegen</value>
+  </data>
+  <data name="DeleteRow" xml:space="preserve">
+    <value>Rij verwijderen</value>
+  </data>
+  <data name="Discard" xml:space="preserve">
+    <value>Verwerpen</value>
+  </data>
+  <data name="PendingSummary" xml:space="preserve">
+    <value>{0} gewijzigd · {1} toegevoegd · {2} verwijderd</value>
+  </data>
+  <data name="SaveOk" xml:space="preserve">
+    <value>Opgeslagen · {0} rij(en) aangepast</value>
+  </data>
+  <data name="SaveNothing" xml:space="preserve">
+    <value>Niets op te slaan</value>
+  </data>
+  <data name="ReadOnlyLabel" xml:space="preserve">
+    <value>Alleen-lezen</value>
+  </data>
+  <data name="ReviewTitle" xml:space="preserve">
+    <value>Wijzigingen controleren</value>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>Toepassen</value>
+  </data>
+  <data name="NewQueryTab" xml:space="preserve">
+    <value>Nieuwe query</value>
+  </data>
+  <data name="QueryTab" xml:space="preserve">
+    <value>Query</value>
+  </data>
+  <data name="BrowseTable" xml:space="preserve">
+    <value>Tabel bekijken</value>
+  </data>
+  <data name="ViewDefinition" xml:space="preserve">
+    <value>Definitie tonen</value>
+  </data>
+  <data name="ExecuteRoutine" xml:space="preserve">
+    <value>Uitvoeren</value>
+  </data>
+  <data name="ActivityMonitor" xml:space="preserve">
+    <value>Activiteitenmonitor</value>
+  </data>
+  <data name="ActivityMonitorTab" xml:space="preserve">
+    <value>Activiteitenmonitor — {0}</value>
+  </data>
+  <data name="AutoRefresh" xml:space="preserve">
+    <value>Auto-verversen</value>
+  </data>
+  <data name="RefreshOff" xml:space="preserve">
+    <value>Uit</value>
+  </data>
+  <data name="KillSession" xml:space="preserve">
+    <value>Sessie beëindigen</value>
+  </data>
+  <data name="CancelQuery" xml:space="preserve">
+    <value>Query annuleren</value>
+  </data>
+  <data name="ConfirmKillSessionTitle" xml:space="preserve">
+    <value>Sessie beëindigen</value>
+  </data>
+  <data name="ConfirmKillSession" xml:space="preserve">
+    <value>Sessie {0} beëindigen? Dit sluit de verbinding.</value>
+  </data>
+  <data name="ConfirmCancelQueryTitle" xml:space="preserve">
+    <value>Query annuleren</value>
+  </data>
+  <data name="ConfirmCancelQuery" xml:space="preserve">
+    <value>De lopende query op sessie {0} annuleren?</value>
+  </data>
+  <data name="SessionKilled" xml:space="preserve">
+    <value>Sessie {0} beëindigd.</value>
+  </data>
+  <data name="QueryCancelledSession" xml:space="preserve">
+    <value>Query op sessie {0} geannuleerd.</value>
+  </data>
+  <data name="NewUser" xml:space="preserve">
+    <value>Nieuwe gebruiker</value>
+  </data>
+  <data name="DeleteUser" xml:space="preserve">
+    <value>Gebruiker verwijderen</value>
+  </data>
+  <data name="UserName" xml:space="preserve">
+    <value>Gebruikersnaam</value>
+  </data>
+  <data name="UserRoles" xml:space="preserve">
+    <value>Rollen</value>
+  </data>
+  <data name="ConfirmDeleteUser" xml:space="preserve">
+    <value>Gebruiker {0} verwijderen?</value>
+  </data>
+  <data name="NewLogin" xml:space="preserve">
+    <value>Nieuwe login</value>
+  </data>
+  <data name="LoginProperties" xml:space="preserve">
+    <value>Eigenschappen</value>
+  </data>
+  <data name="LoginPropertiesTitle" xml:space="preserve">
+    <value>Login: {0}</value>
+  </data>
+  <data name="DropLogin" xml:space="preserve">
+    <value>Login verwijderen</value>
+  </data>
+  <data name="ConfirmDropLogin" xml:space="preserve">
+    <value>Login {0} verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
+  </data>
+  <data name="SettingsMcp" xml:space="preserve">
+    <value>MCP-server</value>
+  </data>
+  <data name="McpDesc" xml:space="preserve">
+    <value>Laat een AI-client (Claude Desktop/Code) via MCP queries uitvoeren op je connecties terwijl DataTray openstaat. Alleen connecties die je expliciet vrijgeeft (AI-toegang per connectie) zijn zichtbaar.</value>
+  </data>
+  <data name="McpEnabled" xml:space="preserve">
+    <value>MCP-server inschakelen</value>
+  </data>
+  <data name="McpPort" xml:space="preserve">
+    <value>Poort</value>
+  </data>
+  <data name="McpBindHint" xml:space="preserve">
+    <value>De server bindt altijd op 127.0.0.1 (alleen dit apparaat) — nooit bereikbaar vanaf het netwerk.</value>
+  </data>
+  <data name="McpUrl" xml:space="preserve">
+    <value>Server-URL</value>
+  </data>
+  <data name="McpRequireAuth" xml:space="preserve">
+    <value>Bearer-token vereisen (aanbevolen)</value>
+  </data>
+  <data name="McpNoAuthWarning" xml:space="preserve">
+    <value>⚠️ Zonder authenticatie kan elk lokaal programma op dit apparaat queries uitvoeren op je AI-toegankelijke connecties.</value>
+  </data>
+  <data name="McpToken" xml:space="preserve">
+    <value>Bearer-token</value>
+  </data>
+  <data name="McpTokenEmpty" xml:space="preserve">
+    <value>(gegenereerd bij het inschakelen)</value>
+  </data>
+  <data name="McpTokenHint" xml:space="preserve">
+    <value>Zet dit in de config van je AI-client. Voeg het niet toe aan een gedeelde repo of backup. Regenereren maakt het oude token meteen ongeldig.</value>
+  </data>
+  <data name="McpRegenerate" xml:space="preserve">
+    <value>Regenereren</value>
+  </data>
+  <data name="McpCaps" xml:space="preserve">
+    <value>Limieten</value>
+  </data>
+  <data name="McpMaxRows" xml:space="preserve">
+    <value>Max. rijen per query</value>
+  </data>
+  <data name="McpTimeout" xml:space="preserve">
+    <value>Query-timeout (seconden)</value>
+  </data>
+  <data name="McpStart" xml:space="preserve">
+    <value>Starten</value>
+  </data>
+  <data name="McpStop" xml:space="preserve">
+    <value>Stoppen</value>
+  </data>
+  <data name="McpServerRunning" xml:space="preserve">
+    <value>Actief</value>
+  </data>
+  <data name="McpServerStopped" xml:space="preserve">
+    <value>Niet actief</value>
+  </data>
+  <data name="McpScrubSecrets" xml:space="preserve">
+    <value>Secrets uit query-resultaten redigeren</value>
+  </data>
+  <data name="McpScrubSecretsHint" xml:space="preserve">
+    <value>Scant resultaatwaarden op tokens, sleutels en secret-achtige kolomnamen en vervangt ze voordat de AI ze ziet. Een verdedigingslaag, geen garantie.</value>
+  </data>
+  <data name="McpNoScrubWarning" xml:space="preserve">
+    <value>Redactie staat uit — live secrets in query-resultaten (tokens, API-sleutels, wachtwoorden) gaan ongefilterd naar de AI.</value>
+  </data>
+  <data name="McpConnectionCreateTitle" xml:space="preserve">
+    <value>Connecties aanmaken</value>
+  </data>
+  <data name="McpAllowConnectionCreate" xml:space="preserve">
+    <value>Laat de AI connecties aanmaken</value>
+  </data>
+  <data name="McpAllowConnectionCreateHint" xml:space="preserve">
+    <value>Indien aan, kan een AI-client via MCP databaseconnecties aanmaken. Standaard uit. Nieuwe connecties komen in de map hieronder; alleen loopback-hosts zijn toegestaan tenzij je er meer toevoegt.</value>
+  </data>
+  <data name="McpConnectionCreateWarning" xml:space="preserve">
+    <value>Elk lokaal proces dat de MCP-server bereikt kan nu connecties aanmaken — en DDL draaien tegen een tijdelijke loopback-connectie. Laat dit uit tenzij je het nodig hebt.</value>
+  </data>
+  <data name="McpConnectionFolder" xml:space="preserve">
+    <value>Connectiemap</value>
+  </data>
+  <data name="McpAllowedHosts" xml:space="preserve">
+    <value>Toegestane hosts</value>
+  </data>
+  <data name="McpAllowedHostsHint" xml:space="preserve">
+    <value>Hosts waar een AI-aangemaakte connectie naartoe mag. Loopback (localhost, 127.0.0.1, ::1) is altijd toegestaan.</value>
+  </data>
+  <data name="McpAllowedHostAddHint" xml:space="preserve">
+    <value>Host of IP (bijv. db.internal)</value>
+  </data>
+  <data name="McpAllowedHostInvalid" xml:space="preserve">
+    <value>Dat lijkt geen geldige host of IP-adres.</value>
+  </data>
+  <data name="AiAccessNone" xml:space="preserve">
+    <value>Geen</value>
+  </data>
+  <data name="AiAccessReadOnly" xml:space="preserve">
+    <value>Alleen-lezen</value>
+  </data>
+  <data name="AiAccessReadWrite" xml:space="preserve">
+    <value>Lezen &amp; schrijven</value>
+  </data>
+  <data name="AiAccess" xml:space="preserve">
+    <value>AI-toegang (MCP)</value>
+  </data>
+  <data name="AiAccessHint" xml:space="preserve">
+    <value>None = onzichtbaar voor de AI. Read-only = SELECT/EXPLAIN. Read-write = ook INSERT/UPDATE/DELETE (DDL kan nooit via MCP).</value>
+  </data>
+  <data name="AiWriteWarning" xml:space="preserve">
+    <value>⚠️ Read-write laat de AI data wijzigen op deze connectie. Zet dit alleen aan als je zeker bent — nooit op productie tenzij je dat echt bedoelt.</value>
+  </data>
+  <data name="ManagedConnectionWarning" xml:space="preserve">
+    <value>Deze connectie wordt beheerd door “{0}”. De provider, host of poort hier wijzigen kan de koppeling met de bijbehorende container breken — de plugin heeft 'm aangemaakt en houdt 'm bij.</value>
+  </data>
+  <data name="ExcludeFromMcp" xml:space="preserve">
+    <value>Nooit aan de AI tonen (harde blokkade)</value>
+  </data>
+  <data name="ExcludeFromMcpHint" xml:space="preserve">
+    <value>Blokkeert deze connectie volledig voor MCP, ook als AI-toegang aan staat — een veiligheidsoverride voor gevoelige/productie-connecties.</value>
+  </data>
+  <data name="OpenInEditor" xml:space="preserve">
+    <value>Openen in editor</value>
+  </data>
+  <data name="DefinitionUnavailable" xml:space="preserve">
+    <value>Voor dit object is geen definitie beschikbaar.</value>
+  </data>
+  <data name="ParameterOutput" xml:space="preserve">
+    <value>(uitvoer)</value>
+  </data>
+  <data name="RoutineExecuteHint" xml:space="preserve">
+    <value>Vul de invoerparameters in. Er opent een call-script in een nieuw tabblad — druk op Run om het uit te voeren.</value>
+  </data>
+  <data name="PrevPage" xml:space="preserve">
+    <value>‹ Vorige</value>
+  </data>
+  <data name="NextPage" xml:space="preserve">
+    <value>Volgende ›</value>
+  </data>
+  <data name="Filter" xml:space="preserve">
+    <value>Filter (WHERE)</value>
+  </data>
+  <data name="RowRange" xml:space="preserve">
+    <value>Rijen {0}–{1}</value>
+  </data>
+  <data name="RowRangeEmpty" xml:space="preserve">
+    <value>Geen rijen</value>
+  </data>
+  <data name="EmptyHint" xml:space="preserve">
+    <value>Dubbelklik een tabel om te bladeren, of start een nieuwe query.</value>
+  </data>
+  <data name="SqlCommands" xml:space="preserve">
+    <value>SQL-commando's</value>
+  </data>
+  <data name="DuplicateConnection" xml:space="preserve">
+    <value>Dupliceren</value>
+  </data>
+  <data name="CopySuffix" xml:space="preserve">
+    <value>(kopie)</value>
+  </data>
+  <data name="AdvancedSettings" xml:space="preserve">
+    <value>Geavanceerd</value>
+  </data>
+  <data name="ConnectionFailed" xml:space="preserve">
+    <value>Kan geen verbinding maken met de server.</value>
+  </data>
+  <data name="Stop" xml:space="preserve">
+    <value>Stoppen</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="FolderHint" xml:space="preserve">
+    <value>Optioneel — connecties groeperen (bijv. Productie)</value>
+  </data>
+  <data name="QueryCancelled" xml:space="preserve">
+    <value>Query geannuleerd.</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Ja</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>Nee</value>
+  </data>
+  <data name="ReconnectTitle" xml:space="preserve">
+    <value>Opnieuw verbinden?</value>
+  </data>
+  <data name="ReconnectMessage" xml:space="preserve">
+    <value>De verbinding staat nog open met de vorige instellingen. Je wijzigingen gelden pas na opnieuw verbinden. Nu opnieuw verbinden?</value>
+  </data>
+  <data name="ChangesOnReconnect" xml:space="preserve">
+    <value>Wijzigingen opgeslagen — ze gelden bij de volgende verbinding.</value>
+  </data>
+  <data name="Output" xml:space="preserve">
+    <value>Uitvoer</value>
+  </data>
+  <data name="ClearOutput" xml:space="preserve">
+    <value>Wissen</value>
+  </data>
+  <data name="AiActivity" xml:space="preserve">
+    <value>AI-activiteit</value>
+  </data>
+  <data name="ImportConnectionString" xml:space="preserve">
+    <value>Importeren uit connectiestring</value>
+  </data>
+  <data name="ImportConnectionStringHint" xml:space="preserve">
+    <value>Plak een connectiestring om de velden te vullen</value>
+  </data>
+  <data name="ImportDone" xml:space="preserve">
+    <value>Velden gevuld uit de connectiestring.</value>
+  </data>
+  <data name="ImportNotSupported" xml:space="preserve">
+    <value>Deze provider kan geen connectiestring importeren.</value>
+  </data>
+  <data name="ConnectionColor" xml:space="preserve">
+    <value>Kleur</value>
+  </data>
+  <data name="ReadOnlyMode" xml:space="preserve">
+    <value>Alleen-lezen (veilige modus)</value>
+  </data>
+  <data name="ReadOnlyConnection" xml:space="preserve">
+    <value>Deze connectie is alleen-lezen (veilige modus).</value>
+  </data>
+  <data name="History" xml:space="preserve">
+    <value>Historie</value>
+  </data>
+  <data name="GoToObject" xml:space="preserve">
+    <value>Ga naar</value>
+  </data>
+  <data name="SearchObjects" xml:space="preserve">
+    <value>Zoek tabellen, views, kolommen of voer een commando uit</value>
+  </data>
+  <data name="SearchHistory" xml:space="preserve">
+    <value>Zoek in historie</value>
+  </data>
+  <data name="ClearHistory" xml:space="preserve">
+    <value>Wissen</value>
+  </data>
+  <data name="AggCount" xml:space="preserve">
+    <value>Aantal</value>
+  </data>
+  <data name="AggSum" xml:space="preserve">
+    <value>Som</value>
+  </data>
+  <data name="AggAvg" xml:space="preserve">
+    <value>Gem</value>
+  </data>
+  <data name="AggMin" xml:space="preserve">
+    <value>Min</value>
+  </data>
+  <data name="AggMax" xml:space="preserve">
+    <value>Max</value>
+  </data>
+  <data name="NewDatabase" xml:space="preserve">
+    <value>Nieuwe database</value>
+  </data>
+  <data name="NewSchema" xml:space="preserve">
+    <value>Nieuw schema</value>
+  </data>
+  <data name="NewTable" xml:space="preserve">
+    <value>Nieuwe tabel</value>
+  </data>
+  <data name="ObjectName" xml:space="preserve">
+    <value>Naam</value>
+  </data>
+  <data name="ColumnName" xml:space="preserve">
+    <value>Kolom</value>
+  </data>
+  <data name="ColumnType" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="ColumnNullable" xml:space="preserve">
+    <value>Nullable</value>
+  </data>
+  <data name="ColumnPrimaryKey" xml:space="preserve">
+    <value>PK</value>
+  </data>
+  <data name="AddColumn" xml:space="preserve">
+    <value>+ Kolom toevoegen</value>
+  </data>
+  <data name="SqlPreview" xml:space="preserve">
+    <value>SQL-voorbeeld</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Aanmaken</value>
+  </data>
+  <data name="DropDatabase" xml:space="preserve">
+    <value>Database verwijderen</value>
+  </data>
+  <data name="DropSchema" xml:space="preserve">
+    <value>Schema verwijderen</value>
+  </data>
+  <data name="DropTable" xml:space="preserve">
+    <value>Tabel verwijderen</value>
+  </data>
+  <data name="AddColumnTitle" xml:space="preserve">
+    <value>Kolom toevoegen</value>
+  </data>
+  <data name="AddColumnMenu" xml:space="preserve">
+    <value>Kolom toevoegen</value>
+  </data>
+  <data name="DropColumn" xml:space="preserve">
+    <value>Kolom verwijderen</value>
+  </data>
+  <data name="RenameColumn" xml:space="preserve">
+    <value>Kolom hernoemen</value>
+  </data>
+  <data name="NewName" xml:space="preserve">
+    <value>Nieuwe naam</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Bevestigen</value>
+  </data>
+  <data name="IrreversibleWarning" xml:space="preserve">
+    <value>Dit kan niet ongedaan gemaakt worden.</value>
+  </data>
+  <data name="ColumnAutoIncrement" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="AutoIncrementHint" xml:space="preserve">
+    <value>Auto-increment (identity). Per engine anders gerenderd: Postgres GENERATED ALWAYS AS IDENTITY, MySQL AUTO_INCREMENT, SQL Server IDENTITY(1,1), SQLite INTEGER PRIMARY KEY AUTOINCREMENT.</value>
+  </data>
+  <data name="PrimaryKeyHint" xml:space="preserve">
+    <value>Primaire sleutel. Identificeert elke rij uniek; meerdere aangevinkte kolommen vormen een samengestelde sleutel.</value>
+  </data>
+  <data name="RunAtCursor" xml:space="preserve">
+    <value>Uitvoeren op cursor</value>
+  </data>
+  <data name="Explain" xml:space="preserve">
+    <value>Explain</value>
+  </data>
+  <data name="Export" xml:space="preserve">
+    <value>Exporteren</value>
+  </data>
+  <data name="ExportFormat" xml:space="preserve">
+    <value>Exportformaat</value>
+  </data>
+  <data name="ExportRowsSelected" xml:space="preserve">
+    <value>{0} rij(en) geselecteerd</value>
+  </data>
+  <data name="ExportRowsAll" xml:space="preserve">
+    <value>{0} rij(en), heel resultaat</value>
+  </data>
+  <data name="ImportCsv" xml:space="preserve">
+    <value>CSV importeren</value>
+  </data>
+  <data name="ImportCsvTitle" xml:space="preserve">
+    <value>CSV importeren</value>
+  </data>
+  <data name="ImportPreview" xml:space="preserve">
+    <value>Voorbeeld</value>
+  </data>
+  <data name="ImportMapColumn" xml:space="preserve">
+    <value>Kolom-koppeling</value>
+  </data>
+  <data name="ImportSkip" xml:space="preserve">
+    <value>— overslaan —</value>
+  </data>
+  <data name="ImportRowCount" xml:space="preserve">
+    <value>{0} rij(en) om te importeren</value>
+  </data>
+  <data name="Import" xml:space="preserve">
+    <value>Importeren</value>
+  </data>
+  <data name="ImportOk" xml:space="preserve">
+    <value>{0} rij(en) geïmporteerd</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Instellingen</value>
+  </data>
+  <data name="Preferences" xml:space="preserve">
+    <value>Voorkeuren</value>
+  </data>
+  <data name="SettingsGeneral" xml:space="preserve">
+    <value>Algemene voorkeuren.</value>
+  </data>
+  <data name="SettingsAppearance" xml:space="preserve">
+    <value>Weergave</value>
+  </data>
+  <data name="SettingsSearch" xml:space="preserve">
+    <value>Instellingen zoeken…</value>
+  </data>
+  <data name="SettingsEditor" xml:space="preserve">
+    <value>Editor</value>
+  </data>
+  <data name="SettingsQuery" xml:space="preserve">
+    <value>Query</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Thema</value>
+  </data>
+  <data name="ThemeSystem" xml:space="preserve">
+    <value>Systeem</value>
+  </data>
+  <data name="ThemeLight" xml:space="preserve">
+    <value>Licht</value>
+  </data>
+  <data name="ThemeDark" xml:space="preserve">
+    <value>Donker</value>
+  </data>
+  <data name="PanelsSectionTitle" xml:space="preserve">
+    <value>Panelen</value>
+  </data>
+  <data name="SingleBottomPanel" xml:space="preserve">
+    <value>Toon één onderpaneel tegelijk</value>
+  </data>
+  <data name="SingleBottomPanelHint" xml:space="preserve">
+    <value>Een onderpaneel openen (Output, Containers…) sluit de andere. Zet uit om er meerdere tegelijk open te houden.</value>
+  </data>
+  <data name="EditorFontSize" xml:space="preserve">
+    <value>Lettergrootte</value>
+  </data>
+  <data name="EditorWordWrap" xml:space="preserve">
+    <value>Regelterugloop</value>
+  </data>
+  <data name="ConfirmBeforeSave" xml:space="preserve">
+    <value>Toon een controlevenster vóór het opslaan van wijzigingen</value>
+  </data>
+  <data name="QueryTimeout" xml:space="preserve">
+    <value>Query-timeout (seconden, 0 = geen)</value>
+  </data>
+  <data name="QueryTimeoutHint" xml:space="preserve">
+    <value>Annuleer een lopende query na dit aantal seconden. 0 schakelt de timeout uit. Geldt voor queries vanuit de app; de MCP-server heeft een eigen timeout.</value>
+  </data>
+  <data name="BrowsePageSize" xml:space="preserve">
+    <value>Bladergrootte (rijen per pagina)</value>
+  </data>
+  <data name="BrowsePageSizeHint" xml:space="preserve">
+    <value>Aantal rijen per pagina bij het bladeren door een tabel. Geldt voor nieuw geopende bladertabbladen.</value>
+  </data>
+  <data name="PageQueryResults" xml:space="preserve">
+    <value>Query-resultaten pagen</value>
+  </data>
+  <data name="QueryPageSize" xml:space="preserve">
+    <value>Paginagrootte query's (rijen)</value>
+  </data>
+  <data name="QueryPageSizeHint" xml:space="preserve">
+    <value>Indien aan wordt een enkele SELECT zonder eigen TOP/LIMIT pagina voor pagina getoond (gebruik Vorige/Volgende om door de rijen te bladeren), zodat een losse "SELECT * FROM grote_tabel" niet in één keer alles ophaalt. Een script met meerdere statements kan geen paginabalk hebben; daar wordt elke zulke SELECT in plaats daarvan beperkt tot één pagina rijen, en het resultaattabblad zegt dat erbij. Query's met een eigen TOP/LIMIT en niet-SELECT-statements blijven ongewijzigd. Geldt voor nieuw geopende querytabbladen.</value>
+  </data>
+  <data name="ConfirmOnExit" xml:space="preserve">
+    <value>Vraag om bevestiging bij afsluiten</value>
+  </data>
+  <data name="CloseToTray" xml:space="preserve">
+    <value>Naar systeemvak sluiten in plaats van afsluiten</value>
+  </data>
+  <data name="CloseToTrayHint" xml:space="preserve">
+    <value>De sluitknop verbergt het venster en houdt de app op de achtergrond actief (bijv. de MCP-server). Afsluiten via het systeemvak-icoon of Bestand &gt; Afsluiten.</value>
+  </data>
+  <data name="AllowMultipleInstances" xml:space="preserve">
+    <value>Meerdere instanties toestaan</value>
+  </data>
+  <data name="AllowMultipleInstancesHint" xml:space="preserve">
+    <value>Uit: de app opnieuw starten brengt het bestaande venster naar voren. Aan: elke start opent een eigen, los venster. Werkt vanaf de volgende start.</value>
+  </data>
+  <data name="QueryLogMenu" xml:space="preserve">
+    <value>Query-log</value>
+  </data>
+  <data name="SettingsQueryLog" xml:space="preserve">
+    <value>Query-log</value>
+  </data>
+  <data name="QueryLogDesc" xml:space="preserve">
+    <value>Log uitgevoerde queries naar een audit-logbestand dat je kunt bekijken, filteren en exporteren. Los van de altijd-aan query-geschiedenis.</value>
+  </data>
+  <data name="QueryLogEnabledLabel" xml:space="preserve">
+    <value>Query-logging inschakelen</value>
+  </data>
+  <data name="QueryLogSources" xml:space="preserve">
+    <value>Bronnen loggen</value>
+  </data>
+  <data name="QueryLogAppLabel" xml:space="preserve">
+    <value>Queries vanuit de applicatie</value>
+  </data>
+  <data name="QueryLogMcpLabel" xml:space="preserve">
+    <value>AI-/MCP-queries</value>
+  </data>
+  <data name="QueryLogHint" xml:space="preserve">
+    <value>Alleen de SQL en timing/uitkomst worden bewaard — nooit resultaatrijen of connection-secrets. Het log roteert automatisch bij de groottelimiet.</value>
+  </data>
+  <data name="QueryLogTitle" xml:space="preserve">
+    <value>Query-log</value>
+  </data>
+  <data name="QueryLogPolicyOff" xml:space="preserve">
+    <value>Query-logging staat uit — schakel het in via Instellingen → Query-log om queries vast te leggen.</value>
+  </data>
+  <data name="QueryLogPolicyAppOnly" xml:space="preserve">
+    <value>Alleen applicatie-queries worden gelogd — AI/MCP-logging staat uit (Instellingen → Query-log).</value>
+  </data>
+  <data name="QueryLogPolicyMcpOnly" xml:space="preserve">
+    <value>Alleen AI/MCP-queries worden gelogd — applicatie-logging staat uit (Instellingen → Query-log).</value>
+  </data>
+  <data name="QueryLogSearch" xml:space="preserve">
+    <value>Zoek in SQL of connectie</value>
+  </data>
+  <data name="QueryLogSourceAll" xml:space="preserve">
+    <value>Alle bronnen</value>
+  </data>
+  <data name="QueryLogSourceApp" xml:space="preserve">
+    <value>Applicatie</value>
+  </data>
+  <data name="QueryLogSourceAi" xml:space="preserve">
+    <value>AI / MCP</value>
+  </data>
+  <data name="QueryLogStatusAll" xml:space="preserve">
+    <value>Alle statussen</value>
+  </data>
+  <data name="QueryLogStatusSuccess" xml:space="preserve">
+    <value>Gelukt</value>
+  </data>
+  <data name="QueryLogStatusError" xml:space="preserve">
+    <value>Fout</value>
+  </data>
+  <data name="QueryLogExport" xml:space="preserve">
+    <value>Exporteren</value>
+  </data>
+  <data name="QueryLogClear" xml:space="preserve">
+    <value>Log wissen</value>
+  </data>
+  <data name="QueryLogCopySql" xml:space="preserve">
+    <value>SQL kopiëren</value>
+  </data>
+  <data name="QueryLogOpenInTab" xml:space="preserve">
+    <value>Openen in query-tab</value>
+  </data>
+  <data name="QueryLogColTime" xml:space="preserve">
+    <value>Tijd</value>
+  </data>
+  <data name="QueryLogColSource" xml:space="preserve">
+    <value>Bron</value>
+  </data>
+  <data name="QueryLogColConnection" xml:space="preserve">
+    <value>Connectie</value>
+  </data>
+  <data name="QueryLogColSql" xml:space="preserve">
+    <value>SQL</value>
+  </data>
+  <data name="QueryLogColDuration" xml:space="preserve">
+    <value>Duur</value>
+  </data>
+  <data name="QueryLogColRows" xml:space="preserve">
+    <value>Rijen</value>
+  </data>
+  <data name="QueryLogColStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="QueryLogSummary" xml:space="preserve">
+    <value>{0} vermeldingen</value>
+  </data>
+  <data name="SettingsSecurity" xml:space="preserve">
+    <value>Beveiliging</value>
+  </data>
+  <data name="MasterPwSectionDesc" xml:space="preserve">
+    <value>Bescherm je opgeslagen connectiewachtwoorden optioneel met een app-master-password, bovenop de OS-keychain.</value>
+  </data>
+  <data name="MasterPwNotSet" xml:space="preserve">
+    <value>Er is geen master password ingesteld. Je connectie-secrets worden alleen door de OS-keychain beschermd.</value>
+  </data>
+  <data name="MasterPwIsSet" xml:space="preserve">
+    <value>Er is een master password ingesteld.</value>
+  </data>
+  <data name="MasterPwSetButton" xml:space="preserve">
+    <value>Master password instellen</value>
+  </data>
+  <data name="MasterPwChangeButton" xml:space="preserve">
+    <value>Wijzigen</value>
+  </data>
+  <data name="MasterPwDisableButton" xml:space="preserve">
+    <value>Uitschakelen</value>
+  </data>
+  <data name="MasterPwLockAfter" xml:space="preserve">
+    <value>Vergrendelen na inactiviteit</value>
+  </data>
+  <data name="MasterPwLockNever" xml:space="preserve">
+    <value>Nooit</value>
+  </data>
+  <data name="MasterPwLock15" xml:space="preserve">
+    <value>15 minuten</value>
+  </data>
+  <data name="MasterPwLock30" xml:space="preserve">
+    <value>30 minuten</value>
+  </data>
+  <data name="MasterPwLock60" xml:space="preserve">
+    <value>60 minuten</value>
+  </data>
+  <data name="MasterPwNoRecovery" xml:space="preserve">
+    <value>Er is geen herstel: als je het master password vergeet, kunnen opgeslagen secrets niet ontsleuteld worden en moeten connecties opnieuw ingevoerd worden.</value>
+  </data>
+  <data name="MasterPwEnabledMsg" xml:space="preserve">
+    <value>Master password ingeschakeld — connectie-secrets opnieuw versleuteld.</value>
+  </data>
+  <data name="MasterPwChangedMsg" xml:space="preserve">
+    <value>Master password gewijzigd.</value>
+  </data>
+  <data name="MasterPwDisabledMsg" xml:space="preserve">
+    <value>Master password uitgeschakeld.</value>
+  </data>
+  <data name="MasterPwUnlockTitle" xml:space="preserve">
+    <value>DataTray ontgrendelen</value>
+  </data>
+  <data name="MasterPwSetTitle" xml:space="preserve">
+    <value>Master password instellen</value>
+  </data>
+  <data name="MasterPwChangeTitle" xml:space="preserve">
+    <value>Master password wijzigen</value>
+  </data>
+  <data name="MasterPwUnlockDesc" xml:space="preserve">
+    <value>Voer je master password in om je opgeslagen connecties te ontgrendelen.</value>
+  </data>
+  <data name="MasterPwSetDesc" xml:space="preserve">
+    <value>Kies een master password. Het versleutelt je opgeslagen connectiewachtwoorden. Er is geen herstel als je het vergeet.</value>
+  </data>
+  <data name="MasterPwChangeDesc" xml:space="preserve">
+    <value>Voer je huidige en een nieuw master password in. Alle connectie-secrets worden opnieuw versleuteld.</value>
+  </data>
+  <data name="MasterPwPassword" xml:space="preserve">
+    <value>Wachtwoord</value>
+  </data>
+  <data name="MasterPwCurrent" xml:space="preserve">
+    <value>Huidig wachtwoord</value>
+  </data>
+  <data name="MasterPwNew" xml:space="preserve">
+    <value>Nieuw wachtwoord</value>
+  </data>
+  <data name="MasterPwConfirm" xml:space="preserve">
+    <value>Bevestig nieuw wachtwoord</value>
+  </data>
+  <data name="MasterPwUnlock" xml:space="preserve">
+    <value>Ontgrendelen</value>
+  </data>
+  <data name="MasterPwQuit" xml:space="preserve">
+    <value>Afsluiten</value>
+  </data>
+  <data name="MasterPwWrong" xml:space="preserve">
+    <value>Onjuist wachtwoord.</value>
+  </data>
+  <data name="MasterPwMismatch" xml:space="preserve">
+    <value>De nieuwe wachtwoorden komen niet overeen.</value>
+  </data>
+  <data name="ExitConfirmTitle" xml:space="preserve">
+    <value>Afsluiten</value>
+  </data>
+  <data name="ExitConfirmMessage" xml:space="preserve">
+    <value>Weet je zeker dat je DataTray wilt afsluiten?</value>
+  </data>
+  <data name="ExitConfirmQuit" xml:space="preserve">
+    <value>Afsluiten</value>
+  </data>
+  <data name="ExitConfirmAlways" xml:space="preserve">
+    <value>Altijd afsluiten zonder te vragen</value>
+  </data>
+  <data name="Startup" xml:space="preserve">
+    <value>Opstarten</value>
+  </data>
+  <data name="RestoreTabsOnStartup" xml:space="preserve">
+    <value>Query-tabs van de vorige sessie heropenen</value>
+  </data>
+  <data name="PromptSaveQueryOnClose" xml:space="preserve">
+    <value>Vragen om querybestanden met niet-opgeslagen wijzigingen op te slaan bij sluiten</value>
+  </data>
+  <data name="SettingsSchemaTree" xml:space="preserve">
+    <value>Schemastructuur</value>
+  </data>
+  <data name="ShowSystemDatabases" xml:space="preserve">
+    <value>Systeemdatabases tonen (na volgende verversing)</value>
+  </data>
+  <data name="RestoreDefaults" xml:space="preserve">
+    <value>Standaardwaarden herstellen</value>
+  </data>
+  <data name="ApplyAndClose" xml:space="preserve">
+    <value>Toepassen en sluiten</value>
+  </data>
+  <data name="MenuFile" xml:space="preserve">
+    <value>_Bestand</value>
+  </data>
+  <data name="MenuEdit" xml:space="preserve">
+    <value>Be_werken</value>
+  </data>
+  <data name="MenuHelp" xml:space="preserve">
+    <value>_Help</value>
+  </data>
+  <data name="NewConnectionMenu" xml:space="preserve">
+    <value>Nieuwe connectie</value>
+  </data>
+  <data name="Exit" xml:space="preserve">
+    <value>Afsluiten</value>
+  </data>
+  <data name="TrayShow" xml:space="preserve">
+    <value>DataTray tonen</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>Over</value>
+  </data>
+  <data name="AboutText" xml:space="preserve">
+    <value>DataTray</value>
+  </data>
+  <data name="AboutTagline" xml:space="preserve">
+    <value>Een cross-platform, meertalige SQL-verkenner gebouwd in .NET. Databasedrivers zijn plug-ins.</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Versie {0}</value>
+  </data>
+  <data name="AboutHostApiChip" xml:space="preserve">
+    <value>Host-API · Provider {0} · Tool {1} · MCP {2}</value>
+  </data>
+  <data name="AboutHostApiTooltip" xml:space="preserve">
+    <value>Provider {0} (min {1}) · Tool {2} (min {3}) · MCP {4} (min {5})</value>
+  </data>
+  <data name="AboutSystem" xml:space="preserve">
+    <value>Systeem</value>
+  </data>
+  <data name="AboutOs" xml:space="preserve">
+    <value>Besturingssysteem</value>
+  </data>
+  <data name="AboutRuntime" xml:space="preserve">
+    <value>Runtime</value>
+  </data>
+  <data name="AboutAvalonia" xml:space="preserve">
+    <value>Avalonia</value>
+  </data>
+  <data name="AboutLanguage" xml:space="preserve">
+    <value>Taal</value>
+  </data>
+  <data name="AboutConfig" xml:space="preserve">
+    <value>Configuratie</value>
+  </data>
+  <data name="AboutPlugins" xml:space="preserve">
+    <value>Plug-ins</value>
+  </data>
+  <data name="AboutPluginCount" xml:space="preserve">
+    <value>{0} geladen · {1} uitgeschakeld</value>
+  </data>
+  <data name="AboutSourceBundled" xml:space="preserve">
+    <value>meegeleverd</value>
+  </data>
+  <data name="AboutSourceStore" xml:space="preserve">
+    <value>store</value>
+  </data>
+  <data name="AboutFlagDisabled" xml:space="preserve">
+    <value>uitgeschakeld</value>
+  </data>
+  <data name="AboutFlagPinned" xml:space="preserve">
+    <value>vastgezet</value>
+  </data>
+  <data name="AboutWebsite" xml:space="preserve">
+    <value>Website</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Repository</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>Licentie</value>
+  </data>
+  <data name="AboutThirdParty" xml:space="preserve">
+    <value>Licenties van derden</value>
+  </data>
+  <data name="AboutCopyright" xml:space="preserve">
+    <value>© 2026 Lionear · Gelicentieerd onder de Commons Clause License Condition v1.0</value>
+  </data>
+  <data name="AboutCopyDiagnostics" xml:space="preserve">
+    <value>Diagnostiek kopiëren</value>
+  </data>
+  <data name="AboutCopied" xml:space="preserve">
+    <value>Gekopieerd</value>
+  </data>
+  <data name="CopyAsCsv" xml:space="preserve">
+    <value>Kopiëren als CSV</value>
+  </data>
+  <data name="CopyAsMarkdown" xml:space="preserve">
+    <value>Kopiëren als Markdown</value>
+  </data>
+  <data name="CopyAsHtml" xml:space="preserve">
+    <value>Kopiëren als HTML</value>
+  </data>
+  <data name="CopyAsInsert" xml:space="preserve">
+    <value>Kopiëren als INSERT</value>
+  </data>
+  <data name="ManageConnections" xml:space="preserve">
+    <value>Connecties beheren</value>
+  </data>
+  <data name="FilterConnections" xml:space="preserve">
+    <value>Filter connecties</value>
+  </data>
+  <data name="NewFolder" xml:space="preserve">
+    <value>Nieuwe map</value>
+  </data>
+  <data name="NewFolderName" xml:space="preserve">
+    <value>Nieuwe map</value>
+  </data>
+  <data name="FolderName" xml:space="preserve">
+    <value>Mapnaam</value>
+  </data>
+  <data name="RenameFolder" xml:space="preserve">
+    <value>Hernoemen</value>
+  </data>
+  <data name="DeleteFolder" xml:space="preserve">
+    <value>Map verwijderen</value>
+  </data>
+  <data name="FolderDeleteNote" xml:space="preserve">
+    <value>Een niet-lege map verwijderen verplaatst alle connecties eronder (inclusief submappen) naar "ongegroepeerd" — connecties worden nooit verwijderd. Een map hernoemen herschrijft het pad-prefix van elke connectie eronder.</value>
+  </data>
+  <data name="ManagerEmptyHint" xml:space="preserve">
+    <value>Selecteer een connectie of map, of voeg er een toe.</value>
+  </data>
+  <data name="ManagerSummary" xml:space="preserve">
+    <value>{0} connecties · {1} mappen</value>
+  </data>
+  <data name="DeleteConnectionConfirm" xml:space="preserve">
+    <value>Connectie "{0}" verwijderen?</value>
+  </data>
+  <data name="DeleteFolderConfirm" xml:space="preserve">
+    <value>{0} connectie(s) naar ongegroepeerd verplaatsen en deze map verwijderen?</value>
+  </data>
+  <data name="SettingsGeneralCat" xml:space="preserve">
+    <value>Algemeen</value>
+  </data>
+  <data name="SettingsPlugins" xml:space="preserve">
+    <value>Plug-ins</value>
+  </data>
+  <data name="SettingsPluginSources" xml:space="preserve">
+    <value>Plug-in bronnen</value>
+  </data>
+  <data name="StoreManageSources" xml:space="preserve">
+    <value>Bronnen beheren…</value>
+  </data>
+  <data name="StorePinned" xml:space="preserve">
+    <value>Vastgezet</value>
+  </data>
+  <data name="StoreUnpin" xml:space="preserve">
+    <value>Vrijgeven</value>
+  </data>
+  <data name="AppearanceDesc" xml:space="preserve">
+    <value>Thema wordt direct toegepast — geen herstart nodig.</value>
+  </data>
+  <data name="PluginsDesc" xml:space="preserve">
+    <value>Alleen plug-ins die zelf instellingen aanbieden verschijnen hier. Installeren of inschakelen van plug-ins gebeurt in de Plugin Store.</value>
+  </data>
+  <data name="PluginsNoneHint" xml:space="preserve">
+    <value>Nog geen geïnstalleerde plug-in biedt instellingen aan. Plug-ins declareren hun eigen instellingen via de SDK.</value>
+  </data>
+  <data name="Tools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="ToolDone" xml:space="preserve">
+    <value>Klaar.</value>
+  </data>
+  <data name="ToolCancelled" xml:space="preserve">
+    <value>Geannuleerd.</value>
+  </data>
+  <data name="ToolRunning" xml:space="preserve">
+    <value>Bezig</value>
+  </data>
+  <data name="ToolTargetLabel" xml:space="preserve">
+    <value>Op:</value>
+  </data>
+  <data name="ToolDestructiveConfirm" xml:space="preserve">
+    <value>Deze actie wijzigt de database en kan niet ongedaan worden gemaakt. Doorgaan?</value>
+  </data>
+  <data name="ToolSucceeded" xml:space="preserve">
+    <value>Succesvol voltooid.</value>
+  </data>
+  <data name="ToolFinish" xml:space="preserve">
+    <value>Voltooien</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Vernieuwen</value>
+  </data>
+  <data name="SelectTop1000" xml:space="preserve">
+    <value>Selecteer top 1000</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>Kopiëren</value>
+  </data>
+  <data name="CopiedToClipboard" xml:space="preserve">
+    <value>Gekopieerd</value>
+  </data>
+  <data name="CellValue" xml:space="preserve">
+    <value>Celwaarde</value>
+  </data>
+  <data name="Cut" xml:space="preserve">
+    <value>Knippen</value>
+  </data>
+  <data name="Paste" xml:space="preserve">
+    <value>Plakken</value>
+  </data>
+  <data name="SelectAll" xml:space="preserve">
+    <value>Alles selecteren</value>
+  </data>
+  <data name="GenerateGuid" xml:space="preserve">
+    <value>GUID genereren</value>
+  </data>
+  <data name="GuidV4" xml:space="preserve">
+    <value>v4 (willekeurig)</value>
+  </data>
+  <data name="GuidV7" xml:space="preserve">
+    <value>v7 (tijd-geordend)</value>
+  </data>
+  <data name="CopyAll" xml:space="preserve">
+    <value>Alles kopiëren</value>
+  </data>
+  <data name="CopyWithHeaders" xml:space="preserve">
+    <value>Kopiëren met kopregels</value>
+  </data>
+  <data name="CopyQualifiedName" xml:space="preserve">
+    <value>Volledige naam kopiëren</value>
+  </data>
+  <data name="TruncateTable" xml:space="preserve">
+    <value>Tabel leegmaken</value>
+  </data>
+  <data name="CollapseAll" xml:space="preserve">
+    <value>Alles inklappen</value>
+  </data>
+  <data name="TestConnection" xml:space="preserve">
+    <value>Verbinding testen</value>
+  </data>
+  <data name="TestConnectionOk" xml:space="preserve">
+    <value>Verbinding geslaagd.</value>
+  </data>
+  <data name="TestConnectionFailed" xml:space="preserve">
+    <value>Verbinding mislukt.</value>
+  </data>
+  <data name="SetNull" xml:space="preserve">
+    <value>NULL instellen</value>
+  </data>
+  <data name="Favorites" xml:space="preserve">
+    <value>Favorieten</value>
+  </data>
+  <data name="ShowFavoriteQueriesOnly" xml:space="preserve">
+    <value>Alleen queries met ster tonen</value>
+  </data>
+  <data name="KeepFavoritesInTheirFolder" xml:space="preserve">
+    <value>Favorieten ook in hun map tonen</value>
+  </data>
+  <data name="KeepFavoritesInTheirFolderHint" xml:space="preserve">
+    <value>Aan: een connectie met ster staat zowel onder Favorieten als in z'n eigen map. Uit: hij verhuist naar Favorieten en staat alleen daar.</value>
+  </data>
+  <data name="AddToFavorites" xml:space="preserve">
+    <value>Aan favorieten toevoegen</value>
+  </data>
+  <data name="RemoveFromFavorites" xml:space="preserve">
+    <value>Uit favorieten verwijderen</value>
+  </data>
+  <data name="SetEmpty" xml:space="preserve">
+    <value>Lege tekst instellen</value>
+  </data>
+  <data name="ConfirmDeleteConnection" xml:space="preserve">
+    <value>Connectie "{0}" verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
+  </data>
+  <data name="SettingsKeyboard" xml:space="preserve">
+    <value>Toetsenbord</value>
+  </data>
+  <data name="KeyboardDesc" xml:space="preserve">
+    <value>Klik een sneltoets en druk de gewenste toetscombinatie in. Wijzigingen zijn direct actief — geen herstart nodig.</value>
+  </data>
+  <data name="ShortcutPressKeys" xml:space="preserve">
+    <value>Toets in</value>
+  </data>
+  <data name="ShortcutUnbound" xml:space="preserve">
+    <value>Niet toegewezen</value>
+  </data>
+  <data name="ShortcutResetTooltip" xml:space="preserve">
+    <value>Terug naar standaard</value>
+  </data>
+  <data name="ShortcutConflictBanner" xml:space="preserve">
+    <value>Twee commando's delen een sneltoets — los het conflict op vóór je opslaat.</value>
+  </data>
+  <data name="ShortcutGroupTabs" xml:space="preserve">
+    <value>Tabbladen</value>
+  </data>
+  <data name="ShortcutGroupQuery" xml:space="preserve">
+    <value>Query</value>
+  </data>
+  <data name="ShortcutGroupEditor" xml:space="preserve">
+    <value>Editor</value>
+  </data>
+  <data name="ShortcutGroupSearch" xml:space="preserve">
+    <value>Zoeken</value>
+  </data>
+  <data name="ShortcutGroupTree" xml:space="preserve">
+    <value>Structuur</value>
+  </data>
+  <data name="RefreshTree" xml:space="preserve">
+    <value>Geselecteerd object verversen</value>
+  </data>
+  <data name="CloseTab" xml:space="preserve">
+    <value>Tabblad sluiten</value>
+  </data>
+  <data name="DuplicateTab" xml:space="preserve">
+    <value>Tabblad dupliceren</value>
+  </data>
+  <data name="CloseOtherTabs" xml:space="preserve">
+    <value>Andere tabbladen sluiten</value>
+  </data>
+  <data name="CloseAllTabs" xml:space="preserve">
+    <value>Alle tabbladen sluiten</value>
+  </data>
+  <data name="CopyCell" xml:space="preserve">
+    <value>Cel kopiëren</value>
+  </data>
+  <data name="ConfirmDiscardTitle" xml:space="preserve">
+    <value>Niet-opgeslagen wijzigingen</value>
+  </data>
+  <data name="ConfirmDiscardChanges" xml:space="preserve">
+    <value>Dit tabblad heeft niet-opgeslagen wijzigingen. Sluiten en verwerpen?</value>
+  </data>
+  <data name="ConfirmDiscardChangesMany" xml:space="preserve">
+    <value>{0} tabbladen hebben niet-opgeslagen wijzigingen. Sluiten en de wijzigingen verwerpen?</value>
+  </data>
+  <data name="ReopenTab" xml:space="preserve">
+    <value>Gesloten tabblad heropenen</value>
+  </data>
+  <data name="ToggleSearch" xml:space="preserve">
+    <value>Ga naar / zoeken</value>
+  </data>
+  <data name="ToggleComment" xml:space="preserve">
+    <value>Regelcommentaar aan/uit</value>
+  </data>
+  <data name="ZoomIn" xml:space="preserve">
+    <value>Editor-lettergrootte vergroten</value>
+  </data>
+  <data name="ZoomOut" xml:space="preserve">
+    <value>Editor-lettergrootte verkleinen</value>
+  </data>
+  <data name="MenuTools" xml:space="preserve">
+    <value>Extra</value>
+  </data>
+  <data name="PluginStoreMenu" xml:space="preserve">
+    <value>Plugin Store</value>
+  </data>
+  <data name="PluginStoreTitle" xml:space="preserve">
+    <value>Plugin Store</value>
+  </data>
+  <data name="StoreTabBrowse" xml:space="preserve">
+    <value>Bladeren</value>
+  </data>
+  <data name="StoreCategoryAll" xml:space="preserve">
+    <value>Alles</value>
+  </data>
+  <data name="StoreCategoryProviders" xml:space="preserve">
+    <value>Providers</value>
+  </data>
+  <data name="StoreCategoryTools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="StoreCategoryMcpTools" xml:space="preserve">
+    <value>MCP Tools</value>
+  </data>
+  <data name="StoreCategoryExtensions" xml:space="preserve">
+    <value>Extensies</value>
+  </data>
+  <data name="StoreCategoryOther" xml:space="preserve">
+    <value>Overig</value>
+  </data>
+  <data name="StoreTabInstalled" xml:space="preserve">
+    <value>Geïnstalleerd</value>
+  </data>
+  <data name="StoreTabSources" xml:space="preserve">
+    <value>Bronnen</value>
+  </data>
+  <data name="StoreInstallFromFile" xml:space="preserve">
+    <value>Installeren uit bestand</value>
+  </data>
+  <data name="StoreRestartNeeded" xml:space="preserve">
+    <value>Sommige wijzigingen worden pas na een herstart actief.</value>
+  </data>
+  <data name="StoreSearch" xml:space="preserve">
+    <value>Plugins zoeken</value>
+  </data>
+  <data name="StoreLoading" xml:space="preserve">
+    <value>Laden</value>
+  </data>
+  <data name="StoreBundleChip" xml:space="preserve">
+    <value>Bundel</value>
+  </data>
+  <data name="StoreStaged" xml:space="preserve">
+    <value>Geïnstalleerd — herstart nodig</value>
+  </data>
+  <data name="StoreCapabilities" xml:space="preserve">
+    <value>Rechten</value>
+  </data>
+  <data name="StoreBuiltIn" xml:space="preserve">
+    <value>Ingebouwd</value>
+  </data>
+  <data name="StoreInstalledSection" xml:space="preserve">
+    <value>Geïnstalleerd</value>
+  </data>
+  <data name="StoreUpdatesSection" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="StoreDiscoverySources" xml:space="preserve">
+    <value>Discovery-bronnen</value>
+  </data>
+  <data name="StoreDiscoveryDesc" xml:space="preserve">
+    <value>Automatisch aangeleverd door Lionear; niet aanpasbaar.</value>
+  </data>
+  <data name="StoreManualSources" xml:space="preserve">
+    <value>Handmatige bronnen</value>
+  </data>
+  <data name="StoreAddSourceHint" xml:space="preserve">
+    <value>Voeg een index.json-URL toe</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Toevoegen</value>
+  </data>
+  <data name="Remove" xml:space="preserve">
+    <value>Verwijderen</value>
+  </data>
+  <data name="StoreConsentTitle" xml:space="preserve">
+    <value>Rechten toestaan?</value>
+  </data>
+  <data name="StoreConsentBody" xml:space="preserve">
+    <value>Deze plugin vraagt de volgende rechten:</value>
+  </data>
+  <data name="Cap_storage_Title" xml:space="preserve">
+    <value>Eigen opslag</value>
+  </data>
+  <data name="Cap_storage_Desc" xml:space="preserve">
+    <value>Bewaart eigen gegevens en instellingen in een privébestand.</value>
+  </data>
+  <data name="Cap_connections_Title" xml:space="preserve">
+    <value>Verbindingen</value>
+  </data>
+  <data name="Cap_connections_Desc" xml:space="preserve">
+    <value>Leest je verbindingen en kan eigen beheerde verbindingen toevoegen — nooit je wachtwoorden.</value>
+  </data>
+  <data name="Cap_panel_Title" xml:space="preserve">
+    <value>Gedockt paneel</value>
+  </data>
+  <data name="Cap_panel_Desc" xml:space="preserve">
+    <value>Voegt een paneel toe aan de werkruimte, naast Uitvoer en Historie.</value>
+  </data>
+  <data name="Cap_menu_Title" xml:space="preserve">
+    <value>Menu-items</value>
+  </data>
+  <data name="Cap_menu_Desc" xml:space="preserve">
+    <value>Voegt items toe aan het Extra-menu en aan het rechtsklikmenu van een verbinding.</value>
+  </data>
+  <data name="Cap_background_Title" xml:space="preserve">
+    <value>Achtergrondtaak</value>
+  </data>
+  <data name="Cap_background_Desc" xml:space="preserve">
+    <value>Draait een achtergrondtaak zolang de app open is.</value>
+  </data>
+  <data name="Cap_process_Title" xml:space="preserve">
+    <value>Externe processen</value>
+  </data>
+  <data name="Cap_process_Desc" xml:space="preserve">
+    <value>Kan externe programma's op je computer starten (bijv. docker).</value>
+  </data>
+  <data name="Cap_services_Title" xml:space="preserve">
+    <value>Eigen services</value>
+  </data>
+  <data name="Cap_services_Desc" xml:space="preserve">
+    <value>Registreert de eigen services van de plugin in de app zodat die ze kan koppelen. Kan de services van de app zelf niet vervangen of uitlezen.</value>
+  </data>
+  <data name="Cap_providers_Title" xml:space="preserve">
+    <value>Geïnstalleerde providers</value>
+  </data>
+  <data name="Cap_providers_Desc" xml:space="preserve">
+    <value>Leest welke database-engines geïnstalleerd zijn en hoe ze te containeriseren zijn. Alleen-lezen — kan je verbindingen niet wijzigen of aansturen.</value>
+  </data>
+  <data name="StoreConsentApprove" xml:space="preserve">
+    <value>Vertrouwen en installeren</value>
+  </data>
+  <data name="StoreDisabled" xml:space="preserve">
+    <value>Uitgeschakeld</value>
+  </data>
+  <data name="StorePendingRemove" xml:space="preserve">
+    <value>Wordt bij herstart verwijderd</value>
+  </data>
+  <data name="StorePendingInstall" xml:space="preserve">
+    <value>Herstart nodig</value>
+  </data>
+  <data name="StoreRollback" xml:space="preserve">
+    <value>Terugdraaien</value>
+  </data>
+  <data name="StoreDisable" xml:space="preserve">
+    <value>Uitschakelen</value>
+  </data>
+  <data name="StoreEnable" xml:space="preserve">
+    <value>Inschakelen</value>
+  </data>
+  <data name="StoreUninstall" xml:space="preserve">
+    <value>Verwijderen</value>
+  </data>
+  <data name="StoreDownloading" xml:space="preserve">
+    <value>Downloaden</value>
+  </data>
+  <data name="StoreVerifying" xml:space="preserve">
+    <value>Verifiëren</value>
+  </data>
+  <data name="StoreExtracting" xml:space="preserve">
+    <value>Uitpakken</value>
+  </data>
+  <data name="StoreStaging" xml:space="preserve">
+    <value>Klaarzetten</value>
+  </data>
+  <data name="StoreInstalling" xml:space="preserve">
+    <value>Installeren</value>
+  </data>
+  <data name="StoreInstall" xml:space="preserve">
+    <value>Installeren</value>
+  </data>
+  <data name="StoreUpdate" xml:space="preserve">
+    <value>Bijwerken</value>
+  </data>
+  <data name="StoreDowngrade" xml:space="preserve">
+    <value>Downgraden</value>
+  </data>
+  <data name="StoreReinstall" xml:space="preserve">
+    <value>Herinstalleren</value>
+  </data>
+  <data name="StoreIncompatible" xml:space="preserve">
+    <value>Niet compatibel</value>
+  </data>
+  <data name="StoreInstallAll" xml:space="preserve">
+    <value>Alles installeren</value>
+  </data>
+  <data name="StoreIncompatOld" xml:space="preserve">
+    <value>Gebouwd voor host-API {0}, niet meer ondersteund (minimaal {1}).</value>
+  </data>
+  <data name="StoreIncompatMin" xml:space="preserve">
+    <value>Vereist host-API {0}+; deze build is {1}.</value>
+  </data>
+  <data name="StoreUpdateAll" xml:space="preserve">
+    <value>Alles bijwerken ({0})</value>
+  </data>
+  <data name="StoreUpdateTo" xml:space="preserve">
+    <value>Bijwerken → {0}</value>
+  </data>
+  <data name="StoreRestartApp" xml:space="preserve">
+    <value>App herstarten</value>
+  </data>
+  <data name="StoreBundleSub" xml:space="preserve">
+    <value>bundel · {0} plugins</value>
+  </data>
+  <data name="StoreInstalledCount" xml:space="preserve">
+    <value>{0} plugins geïnstalleerd</value>
+  </data>
+  <data name="StoreManualHint" xml:space="preserve">
+    <value>Voor stores die (nog) niet in Discovery staan — privé, intern of bewust niet geregistreerd. Volledig zelf te beheren. Plug-ins uit een bron draaien in de app en hebben toegang tot je opgeslagen verbindingen, dus voeg alleen bronnen toe die je vertrouwt. Alleen https.</value>
+  </data>
+  <data name="StoreSourceInsecure" xml:space="preserve">
+    <value>Een store-bron moet een https-URL zijn (http mag alleen voor localhost). Plug-in-code draait in het app-proces en wordt daarom niet over een onbeveiligde verbinding opgehaald.</value>
+  </data>
+  <data name="StoreReadOnly" xml:space="preserve">
+    <value>alleen-lezen</value>
+  </data>
+  <data name="StoreContains" xml:space="preserve">
+    <value>Bevat</value>
+  </data>
+  <data name="StoreVersionLabel" xml:space="preserve">
+    <value>Versie</value>
+  </data>
+  <data name="StoreRollbackTo" xml:space="preserve">
+    <value>Terug naar {0}</value>
+  </data>
+  <data name="StoreConsentChecksum" xml:space="preserve">
+    <value>Gepinde SHA-256</value>
+  </data>
+  <data name="MainPluginRestartBanner" xml:space="preserve">
+    <value>Er staan plugin-wijzigingen klaar — herstart om ze toe te passen.</value>
+  </data>
+  <data name="MainRestartNow" xml:space="preserve">
+    <value>Nu herstarten</value>
+  </data>
+  <data name="UpdateBannerAvailable" xml:space="preserve">
+    <value>Er is een update beschikbaar: {0}</value>
+  </data>
+  <data name="UpdateBannerViewChangelog" xml:space="preserve">
+    <value>Wat is nieuw</value>
+  </data>
+  <data name="UpdateBannerLater" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="UpdateBannerDownload" xml:space="preserve">
+    <value>Downloaden</value>
+  </data>
+  <data name="UpdateBannerDownloading" xml:space="preserve">
+    <value>{0} downloaden…</value>
+  </data>
+  <data name="UpdateBannerReady" xml:space="preserve">
+    <value>{0} gedownload — nu installeren en herstarten?</value>
+  </data>
+  <data name="UpdateBannerUpdateNow" xml:space="preserve">
+    <value>Nu updaten</value>
+  </data>
+  <data name="UpdateBannerOpenFolder" xml:space="preserve">
+    <value>Map openen</value>
+  </data>
+  <data name="UpdateBannerCancel" xml:space="preserve">
+    <value>Annuleren</value>
+  </data>
+  <data name="UpdateBannerRetry" xml:space="preserve">
+    <value>Opnieuw</value>
+  </data>
+  <data name="UpdateBannerRefetched" xml:space="preserve">
+    <value>Nieuwere build {0} gedownload — nu installeren en herstarten?</value>
+  </data>
+  <data name="UpdateBannerUpToDate" xml:space="preserve">
+    <value>Je hebt al de nieuwste build.</value>
+  </data>
+  <data name="UpdateDialogTitle" xml:space="preserve">
+    <value>Update beschikbaar</value>
+  </data>
+  <data name="UpdateDialogVersion" xml:space="preserve">
+    <value>Versie {0}</value>
+  </data>
+  <data name="UpdateDialogPublished" xml:space="preserve">
+    <value>Gepubliceerd {0}</value>
+  </data>
+  <data name="UpdateDialogCommit" xml:space="preserve">
+    <value>Commit {0}</value>
+  </data>
+  <data name="UpdateDialogDownload" xml:space="preserve">
+    <value>Downloaden</value>
+  </data>
+  <data name="UpdateDialogInstall" xml:space="preserve">
+    <value>Installeren en herstarten</value>
+  </data>
+  <data name="UpdateDialogInstalling" xml:space="preserve">
+    <value>Bezig met installeren…</value>
+  </data>
+  <data name="UpdateDialogGuided" xml:space="preserve">
+    <value>Gedownload — sleep DataTray naar Programma's en open het opnieuw.</value>
+  </data>
+  <data name="UpdateRollback" xml:space="preserve">
+    <value>Terug naar de vorige versie</value>
+  </data>
+  <data name="UpdateDialogDownloading" xml:space="preserve">
+    <value>Bezig met downloaden…</value>
+  </data>
+  <data name="UpdateDialogDownloaded" xml:space="preserve">
+    <value>Gedownload — map wordt geopend.</value>
+  </data>
+  <data name="UpdateDialogDownloadFailed" xml:space="preserve">
+    <value>De download is mislukt.</value>
+  </data>
+  <data name="SettingsUpdates" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="SettingsUpdatesHint" xml:space="preserve">
+    <value>Kies op welke builds DataTray controleert. Je kunt altijd wisselen.</value>
+  </data>
+  <data name="UpdateChannelLabel" xml:space="preserve">
+    <value>Release-kanaal</value>
+  </data>
+  <data name="UpdateChannelStable" xml:space="preserve">
+    <value>Stable</value>
+  </data>
+  <data name="UpdateChannelStableBadge" xml:space="preserve">
+    <value>aanbevolen</value>
+  </data>
+  <data name="UpdateChannelStableDesc" xml:space="preserve">
+    <value>Bewust uitgebrachte builds. Meest stabiel.</value>
+  </data>
+  <data name="UpdateChannelPreview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="UpdateChannelPreviewDesc" xml:space="preserve">
+    <value>Wat er in main is gemerged, vóór de volgende Stable.</value>
+  </data>
+  <data name="UpdateChannelNightly" xml:space="preserve">
+    <value>Nightly</value>
+  </data>
+  <data name="UpdateChannelNightlyDesc" xml:space="preserve">
+    <value>Nightly build. Nieuwste features, kan ruw zijn.</value>
+  </data>
+  <data name="CheckForUpdatesOnStartup" xml:space="preserve">
+    <value>Automatisch op updates controleren</value>
+  </data>
+  <data name="UpdateCheckInterval" xml:space="preserve">
+    <value>Controleer elke</value>
+  </data>
+  <data name="FormatSectionTitle" xml:space="preserve">
+    <value>SQL-opmaak</value>
+  </data>
+  <data name="FormatKeywordCasingLabel" xml:space="preserve">
+    <value>Trefwoord-schrijfwijze</value>
+  </data>
+  <data name="FormatIndentLabel" xml:space="preserve">
+    <value>Inspringbreedte</value>
+  </data>
+  <data name="FormatCasingUpper" xml:space="preserve">
+    <value>HOOFDLETTERS</value>
+  </data>
+  <data name="FormatCasingLower" xml:space="preserve">
+    <value>kleine letters</value>
+  </data>
+  <data name="FormatCasingPreserve" xml:space="preserve">
+    <value>Behouden</value>
+  </data>
+  <data name="PluginUpdatesBadge" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="PluginUpdatesViewUpdates" xml:space="preserve">
+    <value>Updates bekijken</value>
+  </data>
+  <data name="PluginUpdatesCompatible" xml:space="preserve">
+    <value>· host-API-compatibel</value>
+  </data>
+  <data name="PluginUpdatesDismiss" xml:space="preserve">
+    <value>Sluiten</value>
+  </data>
+  <data name="PluginUpdatesViewChangelog" xml:space="preserve">
+    <value>Changelog bekijken</value>
+  </data>
+  <data name="PluginChangelogTitle" xml:space="preserve">
+    <value>Plugin-updates</value>
+  </data>
+  <data name="PluginChangelogNone" xml:space="preserve">
+    <value>Geen changelog voor deze versie.</value>
+  </data>
+  <data name="UpdateLogUpToDate" xml:space="preserve">
+    <value>App-update gecontroleerd ({0}): up-to-date.</value>
+  </data>
+  <data name="UpdateLogAvailable" xml:space="preserve">
+    <value>App-update gecontroleerd ({0}): {1} beschikbaar.</value>
+  </data>
+  <data name="UpdateLogDismissed" xml:space="preserve">
+    <value>App-update gecontroleerd ({0}): {1} beschikbaar (eerder weggeklikt).</value>
+  </data>
+  <data name="UpdateLogFailed" xml:space="preserve">
+    <value>App-update gecontroleerd ({0}): mislukt (offline?).</value>
+  </data>
+  <data name="PluginUpdateLogNone" xml:space="preserve">
+    <value>Plugin-updates gecontroleerd: geen.</value>
+  </data>
+  <data name="PluginUpdateLogAvailable" xml:space="preserve">
+    <value>Plugin-updates gecontroleerd: {0} beschikbaar ({1}).</value>
+  </data>
+  <data name="PluginUpdateLogFailed" xml:space="preserve">
+    <value>Plugin-updates gecontroleerd: mislukt (offline?).</value>
+  </data>
+  <data name="PluginUpdatePolicyAuto" xml:space="preserve">
+    <value>Automatisch toepassen bij herstart</value>
+  </data>
+  <data name="PluginUpdateHeldBackTitle" xml:space="preserve">
+    <value>{0} update(s) vereisen een nieuwere app</value>
+  </data>
+  <data name="PluginUpdateHeldBackHint" xml:space="preserve">
+    <value>· werk DataTray bij om ze te ontgrendelen</value>
+  </data>
+  <data name="PluginUpdatesUpdateApp" xml:space="preserve">
+    <value>App bijwerken…</value>
+  </data>
+  <data name="PluginUpdateLogHeldBack" xml:space="preserve">
+    <value>Plugin-updates gecontroleerd: {0} vastgehouden (nieuwere app nodig).</value>
+  </data>
+  <data name="PluginUpdateLogAutoStaged" xml:space="preserve">
+    <value>{0} plugin-update(s) automatisch klaargezet — bij herstart toegepast.</value>
+  </data>
+  <data name="PluginUpdateLogAutoApplied" xml:space="preserve">
+    <value>{0} plugin(s) bijgewerkt bij herstart: {1}</value>
+  </data>
+  <data name="PluginUpdatesTooltip" xml:space="preserve">
+    <value>Er zijn compatibele plugin-updates — open de Plugin Store</value>
+  </data>
+  <data name="PluginUpdatesToast" xml:space="preserve">
+    <value>{0} plugin-updates beschikbaar</value>
+  </data>
+  <data name="PluginUpdatePolicyLabel" xml:space="preserve">
+    <value>Update-meldingen</value>
+  </data>
+  <data name="PluginUpdatePolicyOff" xml:space="preserve">
+    <value>Uit</value>
+  </data>
+  <data name="PluginUpdatePolicyNotify" xml:space="preserve">
+    <value>Melden</value>
+  </data>
+  <data name="UpdateIntervalHourly" xml:space="preserve">
+    <value>Elk uur</value>
+  </data>
+  <data name="UpdateInterval4Hours" xml:space="preserve">
+    <value>Elke 4 uur</value>
+  </data>
+  <data name="UpdateInterval12Hours" xml:space="preserve">
+    <value>Elke 12 uur</value>
+  </data>
+  <data name="UpdateIntervalDaily" xml:space="preserve">
+    <value>Dagelijks</value>
+  </data>
+  <data name="UpdateIntervalWeekly" xml:space="preserve">
+    <value>Wekelijks</value>
+  </data>
+  <data name="UpdateIntervalManual" xml:space="preserve">
+    <value>Alleen bij opstarten</value>
+  </data>
+  <data name="UpdateCheckNow" xml:space="preserve">
+    <value>Controleren op updates</value>
+  </data>
+  <data name="UpdateChannelUnreachable" xml:space="preserve">
+    <value>Kanaal {0} niet bereikbaar — de wissel is opgeslagen, maar er kon niets gecontroleerd worden.</value>
+  </data>
+  <data name="UpdateChannelSameBuild" xml:space="preserve">
+    <value>{0} biedt exact de build die je draait.</value>
+  </data>
+  <data name="UpdateChannelDowngradeInfo" xml:space="preserve">
+    <value>{0} biedt nu {1}, ouder dan de build die je draait.</value>
+  </data>
+  <data name="UpdateChannelDowngradeTitle" xml:space="preserve">
+    <value>Kanaal wisselen en downgraden?</value>
+  </data>
+  <data name="UpdateChannelDowngradeMessage" xml:space="preserve">
+    <value>Kanaal {0} biedt nu {1}. Jij draait {2}.
+
+Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn gebouwd, laden mogelijk niet meer tot je terugwisselt.</value>
+  </data>
+  <data name="UpdateChannelDowngradeYes" xml:space="preserve">
+    <value>Wisselen &amp; downgraden</value>
+  </data>
+  <data name="UpdateChannelDowngradeAccepted" xml:space="preserve">
+    <value>{0} staat klaar — sluit Instellingen om 'm te downloaden en installeren.</value>
+  </data>
+  <data name="UpdateChannelDowngradeNoAsset" xml:space="preserve">
+    <value>{0} heeft geen download voor dit platform; het kanaal is gewisseld maar er valt hier niets te installeren.</value>
+  </data>
+  <data name="UpdateCheckChecking" xml:space="preserve">
+    <value>Bezig met controleren…</value>
+  </data>
+  <data name="UpdateCheckAvailable" xml:space="preserve">
+    <value>Update beschikbaar: {0}</value>
+  </data>
+  <data name="UpdateCheckUpToDate" xml:space="preserve">
+    <value>Je hebt de nieuwste versie.</value>
+  </data>
+  <data name="UpdateCheckFailed" xml:space="preserve">
+    <value>Controleren op updates is mislukt.</value>
+  </data>
+  <!-- Query files (SE-154) -->
+  <data name="OpenQuery" xml:space="preserve">
+    <value>Querybestand openen</value>
+  </data>
+  <data name="SaveQuery" xml:space="preserve">
+    <value>Querybestand opslaan</value>
+  </data>
+  <data name="CommitEdits" xml:space="preserve">
+    <value>Grid-bewerkingen opslaan</value>
+  </data>
+  <data name="OpenFileMenu" xml:space="preserve">
+    <value>Openen…</value>
+  </data>
+  <data name="SaveQueryMenu" xml:space="preserve">
+    <value>Opslaan</value>
+  </data>
+  <data name="SaveQueryAsMenu" xml:space="preserve">
+    <value>Opslaan als…</value>
+  </data>
+  <data name="RecentFilesMenu" xml:space="preserve">
+    <value>Recent</value>
+  </data>
+  <data name="ClearRecentFilesMenu" xml:space="preserve">
+    <value>Recent wissen</value>
+  </data>
+  <data name="UntitledQueryFile" xml:space="preserve">
+    <value>query.sql</value>
+  </data>
+  <data name="OpenQueryNoConnection" xml:space="preserve">
+    <value>Maak eerst verbinding met een database voordat je een querybestand opent.</value>
+  </data>
+  <data name="OpenQueryFailed" xml:space="preserve">
+    <value>Kon het bestand niet openen: {0}</value>
+  </data>
+  <data name="SaveQueryOk" xml:space="preserve">
+    <value>{0} opgeslagen</value>
+  </data>
+  <data name="SaveQueryFailed" xml:space="preserve">
+    <value>Kon het bestand niet opslaan: {0}</value>
+  </data>
+  <data name="SaveCloseTitle" xml:space="preserve">
+    <value>Niet-opgeslagen wijzigingen</value>
+  </data>
+  <data name="SaveCloseMessage" xml:space="preserve">
+    <value>Wijzigingen in {0} opslaan voor het sluiten?</value>
+  </data>
+  <data name="SaveCloseDontSave" xml:space="preserve">
+    <value>Niet opslaan</value>
+  </data>
+</root>

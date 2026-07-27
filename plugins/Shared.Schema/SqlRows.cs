@@ -1,4 +1,4 @@
-namespace SqlExplorer.Plugins.Schema;
+namespace DataTray.Plugins.Schema;
 
 /// <summary>
 /// A thin case-insensitive view over a <see cref="QueryResult"/>, so a reader addresses cells by column

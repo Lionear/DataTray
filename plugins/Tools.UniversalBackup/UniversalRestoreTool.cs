@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
-using SqlExplorer.Sdk.Branding;
+using DataTray.Sdk.Branding;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>
 /// Restores a <c>.lbak</c> file into the connected database: recreates each table and inserts its rows

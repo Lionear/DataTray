@@ -4,9 +4,9 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Microsoft.Data.SqlClient;
-using SqlExplorer.Sdk.Ui;
+using DataTray.Sdk.Ui;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// Route-B view for <see cref="ImportBacpacTool"/>: a <c>.bacpac</c> picker, an inline header (read from the

@@ -9,7 +9,7 @@
   "gen.error.unsupported": "Scripts genereren ondersteunt de '{0}'-engine nog niet (Postgres, MySQL, SQL Server en SQLite).",
   "gen.progress.reading": "Schema van {0} lezen…",
   "gen.progress.scripted": "{0} tabel(len) gescript.",
-  "gen.script.header": "-- Schema van {0} — {1} tabel(len), gescript door SQL Explorer.\n-- Controleer vóór het draaien: dit maakt objecten aan en kijkt niet of ze al bestaan.",
+  "gen.script.header": "-- Schema van {0} — {1} tabel(len), gescript door DataTray.\n-- Controleer vóór het draaien: dit maakt objecten aan en kijkt niet of ze al bestaan.",
   "gen.result.empty": "{0} heeft geen tabellen om te scripten.",
   "gen.result.opened": "Script voor {0} tabel(len) uit {1} geopend in een query-tab.",
   "gen.result.written": "{0} tabel(len) weggeschreven naar {1}.",

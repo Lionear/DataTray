@@ -1,6 +1,6 @@
 # Redis provider
 
-A database provider that plugs Redis into SQL Explorer. It is **not shipped by default**: it lives
+A database provider that plugs Redis into DataTray. It is **not shipped by default**: it lives
 under the repo-root `plugins/` folder (not `src/`) and is staged only in **Debug** builds, so it is
 directly usable while developing but never part of a Release/MVP.
 
@@ -121,14 +121,14 @@ via `LRANGE`/`ZRANGE`'s own start/stop.
 ## Development notes
 
 - **Naming** follows the existing providers: `plugins/Providers.Redis`, namespace
-  `SqlExplorer.Providers.Redis`, manifest `id` = `redis`.
+  `DataTray.Providers.Redis`, manifest `id` = `redis`.
 - **Manifest** (`plugin.json`): `id` = `redis`, `type` = `provider`, `hostApiVersion` = 23.
 - **Driver:** `StackExchange.Redis`; `CopyLocalLockFileAssemblies` emits its closure into the plugin
   folder for isolated (ALC) loading. A `ConnectionMultiplexer` is opened per call (`ConnectAsync`/
   `Dispose`d at the end of each method), mirroring Mongo's per-call `MongoClient` — no shared/cached
   connection state in the provider.
-- **Debug wiring:** a Debug-only `ProjectReference` in `src/SqlExplorer.App` forces the build, and a
-  Debug-only `ProviderPluginFile` (`PluginId` = `redis`) in `src/SqlExplorer.Desktop` stages it into
+- **Debug wiring:** a Debug-only `ProjectReference` in `src/DataTray.App` forces the build, and a
+  Debug-only `ProviderPluginFile` (`PluginId` = `redis`) in `src/DataTray.Desktop` stages it into
   `plugins/redis/` beside the executable.
 - **Icon:** drop a square `icon.png` in this folder — it is embedded automatically and shown on the
   provider's connection nodes (falls back to a 🟥 glyph when absent).

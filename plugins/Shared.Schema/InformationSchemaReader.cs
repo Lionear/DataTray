@@ -1,4 +1,4 @@
-namespace SqlExplorer.Plugins.Schema;
+namespace DataTray.Plugins.Schema;
 
 /// <summary>
 /// Reads a <see cref="SchemaSnapshot"/> from an engine that exposes ANSI <c>information_schema</c> —

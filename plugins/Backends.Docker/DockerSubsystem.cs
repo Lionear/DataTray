@@ -3,7 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// The Local Containers (Docker) subsystem plugin — the first consumer of the SE-164 extensibility platform,

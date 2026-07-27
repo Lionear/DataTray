@@ -1,6 +1,6 @@
-using SqlExplorer.Sdk;
+using DataTray.Sdk;
 
-namespace SqlExplorer.Providers.DragonflyDb;
+namespace DataTray.Providers.DragonflyDb;
 
 /// <summary>
 /// DragonflyDB has no SQL dialect — this exists only to satisfy the <see cref="IDbProvider.Dialect"/>

@@ -1,4 +1,4 @@
-namespace SqlExplorer.Plugins.Schema;
+namespace DataTray.Plugins.Schema;
 
 /// <summary>
 /// A provider-agnostic snapshot of a database's structure, read from <c>information_schema</c> plus a

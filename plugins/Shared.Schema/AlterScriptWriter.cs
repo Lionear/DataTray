@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace SqlExplorer.Plugins.Schema;
+namespace DataTray.Plugins.Schema;
 
 /// <summary>
 /// Renders an ordered <see cref="SchemaChange"/> list (from <see cref="SchemaDiffer"/>) into a runnable

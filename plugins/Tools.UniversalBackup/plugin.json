@@ -5,6 +5,6 @@
   "name": "Universal Backup & Restore",
   "version": "0.1.0",
   "hostApiVersion": 2,
-  "entryAssembly": "SqlExplorer.Tools.UniversalBackup.dll",
+  "entryAssembly": "DataTray.Tools.UniversalBackup.dll",
   "localization": "Lang/strings"
 }

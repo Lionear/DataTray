@@ -209,7 +209,7 @@ jobs:
       - name: Publish
         shell: bash
         run: |
-          dotnet publish src/SqlExplorer.Desktop/SqlExplorer.Desktop.csproj \
+          dotnet publish src/DataTray.Desktop/DataTray.Desktop.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
             --self-contained true \
@@ -226,7 +226,7 @@ jobs:
           $out = "artifacts"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Compress-Archive -Path "publish/${{ matrix.rid }}/*" `
-            -DestinationPath "$out/LionearSqlExplorer-${{ steps.version.outputs.value }}-${{ matrix.rid }}.zip" -Force
+            -DestinationPath "$out/LionearDataTray-${{ steps.version.outputs.value }}-${{ matrix.rid }}.zip" -Force
 
       # Convenience installer next to the zip: Start-menu entry + uninstaller, per-user so it needs no
       # admin (matching where the Plugin Store already writes). Unsigned — SmartScreen warns on first run.
@@ -267,19 +267,19 @@ jobs:
           rm -rf "$APPDIR"
           mkdir -p "$APPDIR/usr/bin"
           cp -r publish/${{ matrix.rid }}/* "$APPDIR/usr/bin/"
-          chmod +x "$APPDIR/usr/bin/SqlExplorer.Desktop"
+          chmod +x "$APPDIR/usr/bin/DataTray.Desktop"
 
           # Icon (top-level + hicolor path both referenced by the .desktop entry)
-          cp src/SqlExplorer.App/Assets/icon.png "$APPDIR/lionear-sql-explorer.png"
+          cp src/DataTray.App/Assets/icon.png "$APPDIR/lionear-datatray.png"
           mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-          cp src/SqlExplorer.App/Assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/lionear-sql-explorer.png"
+          cp src/DataTray.App/Assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/lionear-datatray.png"
 
-          cat > "$APPDIR/lionear-sql-explorer.desktop" <<'EOF'
+          cat > "$APPDIR/lionear-datatray.desktop" <<'EOF'
           [Desktop Entry]
           Type=Application
-          Name=SQL Explorer
-          Exec=SqlExplorer.Desktop
-          Icon=lionear-sql-explorer
+          Name=DataTray
+          Exec=DataTray.Desktop
+          Icon=lionear-datatray
           Categories=Development;Database;
           Terminal=false
           EOF
@@ -287,7 +287,7 @@ jobs:
           cat > "$APPDIR/AppRun" <<'EOF'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
-          exec "$HERE/usr/bin/SqlExplorer.Desktop" "$@"
+          exec "$HERE/usr/bin/DataTray.Desktop" "$@"
           EOF
           chmod +x "$APPDIR/AppRun"
 
@@ -302,7 +302,7 @@ jobs:
           chmod +x appimagetool
 
           mkdir -p artifacts
-          ./appimagetool "$APPDIR" "artifacts/LionearSqlExplorer-${{ steps.version.outputs.value }}-x86_64.AppImage"
+          ./appimagetool "$APPDIR" "artifacts/LionearDataTray-${{ steps.version.outputs.value }}-x86_64.AppImage"
 
       - name: Package (macOS DMG)
         if: matrix.package == 'dmg'
@@ -311,7 +311,7 @@ jobs:
           set -euo pipefail
           # The Desktop project's CreateMacAppBundle target assembles the .app
           # from the publish output on macOS, one level above PublishDir.
-          APP="publish/SQL Explorer.app"
+          APP="publish/DataTray.app"
           if [ ! -d "$APP" ]; then
             echo "Expected app bundle not found at: $APP" >&2
             ls -la publish >&2
@@ -332,13 +332,13 @@ jobs:
           ln -s /Applications "$STAGE/Applications"   # drag-to-install UX
 
           mkdir -p artifacts
-          DMG="artifacts/LionearSqlExplorer-${{ steps.version.outputs.value }}-osx-arm64.dmg"
+          DMG="artifacts/LionearDataTray-${{ steps.version.outputs.value }}-osx-arm64.dmg"
 
           # hdiutil intermittently fails with "Resource busy" on CI: something (Spotlight indexing the
           # freshly copied staging dir is the usual suspect) still holds it when the image is built. The
           # step is otherwise deterministic, so retry rather than fail a whole build on a race.
           for attempt in 1 2 3; do
-            if hdiutil create -volname "SQL Explorer" -srcfolder "$STAGE" -ov -format UDZO "$DMG"; then
+            if hdiutil create -volname "DataTray" -srcfolder "$STAGE" -ov -format UDZO "$DMG"; then
               echo "DMG created on attempt $attempt"
               exit 0
             fi
@@ -363,7 +363,7 @@ jobs:
   #   Preview : rolling prerelease `preview` with assets + update.json   (main)
   #   Nightly : rolling prerelease `nightly` with assets + update.json   (develop)
   # Download links are stable per channel:
-  #   https://github.com/Lionear/SqlExplorer/releases/download/{stable|preview|nightly}/update.json
+  #   https://github.com/Lionear/DataTray/releases/download/{stable|preview|nightly}/update.json
   # Runs on the scheduled build, on a push (branch or tag), or on a manual run with publish_release ticked.
   release:
     name: Publish ${{ needs.setup.outputs.channel }} release
@@ -433,7 +433,7 @@ jobs:
           BODY="$(cat notes.md)
 
           These builds are unsigned / not notarized.
-          macOS: after moving to /Applications, clear quarantine: xattr -cr \"/Applications/SQL Explorer.app\".
+          macOS: after moving to /Applications, clear quarantine: xattr -cr \"/Applications/DataTray.app\".
           Windows: pick the -setup.exe (per-user, no admin) or the .zip; SmartScreen may warn on first launch."
 
           if [ "$CHANNEL" = stable ]; then
@@ -441,7 +441,7 @@ jobs:
             # the tag — the tag is what we checked out and what users cite.
             gh release delete "$RELEASE_TAG" --yes || true
             gh release create "$RELEASE_TAG" assets/* \
-              --title "SQL Explorer $VERSION" --notes "$BODY" --latest --target "$TARGET"
+              --title "DataTray $VERSION" --notes "$BODY" --latest --target "$TARGET"
             # Rolling `stable` pointer: only update.json, whose asset URLs point at the v-tag release above.
             gh release delete "$TAG" --yes --cleanup-tag || true
             gh release create "$TAG" update.json \

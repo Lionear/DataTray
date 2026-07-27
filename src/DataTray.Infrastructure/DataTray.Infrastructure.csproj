@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Infrastructure</RootNamespace>
+    <!-- Contains P/Invoke into per-OS credential vaults; only the matching backend runs per platform. -->
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataTray.Core\DataTray.Core.csproj" />
+  </ItemGroup>
+
+</Project>

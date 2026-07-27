@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-namespace SqlExplorer.Tools.MsSqlBacpac;
+namespace DataTray.Tools.MsSqlBacpac;
 
 /// <summary>
 /// The table list for <see cref="ExportBacpacView"/>: one <c>[Data]</c> checkbox per table plus a

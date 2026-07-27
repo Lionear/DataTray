@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace SqlExplorer.Backends.Docker;
+namespace DataTray.Backends.Docker;
 
 /// <summary>
 /// The real <see cref="IDockerCli"/>: shells out to the <c>docker</c> / <c>docker compose</c> CLI (compose

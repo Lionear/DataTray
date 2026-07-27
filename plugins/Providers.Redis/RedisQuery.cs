@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SqlExplorer.Providers.Redis;
+namespace DataTray.Providers.Redis;
 
 internal enum RedisQueryKind { Browse, Command }
 

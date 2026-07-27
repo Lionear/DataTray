@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 
-namespace SqlExplorer.Tools.UniversalBackup;
+namespace DataTray.Tools.UniversalBackup;
 
 /// <summary>
 /// Streaming authenticated encryption for the <c>.lbak</c> v2 payload. <see cref="System.Security.Cryptography.AesGcm"/>

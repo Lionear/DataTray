@@ -2,7 +2,7 @@
 """Generate Icons.g.cs from the vendored Lucide SVGs in tools/lucide/.
 
 Lucide icons are 24x24, stroke-based (fill="none", stroke-width 2, round caps) — the same
-line-icon idiom SQL Explorer already draws by hand in NodeIcons.cs. Rather than pull in an
+line-icon idiom DataTray already draws by hand in NodeIcons.cs. Rather than pull in an
 SVG-rendering runtime dependency (and lose the DynamicResource theme-brush tinting that a plain
 Path gives us), we flatten each icon's primitives into a single StreamGeometry path string at
 build time. The app keeps rendering <Path Data="{x:Static Icons.X}" Stroke="..."/> exactly as it
@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SVG_DIR = ROOT / "tools" / "lucide"
-OUT = ROOT / "src" / "SqlExplorer.Sdk" / "Ui" / "Icons.g.cs"
+OUT = ROOT / "src" / "DataTray.Sdk" / "Ui" / "Icons.g.cs"
 
 # Match a self-closing SVG primitive element and capture its tag + raw attribute blob.
 ELEMENT_RE = re.compile(
@@ -196,7 +196,7 @@ def main() -> int:
         "",
         "using Avalonia.Media;",
         "",
-        "namespace SqlExplorer.Sdk.Ui;",
+        "namespace DataTray.Sdk.Ui;",
         "",
         "/// <summary>",
         "/// Line-icon geometries flattened from Lucide SVGs, drawn as stroked Paths. Shared by the host and",

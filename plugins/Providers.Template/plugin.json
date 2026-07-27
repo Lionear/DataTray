@@ -5,5 +5,5 @@
   "name": "Template (example)",
   "version": "0.1.0",
   "hostApiVersion": 25,
-  "entryAssembly": "SqlExplorer.Providers.Template.dll"
+  "entryAssembly": "DataTray.Providers.Template.dll"
 }

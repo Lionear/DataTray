@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace SqlExplorer.Tools.CopyTable;
+namespace DataTray.Tools.CopyTable;
 
 /// <summary>
 /// Renders the DDL that recreates a <see cref="TableDef"/> on the target: the <c>CREATE TABLE</c> itself,
