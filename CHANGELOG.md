@@ -11,6 +11,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 _Nothing yet._
 
+## [0.6.0] - 2026-07-27
+
+### Added
+
+- **Connections can reach a database through an SSH tunnel.** A database that only listens inside a private
+  network no longer needs a hand-rolled `ssh -L` next to DataTray: switch on *Connect through an SSH
+  tunnel* under Advanced, fill in the bastion's host, user and either a password or a private key, and the
+  connection is forwarded through it. The tunnel opens on first use, is shared by every connection taking the
+  same route, and closes when you disconnect or quit. Test does the same thing, so a tunnel can be checked
+  before the connection is saved.
+- SSH passwords and key passphrases are stored in the OS keychain like every other connection secret, never
+  in the connection file. Filling in the server's SHA256 host-key fingerprint pins it — a bastion presenting
+  a different key is then refused instead of trusted.
+- The section only appears for engines that connect to a host, and needs nothing from the provider: existing
+  provider plugins gained tunnelling without a change or a rebuild.
+- **The result grid's cell editor now matches the column's type.** A boolean column edits as a checkbox
+  and a date column as a date picker, instead of typing `true` or a date as text and hoping it parses. A
+  column that accepts NULL gets a three-state checkbox, so clearing it is still a NULL rather than a
+  `false`; a date cell can be cleared back to NULL the same way. Picking a date keeps the cell's existing
+  time of day, so editing the date half of a timestamp no longer drops the time. Every other column type
+  keeps the text editor it had.
+- **Star a query to keep it.** Every row in the History panel has a star; starred queries are kept in
+  their own store, so they stay in the list after *Clear history* and when the history rolls over — a row
+  that history no longer holds simply shows no row count or duration, and still opens in a query tab on
+  double-click. The star in the panel header narrows the list to starred queries only.
+- **Star a connection to keep it within reach.** Right-click a connection → *Add to favorites*, and it
+  appears in a Favorites section pinned to the top of the sidebar, whatever folder it lives in. By default
+  it stays visible in its own folder as well — the section is a shortcut list. Settings → General → *Keep
+  favorites in their folder too* turns that off, and a starred connection then moves to Favorites instead
+  of being shown twice. Temporary connections (created by an AI client over MCP) can't be starred, since
+  they don't outlive the session.
+
+### Changed
+
+- **The date editor's calendar now follows the app's own theme.** The day grid, the month header and the
+  navigation arrows used to come straight from the Fluent theme, so the panel around them matched the rest
+  of the app while the calendar inside it did not. Day cells, hover and the month header now use the app's
+  colours, the selected day is a filled accent cell instead of a thin blue ring, and today is marked with
+  accent-coloured text rather than a solid block that competed with the selection.
+- The flyout is also noticeably smaller: Fluent sizes a calendar for fingertips, which in a grid cell's
+  popup dwarfed everything around it.
+- **SQL Explorer is now called DataTray.** Same application, new name — the window title, the tray tooltip,
+  the About dialog, the plugin contract and the published downloads all say DataTray, and the macOS bundle
+  is `DataTray.app`. Upgrading over an existing SQL Explorer install replaces it in place rather than
+  leaving a second copy behind.
+- **Your settings move to the DataTray folder by themselves.** On first start after the rename, DataTray
+  copies the old SQL Explorer folder — connections, query history, favourites, keymap, open tabs and
+  installed plugins — to its own. Saved passwords move too, the first time each connection needs one.
+- The old folder is left where it is rather than deleted, so an older SQL Explorer build still starts with
+  everything intact. It gets a `MOVED-TO-DATATRAY.txt` note pointing at the folder that is now live. The
+  two stop tracking each other from that point on, so changes made in DataTray won't show up in the old
+  build — delete the old folder once you're sure you won't go back.
+- **New application icon.** DataTray now carries its own mark — a database cylinder with a puzzle piece —
+  in the window, the tray, the taskbar, the About dialog and the installers, replacing the one it inherited
+  from SQL Explorer.
+
+### Fixed
+
+- **A NULL cell no longer turns into an empty string just because you passed through its editor.** In the
+  editable grid, opening a NULL cell and leaving it without typing could write an empty string back — on a
+  text column that is a real change, and it saved as `''` instead of leaving the NULL. Empty text over a
+  NULL cell now leaves the NULL alone; *Set empty* in the cell's right-click menu writes an empty string
+  deliberately, next to the existing *Set NULL*.
+- **Adding a row now writes a NULL you asked for.** Columns you leave untouched are still left to the
+  database, so defaults and auto-increment keys work as before — but a cell you explicitly set to NULL is
+  written as NULL, where it used to be dropped from the INSERT and silently replaced by the column's
+  default.
+
 ## [0.5.0] - 2026-07-26
 
 ### Added
@@ -322,7 +390,8 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Lionear/DataTray/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Lionear/DataTray/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Lionear/SqlExplorer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Lionear/SqlExplorer/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Lionear/SqlExplorer/compare/v0.2.0...v0.3.0
