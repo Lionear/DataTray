@@ -11,6 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 _Nothing yet._
 
+## [0.6.1] - 2026-07-27
+
+### Changed
+
+- **Downloads are named `DataTray-<version>-…` instead of `LionearDataTray-<version>-…`.** The prefix
+  repeated something the download URL already says, and it read as part of the product name. The
+  installer, the portable zip, the AppImage and the DMG all lose it. Releases published before this
+  keep the filenames they shipped with, and the in-app updater is unaffected — it resolves builds
+  through the release manifest, not by guessing a filename.
+
 ## [0.6.0] - 2026-07-27
 
 ### Added
@@ -390,7 +400,8 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/DataTray/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Lionear/DataTray/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/Lionear/DataTray/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Lionear/DataTray/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Lionear/SqlExplorer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Lionear/SqlExplorer/compare/v0.3.0...v0.4.0
