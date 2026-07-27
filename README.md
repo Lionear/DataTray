@@ -81,7 +81,7 @@ Contributions are welcome, but the bar is high for a one-person project. **Read
 [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request** — it covers the PR policy,
 coding conventions, the plugin boundary for adding a database, commit style and the changelog flow.
 
-- **Bugs or feature requests:** [open an issue](https://github.com/Lionear/SqlExplorer/issues).
+- **Bugs or feature requests:** [open an issue](https://github.com/Lionear/DataTray/issues).
 - **Adding a database or tool:** it's a plugin, not a host change — see [`docs/PLUGINS.md`](docs/PLUGINS.md).
 - **What changed between releases:** [`CHANGELOG.md`](CHANGELOG.md).
 

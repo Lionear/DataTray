@@ -11,13 +11,13 @@
 # Input is env, never argv splicing (SE-135):
 #   VERSION    the release version, e.g. 0.3.0                 (required)
 #   DATE       ISO date, e.g. 2026-07-18                       (required)
-#   REPO       owner/name for the compare links (default: Lionear/SqlExplorer)
+#   REPO       owner/name for the compare links (default: Lionear/DataTray)
 #   CHANGELOG  path to the changelog (default: CHANGELOG.md)
 set -euo pipefail
 
 : "${VERSION:?VERSION is required (e.g. 0.3.0)}"
 : "${DATE:?DATE is required (e.g. 2026-07-18)}"
-REPO="${REPO:-Lionear/SqlExplorer}"
+REPO="${REPO:-Lionear/DataTray}"
 FILE="${CHANGELOG:-CHANGELOG.md}"
 [ -f "$FILE" ] || { echo "Changelog not found: $FILE" >&2; exit 1; }
 

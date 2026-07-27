@@ -363,7 +363,7 @@ jobs:
   #   Preview : rolling prerelease `preview` with assets + update.json   (main)
   #   Nightly : rolling prerelease `nightly` with assets + update.json   (develop)
   # Download links are stable per channel:
-  #   https://github.com/Lionear/SqlExplorer/releases/download/{stable|preview|nightly}/update.json
+  #   https://github.com/Lionear/DataTray/releases/download/{stable|preview|nightly}/update.json
   # Runs on the scheduled build, on a push (branch or tag), or on a manual run with publish_release ticked.
   release:
     name: Publish ${{ needs.setup.outputs.channel }} release

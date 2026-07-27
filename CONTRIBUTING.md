@@ -10,7 +10,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 The high bar below applies to **code in pull requests**. A clear, reproducible bug report or a
 well-argued feature idea costs you little and is one of the most helpful things you can send. Open an
-[issue](https://github.com/Lionear/SqlExplorer/issues) for either.
+[issue](https://github.com/Lionear/DataTray/issues) for either.
 
 ## Pull request policy
 

@@ -13,9 +13,9 @@ public partial class AboutWindow : Window
     // Project links shown in the footer. Hard-coded on purpose: they identify this product, they are not
     // user settings, and About is the one place they belong.
     private const string WebsiteUrl = "https://lionear.dev";
-    private const string RepositoryUrl = "https://github.com/Lionear/SqlExplorer";
-    private const string LicenseUrl = "https://github.com/Lionear/SqlExplorer/blob/main/LICENSE";
-    private const string ThirdPartyUrl = "https://github.com/Lionear/SqlExplorer/blob/main/THIRD-PARTY-NOTICES.md";
+    private const string RepositoryUrl = "https://github.com/Lionear/DataTray";
+    private const string LicenseUrl = "https://github.com/Lionear/DataTray/blob/main/LICENSE";
+    private const string ThirdPartyUrl = "https://github.com/Lionear/DataTray/blob/main/THIRD-PARTY-NOTICES.md";
 
     public AboutWindow()
     {

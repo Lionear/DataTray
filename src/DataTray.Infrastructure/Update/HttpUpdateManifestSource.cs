@@ -13,7 +13,7 @@ namespace DataTray.Infrastructure.Update;
 public sealed class HttpUpdateManifestSource(HttpClient http, string? baseUrl = null) : IUpdateManifestSource
 {
     // Where the rolling per-channel releases live. The tag is appended per channel (nightly/preview/stable).
-    private const string DefaultBaseUrl = "https://github.com/Lionear/SqlExplorer/releases/download";
+    private const string DefaultBaseUrl = "https://github.com/Lionear/DataTray/releases/download";
 
     // A manifest is small; anything larger than this is not the file we asked for.
     private const long MaxBytes = 1L * 1024 * 1024;
