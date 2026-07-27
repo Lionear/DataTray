@@ -226,7 +226,7 @@ jobs:
           $out = "artifacts"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Compress-Archive -Path "publish/${{ matrix.rid }}/*" `
-            -DestinationPath "$out/LionearSqlExplorer-${{ steps.version.outputs.value }}-${{ matrix.rid }}.zip" -Force
+            -DestinationPath "$out/LionearDataTray-${{ steps.version.outputs.value }}-${{ matrix.rid }}.zip" -Force
 
       # Convenience installer next to the zip: Start-menu entry + uninstaller, per-user so it needs no
       # admin (matching where the Plugin Store already writes). Unsigned — SmartScreen warns on first run.
@@ -270,16 +270,16 @@ jobs:
           chmod +x "$APPDIR/usr/bin/DataTray.Desktop"
 
           # Icon (top-level + hicolor path both referenced by the .desktop entry)
-          cp src/DataTray.App/Assets/icon.png "$APPDIR/lionear-sql-explorer.png"
+          cp src/DataTray.App/Assets/icon.png "$APPDIR/lionear-datatray.png"
           mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-          cp src/DataTray.App/Assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/lionear-sql-explorer.png"
+          cp src/DataTray.App/Assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/lionear-datatray.png"
 
-          cat > "$APPDIR/lionear-sql-explorer.desktop" <<'EOF'
+          cat > "$APPDIR/lionear-datatray.desktop" <<'EOF'
           [Desktop Entry]
           Type=Application
           Name=DataTray
           Exec=DataTray.Desktop
-          Icon=lionear-sql-explorer
+          Icon=lionear-datatray
           Categories=Development;Database;
           Terminal=false
           EOF
@@ -302,7 +302,7 @@ jobs:
           chmod +x appimagetool
 
           mkdir -p artifacts
-          ./appimagetool "$APPDIR" "artifacts/LionearSqlExplorer-${{ steps.version.outputs.value }}-x86_64.AppImage"
+          ./appimagetool "$APPDIR" "artifacts/LionearDataTray-${{ steps.version.outputs.value }}-x86_64.AppImage"
 
       - name: Package (macOS DMG)
         if: matrix.package == 'dmg'
@@ -332,7 +332,7 @@ jobs:
           ln -s /Applications "$STAGE/Applications"   # drag-to-install UX
 
           mkdir -p artifacts
-          DMG="artifacts/LionearSqlExplorer-${{ steps.version.outputs.value }}-osx-arm64.dmg"
+          DMG="artifacts/LionearDataTray-${{ steps.version.outputs.value }}-osx-arm64.dmg"
 
           # hdiutil intermittently fails with "Resource busy" on CI: something (Spotlight indexing the
           # freshly copied staging dir is the usual suspect) still holds it when the image is built. The
