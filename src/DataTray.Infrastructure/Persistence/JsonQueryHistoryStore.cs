@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DataTray.Core;
 using DataTray.Core.History;
 
 namespace DataTray.Infrastructure.Persistence;
@@ -33,9 +34,7 @@ public sealed class JsonQueryHistoryStore : IQueryHistoryStore
 
     private static string DefaultPath()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lionear", "SqlExplorer");
+        var dir = AppPaths.Root;
         return Path.Combine(dir, "history.json");
     }
 

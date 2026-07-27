@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DataTray.Core;
 using DataTray.Core.Store;
 
 namespace DataTray.Infrastructure.Store;
@@ -25,9 +26,7 @@ public sealed class JsonPluginPinStore : IPluginPinStore
 
     private static string DefaultPath()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lionear", "SqlExplorer");
+        var dir = AppPaths.Root;
         return Path.Combine(dir, "plugin-pins.json");
     }
 

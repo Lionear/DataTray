@@ -12,9 +12,7 @@ public static class PluginPaths
     public static string BundledRoot => Path.Combine(AppContext.BaseDirectory, "plugins");
 
     /// <summary>Writable per-user plugin folder (Store installs land here, one subfolder per id).</summary>
-    public static string UserRoot => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Lionear", "SqlExplorer", "plugins");
+    public static string UserRoot => AppPaths.Dir("plugins");
 
     /// <summary>The per-user install folder for a single plugin id.</summary>
     public static string UserPluginDir(string id) => Path.Combine(UserRoot, id);

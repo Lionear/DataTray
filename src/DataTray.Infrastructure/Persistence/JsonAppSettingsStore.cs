@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DataTray.Core;
 using DataTray.Core.Settings;
 
 namespace DataTray.Infrastructure.Persistence;
@@ -26,9 +27,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
     private static string DefaultPath()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lionear", "SqlExplorer");
+        var dir = AppPaths.Root;
         return Path.Combine(dir, "settings.json");
     }
 

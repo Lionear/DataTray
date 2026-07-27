@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DataTray.Core;
 using DataTray.Core.Plugins;
 
 namespace DataTray.Infrastructure.Persistence;
@@ -29,9 +30,7 @@ public sealed class JsonPluginStateStore : IPluginStateStore
 
     private static string DefaultPath()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lionear", "SqlExplorer");
+        var dir = AppPaths.Root;
         return Path.Combine(dir, "plugins-state.json");
     }
 

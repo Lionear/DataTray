@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DataTray.Core;
 using DataTray.Core.Shortcuts;
 
 namespace DataTray.Infrastructure.Persistence;
@@ -22,9 +23,7 @@ public sealed class JsonKeymapStore : IKeymapStore
 
     private static string DefaultPath()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lionear", "SqlExplorer");
+        var dir = AppPaths.Root;
         return Path.Combine(dir, "keymap.json");
     }
 

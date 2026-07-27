@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DataTray.Core;
 using DataTray.Core.Session;
 
 namespace DataTray.Infrastructure.Persistence;
@@ -28,9 +29,7 @@ public sealed class JsonRecentFilesStore : IRecentFilesStore
 
     private static string DefaultPath()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lionear", "SqlExplorer");
+        var dir = AppPaths.Root;
         return Path.Combine(dir, "recent-files.json");
     }
 

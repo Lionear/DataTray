@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DataTray.Core;
 using DataTray.Core.History;
 using DataTray.Core.Logging;
 
@@ -38,9 +39,7 @@ public sealed class JsonlQueryLogStore : IQueryLog
 
     private static string DefaultPath()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lionear", "SqlExplorer");
+        var dir = AppPaths.Root;
         return Path.Combine(dir, "query-log.jsonl");
     }
 

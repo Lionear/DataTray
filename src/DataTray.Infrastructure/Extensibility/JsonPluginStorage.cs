@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DataTray.Core;
 using DataTray.Sdk.Extensibility;
 
 namespace DataTray.Infrastructure.Extensibility;
@@ -70,7 +71,5 @@ public sealed class JsonPluginStorage : IPluginStorage
         string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
 
     // Deliberately NOT under the install dir (…/plugins/<id>): that folder is replaced wholesale on update.
-    private static string DefaultRoot() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Lionear", "SqlExplorer", "plugin-data");
+    private static string DefaultRoot() => AppPaths.Dir("plugin-data");
 }

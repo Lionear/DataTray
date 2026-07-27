@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using DataTray.Core;
 
 namespace DataTray.App;
 
@@ -12,9 +13,7 @@ namespace DataTray.App;
 /// </summary>
 public static class RestartDiagnostics
 {
-    private static string LogPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Lionear", "SqlExplorer", "restart.log");
+    private static string LogPath => AppPaths.File("restart.log");
 
     public static void Log(string message)
     {
