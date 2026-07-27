@@ -241,7 +241,7 @@ public partial class App : Application
         var tray = new TrayIcon
         {
             Icon = LoadTrayIcon(),
-            ToolTipText = "SQL Explorer",
+            ToolTipText = "DataTray",
             IsVisible = true,
             Menu = menu
         };

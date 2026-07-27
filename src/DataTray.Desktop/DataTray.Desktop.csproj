@@ -6,7 +6,7 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>DataTray.Desktop</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <MacBundleName>SQL Explorer</MacBundleName>
+    <MacBundleName>DataTray</MacBundleName>
   </PropertyGroup>
 
   <ItemGroup>

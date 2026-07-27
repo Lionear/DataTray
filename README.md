@@ -1,4 +1,4 @@
-# SQL Explorer
+# DataTray
 
 A cross-platform, multilingual SQL explorer built in .NET. Database drivers ship
 as plugins, result sets are editable with a reviewable save flow, and connections
@@ -11,7 +11,7 @@ Desktop (Windows / Linux / macOS) is the current focus; mobile heads
 
 Browsing a table with the editable result grid — all data shown is synthetic:
 
-![SQL Explorer browsing a demo database](docs/images/hero.png)
+![DataTray browsing a demo database](docs/images/hero.png)
 
 Every database engine ships as a plugin; the Plugin Store manages them:
 

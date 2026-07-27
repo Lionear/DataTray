@@ -451,7 +451,7 @@
                     <!-- "Temporary" pill on in-memory, session-only connections (SE-155, MCP-created). -->
                     <Border VerticalAlignment="Center" IsVisible="{Binding IsTransientConnection}"
                             Background="{DynamicResource SEHairlineBrush}" CornerRadius="9" Padding="6,0"
-                            ToolTip.Tip="Session-only — cleared when SQL Explorer closes">
+                            ToolTip.Tip="Session-only — cleared when DataTray closes">
                       <TextBlock Text="Temporary" FontSize="9.5" FontWeight="SemiBold"
                                  Foreground="{DynamicResource SETextSecondaryBrush}" VerticalAlignment="Center" />
                     </Border>

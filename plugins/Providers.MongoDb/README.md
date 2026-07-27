@@ -1,6 +1,6 @@
 # MongoDB provider
 
-A database provider that plugs MongoDB into SQL Explorer. It is **not shipped by default**: it lives
+A database provider that plugs MongoDB into DataTray. It is **not shipped by default**: it lives
 under the repo-root `plugins/` folder (not `src/`) and is staged only in **Debug** builds, so it is
 directly usable while developing but never part of a Release/MVP.
 

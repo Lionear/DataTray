@@ -143,7 +143,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
         // Advanced — connection tuning.
         new("applicationName", "Application name", ConnectionFieldType.Text,
-            Default: "SQL Explorer", Group: "Connection", Advanced: true),
+            Default: "DataTray", Group: "Connection", Advanced: true),
         new("connectTimeout", "Connect timeout (s)", ConnectionFieldType.Number,
             Placeholder: "15", Group: "Connection", Advanced: true),
         // Command timeout 0 = no timeout (a command waits indefinitely); the SqlClient default is 30.

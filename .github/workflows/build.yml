@@ -277,7 +277,7 @@ jobs:
           cat > "$APPDIR/lionear-sql-explorer.desktop" <<'EOF'
           [Desktop Entry]
           Type=Application
-          Name=SQL Explorer
+          Name=DataTray
           Exec=DataTray.Desktop
           Icon=lionear-sql-explorer
           Categories=Development;Database;
@@ -311,7 +311,7 @@ jobs:
           set -euo pipefail
           # The Desktop project's CreateMacAppBundle target assembles the .app
           # from the publish output on macOS, one level above PublishDir.
-          APP="publish/SQL Explorer.app"
+          APP="publish/DataTray.app"
           if [ ! -d "$APP" ]; then
             echo "Expected app bundle not found at: $APP" >&2
             ls -la publish >&2
@@ -338,7 +338,7 @@ jobs:
           # freshly copied staging dir is the usual suspect) still holds it when the image is built. The
           # step is otherwise deterministic, so retry rather than fail a whole build on a race.
           for attempt in 1 2 3; do
-            if hdiutil create -volname "SQL Explorer" -srcfolder "$STAGE" -ov -format UDZO "$DMG"; then
+            if hdiutil create -volname "DataTray" -srcfolder "$STAGE" -ov -format UDZO "$DMG"; then
               echo "DMG created on attempt $attempt"
               exit 0
             fi
@@ -433,7 +433,7 @@ jobs:
           BODY="$(cat notes.md)
 
           These builds are unsigned / not notarized.
-          macOS: after moving to /Applications, clear quarantine: xattr -cr \"/Applications/SQL Explorer.app\".
+          macOS: after moving to /Applications, clear quarantine: xattr -cr \"/Applications/DataTray.app\".
           Windows: pick the -setup.exe (per-user, no admin) or the .zip; SmartScreen may warn on first launch."
 
           if [ "$CHANNEL" = stable ]; then
@@ -441,7 +441,7 @@ jobs:
             # the tag — the tag is what we checked out and what users cite.
             gh release delete "$RELEASE_TAG" --yes || true
             gh release create "$RELEASE_TAG" assets/* \
-              --title "SQL Explorer $VERSION" --notes "$BODY" --latest --target "$TARGET"
+              --title "DataTray $VERSION" --notes "$BODY" --latest --target "$TARGET"
             # Rolling `stable` pointer: only update.json, whose asset URLs point at the v-tag release above.
             gh release delete "$TAG" --yes --cleanup-tag || true
             gh release create "$TAG" update.json \

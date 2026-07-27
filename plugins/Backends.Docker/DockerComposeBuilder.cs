@@ -157,7 +157,7 @@ public sealed class DockerComposeBuilder
         sb.Append($"    image: {image}\n");
         sb.Append($"    container_name: {name}\n");
         sb.Append("    restart: unless-stopped\n");
-        // Kontena ownership labels (SE-184): let the Kontena desktop recognise these as SQL-Explorer-managed
+        // Kontena ownership labels (SE-184): let the Kontena desktop recognise these as DataTray-managed
         // containers (docker ps --filter "label=kontena.managed=true") so it won't claim/clean them up.
         sb.Append("    labels:\n");
         sb.Append($"      {KontenaManagedLabel}: \"true\"\n");

@@ -104,8 +104,8 @@ public sealed class McpHost(
         {
             LogAudit(tool, connectionId, allowed: false, "master password locked", RequireAuthOn);
             throw new McpAccessException(
-                "The connection's credentials are locked by the SQL Explorer master password. " +
-                "Open SQL Explorer and enter the master password to unlock, then retry.");
+                "The connection's credentials are locked by the DataTray master password. " +
+                "Open DataTray and enter the master password to unlock, then retry.");
         }
 
         return connection;
@@ -226,7 +226,7 @@ public sealed class McpHost(
         if (!policy.Allow)
         {
             LogAudit("create_connection", null, allowed: false, "connection creation disabled", RequireAuthOn);
-            throw new McpAccessException("Creating connections over MCP is disabled. Enable it in SQL Explorer settings.");
+            throw new McpAccessException("Creating connections over MCP is disabled. Enable it in DataTray settings.");
         }
 
         // (2) Provider must exist.
@@ -254,7 +254,7 @@ public sealed class McpHost(
         if (host is not null && !policy.IsHostAllowed(host))
         {
             LogAudit("create_connection", null, allowed: false, $"host '{host}' not allowed", RequireAuthOn);
-            throw new McpAccessException($"Host '{host}' is not in the MCP allowed-hosts list. Add it in SQL Explorer settings.");
+            throw new McpAccessException($"Host '{host}' is not in the MCP allowed-hosts list. Add it in DataTray settings.");
         }
 
         // (5) Master-password gate: persisting a secret while locked would strand it un-decryptable.
@@ -263,7 +263,7 @@ public sealed class McpHost(
         {
             LogAudit("create_connection", null, allowed: false, "master password locked", RequireAuthOn);
             throw new McpAccessException(
-                "The master password is locked; unlock SQL Explorer before creating a connection with a stored secret.");
+                "The master password is locked; unlock DataTray before creating a connection with a stored secret.");
         }
 
         // (6) Resolve the access level actually granted (may be capped below the request).

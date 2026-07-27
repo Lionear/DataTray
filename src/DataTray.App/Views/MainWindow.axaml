@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:DataTray.App.Views"
         x:Class="DataTray.App.Views.MainWindow"
-        Title="SQL Explorer"
+        Title="DataTray"
         Icon="/Assets/icon.png"
         Width="1150" Height="740">
   <Window.Resources>

@@ -1,6 +1,6 @@
-# Contributing to SQL Explorer
+# Contributing to DataTray
 
-Thanks for your interest. SQL Explorer is maintained by one person, so the bar for contributions is
+Thanks for your interest. DataTray is maintained by one person, so the bar for contributions is
 high and the rules below are not negotiable. Reading them before you open a pull request saves
 everyone time.
 
@@ -92,7 +92,7 @@ collide.
 - Pick the right category: **Added** for new features, **Changed** for changes in existing behaviour,
   **Fixed** for bug fixes, **Removed** for removed features. The commit types map straight onto these:
   `feat:` → **added**, `fix:` → **fixed**, `refactor:`/`perf:` → **changed**.
-- Keep it user-facing: describe what changed for the person *using* SQL Explorer, not the class that
+- Keep it user-facing: describe what changed for the person *using* DataTray, not the class that
   changed.
 - Never write a version heading yourself. `python tools/changelog-render.py --dry-run` shows what the
   next release's `[Unreleased]` section will look like; the release workflow folds the fragments in and

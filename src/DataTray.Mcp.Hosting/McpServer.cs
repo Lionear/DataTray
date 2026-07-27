@@ -56,7 +56,7 @@ public sealed class McpServer(IMcpHost host, Action<string> audit)
         builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
         builder.Logging.ClearProviders();
 
-        builder.Services.AddMcpServer(o => o.ServerInfo = new() { Name = "SQL Explorer", Version = "1.0.0" })
+        builder.Services.AddMcpServer(o => o.ServerInfo = new() { Name = "DataTray", Version = "1.0.0" })
             .WithHttpTransport(o => o.Stateless = true)
             .WithTools(serverTools);
 

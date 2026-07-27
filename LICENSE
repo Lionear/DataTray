@@ -15,11 +15,11 @@ derives, entirely or substantially, from the functionality of the Software. Any
 license notice or attribution required by the License must also include this
 Commons Clause License Condition notice.
 
-Software: SQL Explorer
+Software: DataTray
 License: Apache License, Version 2.0
 Licensor: Lionear
 
-Note: This condition applies to all of SQL Explorer EXCEPT the code in
+Note: This condition applies to all of DataTray EXCEPT the code in
 `src/Provider.Sdk` (the `DataTray.Provider.Sdk` project), which is
 licensed separately under the MIT License with no Commons Clause restriction.
 See `src/Provider.Sdk/LICENSE`.

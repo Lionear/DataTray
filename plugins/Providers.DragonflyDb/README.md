@@ -1,6 +1,6 @@
 # DragonflyDB provider
 
-A database provider that plugs [DragonflyDB](https://www.dragonflydb.io/) into SQL Explorer. It is
+A database provider that plugs [DragonflyDB](https://www.dragonflydb.io/) into DataTray. It is
 **not shipped by default**: it lives under the repo-root `plugins/` folder (not `src/`) and is staged
 only in **Debug** builds, so it is directly usable while developing but never part of a Release/MVP.
 

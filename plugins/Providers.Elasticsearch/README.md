@@ -1,6 +1,6 @@
 # Elasticsearch provider
 
-A database provider that plugs [Elasticsearch](https://www.elastic.co/elasticsearch) into SQL Explorer.
+A database provider that plugs [Elasticsearch](https://www.elastic.co/elasticsearch) into DataTray.
 It is **not shipped by default**: it lives under the repo-root `plugins/` folder (not `src/`) and is
 staged only in **Debug** builds, so it is directly usable while developing but never part of a
 Release/MVP.

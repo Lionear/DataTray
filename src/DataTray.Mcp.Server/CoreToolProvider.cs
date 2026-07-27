@@ -107,7 +107,7 @@ public sealed class CoreToolProvider : IMcpToolProvider
 
         new McpToolDefinition(
             "create_connection",
-            "Create a database connection. Off unless the user enabled it in settings. 'persistent' false makes an in-memory, session-only connection wiped when SQL Explorer closes; true saves it. 'access' requests an AI-access level (readonly/readwrite/sandbox); the host may lower it — persistent connections cap at readwrite, and 'sandbox' (which also allows DDL) is only granted to a transient loopback connection. Call list_providers first for the provider id and its fields. Only connections you create this way can later be removed with delete_connection.",
+            "Create a database connection. Off unless the user enabled it in settings. 'persistent' false makes an in-memory, session-only connection wiped when DataTray closes; true saves it. 'access' requests an AI-access level (readonly/readwrite/sandbox); the host may lower it — persistent connections cap at readwrite, and 'sandbox' (which also allows DDL) is only granted to a transient loopback connection. Call list_providers first for the provider id and its fields. Only connections you create this way can later be removed with delete_connection.",
             """
             {
               "type": "object",

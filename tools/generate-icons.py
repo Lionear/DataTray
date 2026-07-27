@@ -2,7 +2,7 @@
 """Generate Icons.g.cs from the vendored Lucide SVGs in tools/lucide/.
 
 Lucide icons are 24x24, stroke-based (fill="none", stroke-width 2, round caps) — the same
-line-icon idiom SQL Explorer already draws by hand in NodeIcons.cs. Rather than pull in an
+line-icon idiom DataTray already draws by hand in NodeIcons.cs. Rather than pull in an
 SVG-rendering runtime dependency (and lose the DynamicResource theme-brush tinting that a plain
 Path gives us), we flatten each icon's primitives into a single StreamGeometry path string at
 build time. The app keeps rendering <Path Data="{x:Static Icons.X}" Stroke="..."/> exactly as it

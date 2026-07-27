@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="AppTitle" xml:space="preserve">
-    <value>SQL Explorer</value>
+    <value>DataTray</value>
   </data>
   <data name="ConnectionString" xml:space="preserve">
     <value>Connection string</value>
@@ -211,7 +211,7 @@
     <value>MCP server</value>
   </data>
   <data name="McpDesc" xml:space="preserve">
-    <value>Let an AI client (Claude Desktop/Code) query your connections over MCP while SQL Explorer is open. Only connections you opt in (per-connection AI access) are ever visible.</value>
+    <value>Let an AI client (Claude Desktop/Code) query your connections over MCP while DataTray is open. Only connections you opt in (per-connection AI access) are ever visible.</value>
   </data>
   <data name="McpEnabled" xml:space="preserve">
     <value>Enable the MCP server</value>
@@ -802,7 +802,7 @@
     <value>Master password disabled.</value>
   </data>
   <data name="MasterPwUnlockTitle" xml:space="preserve">
-    <value>Unlock SQL Explorer</value>
+    <value>Unlock DataTray</value>
   </data>
   <data name="MasterPwSetTitle" xml:space="preserve">
     <value>Set master password</value>
@@ -847,7 +847,7 @@
     <value>Quit</value>
   </data>
   <data name="ExitConfirmMessage" xml:space="preserve">
-    <value>Are you sure you want to quit SQL Explorer?</value>
+    <value>Are you sure you want to quit DataTray?</value>
   </data>
   <data name="ExitConfirmQuit" xml:space="preserve">
     <value>Quit</value>
@@ -892,13 +892,13 @@
     <value>Exit</value>
   </data>
   <data name="TrayShow" xml:space="preserve">
-    <value>Show SQL Explorer</value>
+    <value>Show DataTray</value>
   </data>
   <data name="About" xml:space="preserve">
     <value>About</value>
   </data>
   <data name="AboutText" xml:space="preserve">
-    <value>SQL Explorer</value>
+    <value>DataTray</value>
   </data>
   <data name="AboutTagline" xml:space="preserve">
     <value>A cross-platform, multilingual SQL explorer built in .NET. Database drivers ship as plugins.</value>
@@ -1528,7 +1528,7 @@
     <value>Installing…</value>
   </data>
   <data name="UpdateDialogGuided" xml:space="preserve">
-    <value>Downloaded — drag SQL Explorer to Applications, then reopen it.</value>
+    <value>Downloaded — drag DataTray to Applications, then reopen it.</value>
   </data>
   <data name="UpdateRollback" xml:space="preserve">
     <value>Roll back to the previous version</value>
@@ -1546,7 +1546,7 @@
     <value>Updates</value>
   </data>
   <data name="SettingsUpdatesHint" xml:space="preserve">
-    <value>Choose which builds SQL Explorer checks for. You can switch anytime.</value>
+    <value>Choose which builds DataTray checks for. You can switch anytime.</value>
   </data>
   <data name="UpdateChannelLabel" xml:space="preserve">
     <value>Release channel</value>
@@ -1645,7 +1645,7 @@
     <value>{0} update(s) need a newer app</value>
   </data>
   <data name="PluginUpdateHeldBackHint" xml:space="preserve">
-    <value>· update SQL Explorer to unlock them</value>
+    <value>· update DataTray to unlock them</value>
   </data>
   <data name="PluginUpdatesUpdateApp" xml:space="preserve">
     <value>Update app…</value>

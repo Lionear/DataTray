@@ -211,7 +211,7 @@
     <value>MCP-server</value>
   </data>
   <data name="McpDesc" xml:space="preserve">
-    <value>Laat een AI-client (Claude Desktop/Code) via MCP queries uitvoeren op je connecties terwijl SQL Explorer openstaat. Alleen connecties die je expliciet vrijgeeft (AI-toegang per connectie) zijn zichtbaar.</value>
+    <value>Laat een AI-client (Claude Desktop/Code) via MCP queries uitvoeren op je connecties terwijl DataTray openstaat. Alleen connecties die je expliciet vrijgeeft (AI-toegang per connectie) zijn zichtbaar.</value>
   </data>
   <data name="McpEnabled" xml:space="preserve">
     <value>MCP-server inschakelen</value>
@@ -802,7 +802,7 @@
     <value>Master password uitgeschakeld.</value>
   </data>
   <data name="MasterPwUnlockTitle" xml:space="preserve">
-    <value>SQL Explorer ontgrendelen</value>
+    <value>DataTray ontgrendelen</value>
   </data>
   <data name="MasterPwSetTitle" xml:space="preserve">
     <value>Master password instellen</value>
@@ -847,7 +847,7 @@
     <value>Afsluiten</value>
   </data>
   <data name="ExitConfirmMessage" xml:space="preserve">
-    <value>Weet je zeker dat je SQL Explorer wilt afsluiten?</value>
+    <value>Weet je zeker dat je DataTray wilt afsluiten?</value>
   </data>
   <data name="ExitConfirmQuit" xml:space="preserve">
     <value>Afsluiten</value>
@@ -892,13 +892,13 @@
     <value>Afsluiten</value>
   </data>
   <data name="TrayShow" xml:space="preserve">
-    <value>SQL Explorer tonen</value>
+    <value>DataTray tonen</value>
   </data>
   <data name="About" xml:space="preserve">
     <value>Over</value>
   </data>
   <data name="AboutText" xml:space="preserve">
-    <value>SQL Explorer</value>
+    <value>DataTray</value>
   </data>
   <data name="AboutTagline" xml:space="preserve">
     <value>Een cross-platform, meertalige SQL-verkenner gebouwd in .NET. Databasedrivers zijn plug-ins.</value>
@@ -1528,7 +1528,7 @@
     <value>Bezig met installeren…</value>
   </data>
   <data name="UpdateDialogGuided" xml:space="preserve">
-    <value>Gedownload — sleep SQL Explorer naar Programma's en open het opnieuw.</value>
+    <value>Gedownload — sleep DataTray naar Programma's en open het opnieuw.</value>
   </data>
   <data name="UpdateRollback" xml:space="preserve">
     <value>Terug naar de vorige versie</value>
@@ -1546,7 +1546,7 @@
     <value>Updates</value>
   </data>
   <data name="SettingsUpdatesHint" xml:space="preserve">
-    <value>Kies op welke builds SQL Explorer controleert. Je kunt altijd wisselen.</value>
+    <value>Kies op welke builds DataTray controleert. Je kunt altijd wisselen.</value>
   </data>
   <data name="UpdateChannelLabel" xml:space="preserve">
     <value>Release-kanaal</value>
@@ -1645,7 +1645,7 @@
     <value>{0} update(s) vereisen een nieuwere app</value>
   </data>
   <data name="PluginUpdateHeldBackHint" xml:space="preserve">
-    <value>· werk SQL Explorer bij om ze te ontgrendelen</value>
+    <value>· werk DataTray bij om ze te ontgrendelen</value>
   </data>
   <data name="PluginUpdatesUpdateApp" xml:space="preserve">
     <value>App bijwerken…</value>
