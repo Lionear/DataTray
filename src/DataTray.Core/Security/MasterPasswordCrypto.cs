@@ -18,7 +18,15 @@ public static class MasterPasswordCrypto
     private const int Iterations = 210_000;       // PBKDF2-HMAC-SHA256
     private const string SecretMarker = "menc1:"; // prefix on encrypted secret values
 
-    private static readonly byte[] VerifierPlaintext = Encoding.UTF8.GetBytes("sqlexplorer-master-verify-v1");
+    /// <summary>
+    /// The constant encrypted by <see cref="CreateVerifier"/> and re-derived by <see cref="CheckVerifier"/>.
+    /// Changing it invalidates every stored verifier, so every existing master password stops unlocking with
+    /// no way back — the secrets themselves stay encrypted under a key this value has no part in. It was safe
+    /// to rebrand only because the feature is opt-in and no released build had it enabled anywhere. From here
+    /// on it is fixed: a future change needs a second, legacy-accepting constant and a re-issue on unlock.
+    /// The <c>-v1</c> suffix exists for exactly that.
+    /// </summary>
+    private static readonly byte[] VerifierPlaintext = Encoding.UTF8.GetBytes("datatray-master-verify-v1");
 
     public static string NewSalt() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(SaltSize));
 
