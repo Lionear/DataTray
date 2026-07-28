@@ -146,7 +146,9 @@ public sealed class DockerComposeBuilder
     // Kontena ownership label contract (SE-184 / KON-61), agreed with the Kontena desktop app.
     private const string KontenaManagedLabel = "kontena.managed";
     private const string KontenaSourceLabel = "kontena.source";
-    private const string KontenaSourceValue = "sqlexplorer";
+    // Kontena maps this value to a display name and keeps accepting the pre-rename one, since a running
+    // container reports the label it was created with forever (KON-194).
+    private const string KontenaSourceValue = "datatray";
 
     private static string RenderCompose(
         ContainerRecipe engine, string name, string image, int hostPort,
