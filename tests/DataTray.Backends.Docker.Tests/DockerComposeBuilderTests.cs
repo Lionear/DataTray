@@ -42,7 +42,7 @@ public class DockerComposeBuilderTests
             "    restart: unless-stopped\n" +
             "    labels:\n" +
             "      kontena.managed: \"true\"\n" +
-            "      kontena.source: sqlexplorer\n" +
+            "      kontena.source: datatray\n" +
             "    environment:\n" +
             "      POSTGRES_DB: sales\n" +
             "      POSTGRES_USER: postgres\n" +
@@ -68,7 +68,7 @@ public class DockerComposeBuilderTests
             "docker run -d \\\n" +
             "  --name sales-pg-local \\\n" +
             "  --label kontena.managed=true \\\n" +
-            "  --label kontena.source=sqlexplorer \\\n" +
+            "  --label kontena.source=datatray \\\n" +
             "  -e POSTGRES_DB=sales \\\n" +
             "  -e POSTGRES_USER=postgres \\\n" +
             "  -e POSTGRES_PASSWORD=devpassword \\\n" +
@@ -147,12 +147,12 @@ public class DockerComposeBuilderTests
     {
         var spec = new ContainerSpec("postgres", Values(("password", "pw")), ContainerName: "c");
 
-        Assert.Contains("    labels:\n      kontena.managed: \"true\"\n      kontena.source: sqlexplorer\n",
+        Assert.Contains("    labels:\n      kontena.managed: \"true\"\n      kontena.source: datatray\n",
             Builder.Build(spec, SnippetFormat.Compose));
 
         var run = Builder.Build(spec, SnippetFormat.Run);
         Assert.Contains("--label kontena.managed=true", run);
-        Assert.Contains("--label kontena.source=sqlexplorer", run);
+        Assert.Contains("--label kontena.source=datatray", run);
     }
 
     // ---- provider-driven catalog -------------------------------------------------------------------
@@ -178,7 +178,7 @@ public class DockerComposeBuilderTests
             "    restart: unless-stopped\n" +
             "    labels:\n" +
             "      kontena.managed: \"true\"\n" +
-            "      kontena.source: sqlexplorer\n" +
+            "      kontena.source: datatray\n" +
             "    environment:\n" +
             "      COOL_PASS: secret\n" +
             "    ports:\n" +

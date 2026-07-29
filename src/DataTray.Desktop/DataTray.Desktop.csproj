@@ -64,9 +64,17 @@
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>template</PluginId>
       </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.ClickHouse\bin\$(Configuration)\$(TargetFramework)\**\*"
+                          Condition="'$(Configuration)' == 'Debug'">
+        <PluginId>clickhouse</PluginId>
+      </ProviderPluginFile>
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.DragonflyDb\bin\$(Configuration)\$(TargetFramework)\**\*"
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>dragonflydb</PluginId>
+      </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.DuckDb\bin\$(Configuration)\$(TargetFramework)\**\*"
+                          Condition="'$(Configuration)' == 'Debug'">
+        <PluginId>duckdb</PluginId>
       </ProviderPluginFile>
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.Elasticsearch\bin\$(Configuration)\$(TargetFramework)\**\*"
                           Condition="'$(Configuration)' == 'Debug'">

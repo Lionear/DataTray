@@ -163,6 +163,35 @@ Task<string?> GetServerVersionAsync(ConnectionProfile profile, CancellationToken
 The four ADO.NET providers read `DbConnection.ServerVersion` off the already-open
 connection (no extra round-trip). Non-SQL providers use their own version command:
 MongoDB's `buildInfo`, Redis/DragonflyDB's `INFO server`, Elasticsearch's `GET /`.
+ClickHouse is ADO.NET but not in this respect — its driver's `ServerVersion` throws
+on purpose, so the provider queries `SELECT version()`.
+
+#### SQL engines that are not row-oriented
+
+Being a SQL engine is not the same as fitting the host's default assumptions, and
+`plugins/Providers.ClickHouse` is the reference for the gap. It keeps
+`IsSqlBased => true` and reuses the host's SQL generation, but three of its
+capabilities come out differently, each for a reason worth checking against your
+own engine before you assume the defaults hold:
+
+- **Result grids stay read-only** — not by a flag, but because the protocol
+  carries no `BaseTable`/`IsKey` metadata, and the host's editability test needs
+  both (`EditableResultSet`). If your engine cannot supply that metadata, leave it
+  unset and the grid is read-only automatically; do not synthesise it, or the host
+  will generate an `UPDATE … WHERE key = …` the engine may not support.
+- **One statement per request** — the server rejects a batched body, so
+  `ExecuteScriptAsync` splits the text itself and sends one request each. Note the
+  host *joins* statements with `;` before calling you and expects one
+  `QueryResult` back per statement; it degrades gracefully when the counts differ,
+  but paging then falls back.
+- **`ExecuteBatchAsync` is not atomic** — the engine has no transaction to roll
+  back to. The SDK asks for all-or-nothing; when that is impossible, say so in the
+  member's own doc comment rather than pretending.
+
+`BuildCreateStatement` is worth a look too: a mandatory table engine
+(`ENGINE = MergeTree`), a mandatory `ORDER BY` (`tuple()` when there is no key),
+and nullability expressed as `Nullable(T)` rather than a `NOT NULL` suffix — a
+reminder that the `CreateObjectSpec` → DDL mapping is genuinely per-engine.
 
 ### Host API versioning
 

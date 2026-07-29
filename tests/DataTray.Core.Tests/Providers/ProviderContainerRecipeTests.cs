@@ -1,4 +1,5 @@
 using DataTray.Core.Providers;
+using DataTray.Providers.ClickHouse;
 using DataTray.Providers.DragonflyDb;
 using DataTray.Providers.Elasticsearch;
 using DataTray.Providers.MongoDb;
@@ -142,6 +143,29 @@ public class ProviderContainerRecipeTests
         var url = new Dictionary<string, string?> { ["url"] = "https://localhost:9243" };
         Assert.Equal(9243, recipe.HostPortOverride!(url));
         Assert.Null(recipe.HostPortOverride!(new Dictionary<string, string?> { ["url"] = "https://localhost" }));
+    }
+
+    [Fact] // ClickHouse publishes the HTTP port (the driver speaks binary-over-HTTP, not the native 9000),
+           // and needs access management on or its own user cannot run the CREATE USER/GRANT this provider builds.
+    public void ClickHouse_publishes_the_http_port_and_enables_access_management()
+    {
+        var recipe = new ClickHouseProvider().ContainerRecipe;
+
+        Assert.NotNull(recipe);
+        Assert.Equal("clickhouse", recipe!.Image);
+        Assert.Equal(8123, recipe.ContainerPort);
+        Assert.Equal("/var/lib/clickhouse", recipe.DataPath);
+
+        var env = Env(new ClickHouseProvider(), database: "analytics", user: "default", password: "pw");
+        Assert.Contains(env, kv => kv is { Key: "CLICKHOUSE_USER", Value: "default" });
+        Assert.Contains(env, kv => kv is { Key: "CLICKHOUSE_PASSWORD", Value: "pw" });
+        Assert.Contains(env, kv => kv is { Key: "CLICKHOUSE_DB", Value: "analytics" });
+        Assert.Contains(env, kv => kv is { Key: "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", Value: "1" });
+
+        // No database given → the image keeps its own `default`, so the var is omitted entirely rather
+        // than sent empty (which the image would create as a database literally named "").
+        Assert.DoesNotContain(Env(new ClickHouseProvider(), database: null, user: "default", password: "pw"),
+            kv => kv.Key == "CLICKHOUSE_DB");
     }
 
     [Fact] // The host catalog surfaces the real provider's recipe through the read-seam.
