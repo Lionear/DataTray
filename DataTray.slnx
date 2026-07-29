@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Plugins/">
+    <Project Path="plugins/Providers.ClickHouse/DataTray.Providers.ClickHouse.csproj" />
     <Project Path="plugins/Providers.DragonflyDb/DataTray.Providers.DragonflyDb.csproj" />
     <Project Path="plugins/Providers.Elasticsearch/DataTray.Providers.Elasticsearch.csproj" />
     <Project Path="plugins/Providers.MongoDb/DataTray.Providers.MongoDb.csproj" />

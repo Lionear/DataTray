@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "clickhouse",
+  "type": "provider",
+  "name": "ClickHouse",
+  "version": "1.0.0",
+  "hostApiVersion": 27,
+  "entryAssembly": "DataTray.Providers.ClickHouse.dll"
+}
