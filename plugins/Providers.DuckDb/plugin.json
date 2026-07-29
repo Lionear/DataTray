@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "duckdb",
+  "type": "provider",
+  "name": "DuckDB",
+  "version": "1.0.0",
+  "hostApiVersion": 27,
+  "entryAssembly": "DataTray.Providers.DuckDb.dll"
+}

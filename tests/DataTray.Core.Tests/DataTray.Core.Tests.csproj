@@ -43,6 +43,12 @@
     <ProjectReference Include="..\..\plugins\Providers.Redis\DataTray.Providers.Redis.csproj" />
     <ProjectReference Include="..\..\plugins\Providers.DragonflyDb\DataTray.Providers.DragonflyDb.csproj" />
     <ProjectReference Include="..\..\plugins\Providers.Elasticsearch\DataTray.Providers.Elasticsearch.csproj" />
+    <!-- DuckDbBrowseTargetTests (SE-12): the DuckDB provider has to recover a result set's table from the
+         query text, because its driver reports no base-table metadata, so that logic is unit-tested.
+         ExcludeAssets="native" keeps DuckDB's ~316 MB of per-RID libduckdb binaries out of the test output —
+         the tested type is pure string handling and never loads the engine. -->
+    <ProjectReference Include="..\..\plugins\Providers.DuckDb\DataTray.Providers.DuckDb.csproj"
+                      ExcludeAssets="native" />
     <!-- Also carries ClickHouseScriptTests (SE-36): ClickHouse is the one engine whose provider has to split
          script text itself, so the splitter is unit-tested rather than only exercised through a live server. -->
     <ProjectReference Include="..\..\plugins\Providers.ClickHouse\DataTray.Providers.ClickHouse.csproj" />

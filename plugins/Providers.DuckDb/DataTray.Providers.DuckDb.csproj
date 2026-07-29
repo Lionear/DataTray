@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Providers.DuckDb</RootNamespace>
+    <!-- Plugin build: emit the full private dependency closure (DuckDB.NET + the native libduckdb
+         under runtimes/<rid>/native/) into the output folder for ALC loading. ProviderLoadContext
+         resolves both halves from this plugin's own .deps.json — managed assemblies via
+         ResolveAssemblyToPath, the native library via ResolveUnmanagedDllToPath — which is the same
+         mechanism the bundled SQLite provider's native e_sqlite3 already relies on. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared contract only. Private=false keeps Sdk.dll OUT of the plugin folder so the host's copy
+         is used across the ALC boundary (single type identity for IDbProvider). -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The `.Full` variant is the one that carries the native libduckdb per RID; plain
+         DuckDB.NET.Data leaves the caller to supply it, which a per-user plugin install cannot. -->
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Optional brand logo. Drop a square PNG here as icon.png and it is embedded automatically;
+         until then the provider falls back to a glyph. -->
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" Condition="Exists('icon.png')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SDK namespaces mirror its folders; import the sub-namespaces project-wide so consumer
+         files keep a single `using DataTray.Sdk` at the top. -->
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Ddl" />
+    <Using Include="DataTray.Sdk.Branding" />
+    <Using Include="DataTray.Sdk.Editing" />
+  </ItemGroup>
+
+</Project>
