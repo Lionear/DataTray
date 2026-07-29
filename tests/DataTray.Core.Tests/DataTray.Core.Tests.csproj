@@ -43,6 +43,9 @@
     <ProjectReference Include="..\..\plugins\Providers.Redis\DataTray.Providers.Redis.csproj" />
     <ProjectReference Include="..\..\plugins\Providers.DragonflyDb\DataTray.Providers.DragonflyDb.csproj" />
     <ProjectReference Include="..\..\plugins\Providers.Elasticsearch\DataTray.Providers.Elasticsearch.csproj" />
+    <!-- Also carries ClickHouseScriptTests (SE-36): ClickHouse is the one engine whose provider has to split
+         script text itself, so the splitter is unit-tested rather than only exercised through a live server. -->
+    <ProjectReference Include="..\..\plugins\Providers.ClickHouse\DataTray.Providers.ClickHouse.csproj" />
     <!-- For the CoreToolProvider tool-handler integration tests (SE-155): exercises the tools' JSON arg
          parsing end-to-end against a real McpHost. -->
     <ProjectReference Include="..\..\src\DataTray.Mcp.Server\DataTray.Mcp.Server.csproj" />
