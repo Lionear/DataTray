@@ -11,6 +11,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 _Nothing yet._
 
+## [0.7.0] - 2026-07-29
+
+### Added
+
+- **DuckDB is a supported engine.** A store-only provider plugin — install it from *Tools › Plugin Store*; it
+  is not bundled with the app. It opens a `.duckdb` file, or an in-memory database (under Advanced) when you
+  only want a scratchpad, and puts its schemas, tables, views, sequences, columns and indexes in the tree,
+  with row counts and column counts on the nodes. Queries, scripts, `EXPLAIN`, *View Definition*, and DDL
+  Create for schemas and tables work as they do for the other SQL engines. The download is ~82 MB: DuckDB is
+  an embedded engine, so the plugin carries the engine itself for every platform DataTray runs on.
+- **A query can read a file directly**, which is the reason to reach for DuckDB in the first place:
+  `SELECT * FROM 'events.parquet'`, `read_csv_auto('data.csv')` and `read_json_auto(…)` all just work in a
+  query tab, against an in-memory connection with no database file at all. Such a result set is read-only —
+  there is no table behind it to write to.
+- **Editing works for a plain browse.** DuckDB's driver does not tell us which table a result set came from,
+  so the provider works it out from the query itself: double-click a table, filter it, sort it or page
+  through it and the grid stays editable, provided the table has a primary key and the query still selects
+  it. Anything more — a join, an aggregate, a view, a file — comes back read-only rather than risking a save
+  against the wrong rows.
+- Cancelling a long query genuinely stops it. DuckDB is an analytics engine, so a query that runs for a
+  minute is normal rather than a mistake, and its driver ignores the usual cancellation signal; the provider
+  bridges that so the Cancel button does what it says.
+- **ClickHouse is a supported engine.** A store-only provider plugin — install it from *Tools › Plugin
+  Store*; it is not bundled with the app. It connects over ClickHouse's HTTP interface
+  (port 8123, or 8443 with the protocol set to `https` for ClickHouse Cloud) and puts its databases, tables,
+  views, columns and data-skipping indexes in the schema tree, with on-disk sizes and row counts on the
+  nodes. Queries, scripts, `EXPLAIN`, the database switcher, *View Definition*, DDL Create for databases and
+  tables, the Activity Monitor and user/role management all work as they do for the other SQL engines. Spin
+  a local server up from the *Local Containers* plugin like any other engine — the provider ships its own
+  container recipe.
+- Three things follow from ClickHouse being columnar rather than row-oriented, and are worth knowing rather
+  than discovering: result grids are **read-only** (the HTTP protocol carries no primary-key metadata to
+  trace a result back to one table, and ClickHouse edits rows through asynchronous `ALTER TABLE … UPDATE`
+  mutations, which a generated `UPDATE … WHERE key = …` would not express); a multi-statement script is sent
+  **one statement per request**, because the server rejects a batched body outright; and a batch is **not
+  transactional**, since ClickHouse has no transaction for ordinary MergeTree work — a failure leaves the
+  statements before it applied.
+- Generated `CREATE TABLE` DDL declares `ENGINE = MergeTree` with an `ORDER BY` over the columns marked as
+  primary key (`tuple()` when none are), and expresses a nullable column as `Nullable(T)` — ClickHouse
+  columns are NOT NULL unless the type says otherwise, the opposite of every other engine here.
+
+### Changed
+
+- **Containers DataTray starts are now labelled `kontena.source=datatray`**, not `sqlexplorer`. The
+  Kontena desktop app shows them under the new name; containers created before this release keep the
+  old label and are still recognised. Anything else filtering on the old value needs updating.
+
 ## [0.6.1] - 2026-07-27
 
 ### Changed
@@ -400,7 +447,8 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/DataTray/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/Lionear/DataTray/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Lionear/DataTray/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Lionear/DataTray/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Lionear/DataTray/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Lionear/SqlExplorer/compare/v0.4.0...v0.5.0
