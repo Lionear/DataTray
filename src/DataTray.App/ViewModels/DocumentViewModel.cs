@@ -2050,6 +2050,9 @@ public partial class DocumentViewModel : ViewModelBase
                 OnPropertyChanged(nameof(ViewerContext));
             }
 
+            // A refresh replaces every row object, so the old selection is gone — land on the first row of
+            // the new page rather than dropping the viewer back to its empty state mid-browse.
+            SelectFirstRowIfNoneSelected();
             _viewerContext.SetSelection(RowIndexOf(SelectedRow), SelectedColumnIndex);
         }
         else
@@ -2068,10 +2071,23 @@ public partial class DocumentViewModel : ViewModelBase
             return;
         }
 
+        // A viewer renders the selected row, so opening one with nothing selected would land on its
+        // "select a row" state — an instruction where the user asked for content. Selecting the first row
+        // is what they'd have done next anyway, and it keeps the grid in step for when they switch back.
+        SelectFirstRowIfNoneSelected();
+
         // A fresh context per switch: the previous viewer's control is discarded with it.
         _viewerContext = new DocumentViewerContext(snapshot, _viewers.LocalizerFor(plugin.Id));
         _viewerContext.SetSelection(RowIndexOf(SelectedRow), SelectedColumnIndex);
         OnPropertyChanged(nameof(ViewerContext));
+    }
+
+    private void SelectFirstRowIfNoneSelected()
+    {
+        if (SelectedRow is null && Editable?.Rows.FirstOrDefault(r => !r.IsDeleted) is { } first)
+        {
+            SelectedRow = first;
+        }
     }
 
     private string LabelFor(IViewerPlugin viewer)

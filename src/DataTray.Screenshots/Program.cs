@@ -478,10 +478,10 @@ internal static class SceneCatalog
         await document.RunCommand.ExecuteAsync(null);
         Program.Settle(rounds: 20);
 
-        // A viewer renders the *selected* row, so the scene has to make a selection the way a click would.
+        // No explicit row selection: picking a viewer with nothing selected is exactly the case that used
+        // to land on an empty "select a row" state, so the scene renders it the way a user meets it.
         if (document.AvailableViews.FirstOrDefault(v => v.Id == state) is { } view)
         {
-            document.SelectedRow = document.Editable?.Rows.FirstOrDefault();
             document.SelectedView = view;
             Program.Settle(rounds: 10);
         }
