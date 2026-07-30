@@ -23,6 +23,27 @@
       <Setter Property="BorderBrush" Value="{DynamicResource SEAccentBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
     </Style>
+
+    <!-- The "View" switcher (SE-75): a small segmented control, not tabs — picking Grid/JSON/Image swaps
+         the rendering of the *same* result set, where the ResultTab strip beside it picks a different one.
+         Reads as a compact toggle group so the two are not mistaken for each other. -->
+    <Style Selector="ListBox.ViewSwitcher ListBoxItem">
+      <Setter Property="Background" Value="{DynamicResource SEPanelBgBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox.ViewSwitcher ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ListBox.ViewSwitcher ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEAccentBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SEAccentFgBrush}" />
+    </Style>
   </UserControl.Styles>
   <Grid x:Name="RootGrid" RowDefinitions="Auto,2*,Auto,Auto,Auto,3*,Auto">
 
@@ -155,25 +176,64 @@
                  IsVisible="{Binding ReadOnlyReason, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
     </Grid>
 
-    <!-- Row 4: result-set tab strip — only shown for a multi-statement/multi-resultset run or Explain. -->
-    <ItemsControl Grid.Row="4" Margin="0,0,0,6" ItemsSource="{Binding ResultSets}"
-                  IsVisible="{Binding HasMultipleResultSets}">
-      <ItemsControl.ItemsPanel>
-        <ItemsPanelTemplate>
-          <StackPanel Orientation="Horizontal" Spacing="4" />
-        </ItemsPanelTemplate>
-      </ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate>
-        <DataTemplate>
-          <Button Classes="ResultTab" Classes.Accent="{Binding IsSelected}" Content="{Binding Label}"
-                  Command="{Binding $parent[ItemsControl].DataContext.SelectResultSetCommand}"
-                  CommandParameter="{Binding}" />
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <!-- Row 4: result-set tab strip (left) + the "View" switcher (right, SE-75). The row carries two
+         independent things now, so it shows when *either* has something to say: the tab strip only for a
+         multi-statement/multi-resultset run or Explain, the switcher whenever a viewer plugin applies. -->
+    <Grid Grid.Row="4" Margin="0,0,0,6" ColumnDefinitions="Auto,*,Auto">
+      <Grid.IsVisible>
+        <MultiBinding Converter="{x:Static conv:BoolConverters.Or}">
+          <Binding Path="HasMultipleResultSets" />
+          <Binding Path="HasViewSwitcher" />
+        </MultiBinding>
+      </Grid.IsVisible>
 
-    <!-- Row 5: editable result grid, framed. Columns are built per result set in code-behind. -->
+      <ItemsControl Grid.Column="0" ItemsSource="{Binding ResultSets}"
+                    IsVisible="{Binding HasMultipleResultSets}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="4" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Button Classes="ResultTab" Classes.Accent="{Binding IsSelected}" Content="{Binding Label}"
+                    Command="{Binding $parent[ItemsControl].DataContext.SelectResultSetCommand}"
+                    CommandParameter="{Binding}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                  IsVisible="{Binding HasViewSwitcher}">
+        <TextBlock Text="{Binding Loc[ViewLabel]}" VerticalAlignment="Center"
+                   FontSize="11.5" Foreground="{DynamicResource SETextFaintBrush}" />
+        <ListBox ItemsSource="{Binding AvailableViews}" SelectedItem="{Binding SelectedView}"
+                 Classes="ViewSwitcher" Background="Transparent" BorderThickness="0" Padding="0">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="4" />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Label}" FontSize="11.5" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </StackPanel>
+    </Grid>
+
+    <!-- Row 5: the result surface — the editable grid, or a viewer's control in its place (SE-75). The two
+         swap on visibility rather than both being mounted, so a viewer never runs behind the grid. -->
     <Border Grid.Row="5"
+            IsVisible="{Binding !IsGridView}"
+            BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+            CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
+      <ContentControl x:Name="ViewerHost" />
+    </Border>
+
+    <Border Grid.Row="5"
+            IsVisible="{Binding IsGridView}"
             BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
             CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
       <DataGrid x:Name="ResultsGrid"
@@ -218,8 +278,14 @@
 
     <!-- Row 6: query-result paging nav (SE-178) — under the grid, DataGrip/DBeaver-style. Browse has its own
          paging bar on top (with the filter box); this is the query-mode counterpart, prev/next + row range. -->
-    <Grid Grid.Row="6" ColumnDefinitions="Auto,Auto,Auto" Margin="0,6,0,0"
-          IsVisible="{Binding IsQueryPaged}">
+    <Grid Grid.Row="6" ColumnDefinitions="Auto,Auto,Auto" Margin="0,6,0,0">
+      <!-- Hidden behind a viewer: the paging nav belongs to the grid, and a viewer owns the whole area. -->
+      <Grid.IsVisible>
+        <MultiBinding Converter="{x:Static conv:BoolConverters.And}">
+          <Binding Path="IsQueryPaged" />
+          <Binding Path="IsGridView" />
+        </MultiBinding>
+      </Grid.IsVisible>
       <Button Grid.Column="0" Margin="0,0,6,0"
               Content="{Binding Loc[PrevPage]}" Command="{Binding PrevPageCommand}" />
       <Button Grid.Column="1" Margin="0,0,10,0"

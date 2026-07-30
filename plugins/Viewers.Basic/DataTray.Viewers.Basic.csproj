@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Viewers.Basic</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contract only. Both viewers render with the BCL (System.Text.Json) and Avalonia's own bitmap
+         decoder — no NuGet dependency at all. Private=false keeps Sdk.dll out of the plugin folder so the
+         host's copy is used across the ALC boundary. -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+    <!-- A viewer returns an Avalonia Control, so Avalonia is a compile-time reference. ExcludeAssets=runtime
+         — the host owns Avalonia and shares it across the plugin ALC boundary, so the plugin must not ship
+         its own copy. -->
+    <PackageReference Include="Avalonia" Version="12.0.5" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Localization: embedded so the plugin ships as one DLL; LogicalName fixes the resource name the
+         host's PluginLocalizer looks up (prefix "Lang/strings" from plugin.json). WithCulture=false is
+         essential: the ".nl." in the filename would otherwise make MSBuild route it to a satellite
+         assembly instead of the main DLL's manifest resources. -->
+    <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
+    <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Localization" />
+    <Using Include="DataTray.Sdk.Viewers" />
+  </ItemGroup>
+
+</Project>

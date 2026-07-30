@@ -10,6 +10,7 @@
     <Project Path="plugins/Backends.Docker/DataTray.Backends.Docker.csproj" />
     <Project Path="plugins/Tools.MsSqlBacpac/DataTray.Tools.MsSqlBacpac.csproj" />
     <Project Path="plugins/Tools.UniversalBackup/DataTray.Tools.UniversalBackup.csproj" />
+    <Project Path="plugins/Viewers.Basic/DataTray.Viewers.Basic.csproj" />
     <Project Path="src/DataTray.Providers.MsSql/DataTray.Providers.MsSql.csproj" />
     <Project Path="src/DataTray.Providers.MySql/DataTray.Providers.MySql.csproj" />
     <Project Path="src/DataTray.Providers.Postgres/DataTray.Providers.Postgres.csproj" />

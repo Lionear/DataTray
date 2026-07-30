@@ -121,6 +121,11 @@ public partial class DocumentView : UserControl
         {
             _currentColumnIndex = columnIndex;
             _currentRow = row;
+            // Feed the column half of the selection through; the row half rides on VM.SelectedRow.
+            if (_viewModel is not null)
+            {
+                _viewModel.SelectedColumnIndex = columnIndex;
+            }
         }
     }
 
@@ -183,6 +188,7 @@ public partial class DocumentView : UserControl
 
         PushSqlToEditor();
         RebuildResultColumns();
+        RebuildViewerControl();
     }
 
     private async Task<bool> ShowSaveReviewAsync(string sql)
@@ -491,6 +497,47 @@ public partial class DocumentView : UserControl
         else if (e.PropertyName == nameof(DocumentViewModel.Sql))
         {
             PushSqlToEditor();
+        }
+        else if (e.PropertyName == nameof(DocumentViewModel.ViewerContext))
+        {
+            RebuildViewerControl();
+        }
+    }
+
+    // Mounts the selected viewer's control (SE-75), or clears the host when the grid is showing. Building
+    // the control is the plugin's job and the one place its code runs on our UI thread outside its own
+    // event handlers, so a viewer that throws here loses its slot instead of taking the tab down.
+    private void RebuildViewerControl()
+    {
+        if (this.FindControl<ContentControl>("ViewerHost") is not { } host)
+        {
+            return;
+        }
+
+        var context = _viewModel?.ViewerContext;
+        var plugin = _viewModel?.SelectedView?.Plugin;
+        if (context is null || plugin is null)
+        {
+            host.Content = null;
+            return;
+        }
+
+        try
+        {
+            host.Content = plugin.CreateView(context);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[viewer] {plugin.Id}: CreateView threw — {ex.Message}");
+            host.Content = new TextBlock
+            {
+                Text = ex.Message,
+                Margin = new Thickness(12),
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            _viewModel!.SelectedView = _viewModel.AvailableViews.FirstOrDefault(v => v.IsGrid);
         }
     }
 
