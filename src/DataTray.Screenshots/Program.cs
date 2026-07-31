@@ -336,7 +336,7 @@ internal static class SceneCatalog
         if (tool is not IToolDocumentUi documentUi)
         {
             Console.Error.WriteLine("The er-diagram plugin isn't in this build's plugins/ folder.");
-            return null;
+            return Task.FromResult<Window?>(null);
         }
 
         var dbPath = Path.Combine(sandbox, "demo-shop.db");

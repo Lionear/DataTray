@@ -31,7 +31,9 @@ public sealed class ErDiagramCanvas : Control
     private const double RowHeight = 18;
     private const double GapX = 74;
     private const double GapY = 26;
-    private const double Margin = 28;
+    /// <summary>Breathing room around the drawing. Not called Margin: that is a Layoutable property,
+    /// and shadowing it would make a perfectly ordinary line of layout code do nothing.</summary>
+    private const double Inset = 28;
     private const double Radius = 6;
 
     private readonly ErGraph _graph;
@@ -72,8 +74,8 @@ public sealed class ErDiagramCanvas : Control
             var rows = RowsFor(byKey[placement.Key]);
             var height = HeaderHeight + rows * RowHeight + 6;
 
-            var x = Margin + placement.Rank * (BoxWidth + GapX);
-            var y = Margin + offsets.GetValueOrDefault(placement.Rank);
+            var x = Inset + placement.Rank * (BoxWidth + GapX);
+            var y = Inset + offsets.GetValueOrDefault(placement.Rank);
             offsets[placement.Rank] = offsets.GetValueOrDefault(placement.Rank) + height + GapY;
 
             _boxes[placement.Key] = new Rect(x, y, BoxWidth, height);
@@ -81,7 +83,7 @@ public sealed class ErDiagramCanvas : Control
             maxY = Math.Max(maxY, y + height);
         }
 
-        DiagramSize = new Size(maxX + Margin, maxY + Margin);
+        DiagramSize = new Size(maxX + Inset, maxY + Inset);
         Width = DiagramSize.Width;
         Height = DiagramSize.Height;
     }
