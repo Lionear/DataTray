@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DataTray — ER diagram (SE-82)</title>
+<style>
+  :root {
+    --window-bg:#FFFFFF; --panel-bg:#F7F8FA; --secondary-bg:#EEF0F3; --toolbar-bg:#F0F1F3;
+    --hairline:#D9DCE1; --hover:#EAEDF1; --selection:#D4E2FC;
+    --text:#1B1D21; --text2:#5B616B; --faint:#8A909A;
+    --accent:#2F6FEB; --accent-hover:#2560D6; --accent-fg:#FFFFFF;
+    --ok:#2E8B57; --err:#C4362F; --warn:#B9791F;
+    --radius:6px; --panel-radius:10px;
+    --mono:"Cascadia Code", Consolas, Menlo, monospace;
+    --canvas:#FBFCFD;
+  }
+  html[data-theme="dark"] {
+    --window-bg:#1E1F22; --panel-bg:#2B2D30; --secondary-bg:#26282B; --toolbar-bg:#2B2D30;
+    --hairline:#393B40; --hover:#2E3338; --selection:#2E436E;
+    --text:#DFE1E5; --text2:#9DA0A8; --faint:#6F737A;
+    --accent:#3574F0; --accent-hover:#4A83F2; --accent-fg:#FFFFFF;
+    --ok:#5AA576; --err:#D64545; --warn:#E0A33E;
+    --canvas:#1A1B1E;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:28px 24px 70px;
+    background:var(--window-bg); color:var(--text);
+    font:13px/1.45 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  h1 { font-size:19px; font-weight:600; margin:0 0 4px; }
+  .sub { color:var(--text2); font-size:12px; margin:0 0 22px; max-width:900px; }
+  .caption { font-size:12px; color:var(--text2); margin:32px 0 8px; max-width:1000px; }
+  .caption b { color:var(--text); font-weight:600; }
+
+  .toggle {
+    position:fixed; top:14px; right:18px; z-index:10;
+    background:var(--panel-bg); color:var(--text); border:1px solid var(--hairline);
+    border-radius:var(--radius); padding:5px 11px; font-size:11.5px; cursor:pointer;
+  }
+  .toggle:hover { background:var(--hover); }
+
+  /* ── host chrome: a tool window, same shape as Schema Diff ─────────────────────────── */
+  .win {
+    border:1px solid var(--hairline); border-radius:var(--panel-radius);
+    background:var(--window-bg); max-width:1000px; overflow:hidden;
+  }
+  .titlebar {
+    display:flex; align-items:center; gap:8px; padding:7px 12px;
+    background:var(--toolbar-bg); border-bottom:1px solid var(--hairline); font-size:12px;
+  }
+  .titlebar .dot { width:9px; height:9px; border-radius:50%; background:var(--ok); }
+  .titlebar .who { color:var(--text2); }
+
+  .toolbar {
+    display:flex; align-items:center; gap:8px; padding:8px 12px;
+    border-bottom:1px solid var(--hairline); font-size:12px; flex-wrap:wrap;
+  }
+  .btn {
+    background:var(--panel-bg); color:var(--text); border:1px solid var(--hairline);
+    border-radius:var(--radius); padding:4px 10px; font-size:12px; cursor:pointer;
+  }
+  .btn:hover { background:var(--hover); }
+  .btn.accent { background:var(--accent); border-color:var(--accent); color:var(--accent-fg); }
+  .btn.sm { padding:2px 8px; font-size:11.5px; }
+  .sel {
+    background:var(--secondary-bg); color:var(--text); border:1px solid var(--hairline);
+    border-radius:var(--radius); padding:4px 8px; font-size:12px;
+  }
+  .spacer { flex:1; }
+  .seg { display:flex; border:1px solid var(--hairline); border-radius:var(--radius); overflow:hidden; }
+  .seg button {
+    background:var(--panel-bg); color:var(--text2); border:0; border-left:1px solid var(--hairline);
+    padding:3px 10px; font-size:11.5px; cursor:pointer;
+  }
+  .seg button:first-child { border-left:0; }
+  .seg button.on { background:var(--accent); color:var(--accent-fg); }
+  .lbl { color:var(--faint); font-size:11.5px; }
+
+  .statusbar {
+    display:flex; align-items:center; gap:10px; padding:5px 12px;
+    border-top:1px solid var(--hairline); background:var(--toolbar-bg);
+    font-size:11.5px; color:var(--text2);
+  }
+
+  /* ── the canvas ────────────────────────────────────────────────────────────────────── */
+  .canvas { position:relative; height:520px; background:var(--canvas); overflow:hidden; }
+  .canvas.short { height:400px; }
+  .grid-dots {
+    position:absolute; inset:0;
+    background-image:radial-gradient(var(--hairline) 1px, transparent 1px);
+    background-size:22px 22px; opacity:.5;
+  }
+  .canvas svg { position:absolute; inset:0; width:100%; height:100%; }
+
+  .tbl {
+    position:absolute; border:1px solid var(--hairline); border-radius:var(--radius);
+    background:var(--panel-bg); overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  .tbl .th {
+    padding:4px 9px; font-size:11.5px; font-weight:600;
+    background:var(--toolbar-bg); border-bottom:1px solid var(--hairline);
+    display:flex; align-items:center; gap:6px;
+  }
+  .tbl .th .cnt { margin-left:auto; font-weight:400; color:var(--faint); font-size:10.5px; }
+  .tbl .col {
+    display:flex; align-items:center; gap:6px; height:19px; padding:0 9px;
+    font-family:var(--mono); font-size:10.5px; color:var(--text2); white-space:nowrap;
+  }
+  .tbl .col .ty { margin-left:auto; color:var(--faint); font-size:10px; }
+  .tbl .col .key { width:12px; font-size:9px; text-align:center; }
+  .key.pk { color:var(--warn); }
+  .key.fk { color:var(--accent); }
+
+  .tbl.on { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent); }
+  .tbl.on .th { background:var(--selection); }
+  .tbl.dim { opacity:.45; }
+
+  /* compact overview boxes */
+  .tbl.mini .th { border-bottom:0; }
+
+  /* ── the pick-what-to-draw panel ───────────────────────────────────────────────────── */
+  .pick { display:grid; grid-template-columns:290px 1fr; height:420px; }
+  .picklist { border-right:1px solid var(--hairline); overflow:auto; }
+  .pickrow {
+    display:flex; align-items:center; gap:8px; padding:4px 12px; font-size:12px;
+    border-bottom:1px solid color-mix(in srgb, var(--hairline) 55%, transparent);
+  }
+  .pickrow:hover { background:var(--hover); }
+  .pickrow.checked { background:var(--selection); }
+  .pickrow .n { color:var(--faint); margin-left:auto; font-size:10.5px; font-family:var(--mono); }
+  .box { width:13px; height:13px; border:1px solid var(--hairline); border-radius:3px; background:var(--window-bg); }
+  .box.on { background:var(--accent); border-color:var(--accent); position:relative; }
+  .box.on::after {
+    content:"✓"; position:absolute; inset:0; color:#fff; font-size:10px; line-height:11px; text-align:center;
+  }
+  .pickhead { padding:9px 12px; border-bottom:1px solid var(--hairline); }
+  .preview { display:flex; align-items:center; justify-content:center; color:var(--faint); font-size:12px; }
+
+  .note {
+    max-width:1000px; margin:10px 0 0; padding:10px 13px; font-size:11.5px; color:var(--text2);
+    background:var(--panel-bg); border:1px solid var(--hairline); border-radius:var(--radius);
+  }
+  .note b { color:var(--text); }
+  .note ul { margin:6px 0 0; padding-left:18px; }
+  .note li { margin:3px 0; }
+  .q { border-left:3px solid var(--warn); }
+
+  /* ── phase 2: editing ──────────────────────────────────────────────────────────────── */
+  .editwrap { display:grid; grid-template-columns:1fr 262px; }
+  .editwrap .canvas { border-right:1px solid var(--hairline); }
+
+  .tbl.new { border:1px dashed var(--accent); background:color-mix(in srgb, var(--accent) 7%, var(--panel-bg)); }
+  .tbl.new .th { background:color-mix(in srgb, var(--accent) 16%, var(--toolbar-bg)); }
+  .tbl .col.added { color:var(--accent); }
+  .tbl .col.editing {
+    background:var(--window-bg); outline:1px solid var(--accent); outline-offset:-1px;
+    color:var(--text); border-radius:3px;
+  }
+  .caret { display:inline-block; width:1px; height:11px; background:var(--accent); vertical-align:-2px; }
+
+  .changes { background:var(--panel-bg); display:flex; flex-direction:column; }
+  .changes .hd {
+    padding:8px 11px; border-bottom:1px solid var(--hairline);
+    font-size:11.5px; font-weight:600; display:flex; align-items:center; gap:7px;
+  }
+  .changes .hd .n {
+    margin-left:auto; background:var(--accent); color:var(--accent-fg);
+    border-radius:9px; padding:0 7px; font-size:10.5px; font-weight:600;
+  }
+  .changes .body { flex:1; overflow:auto; }
+  .chg {
+    display:flex; align-items:flex-start; gap:7px; padding:7px 11px; font-size:11.5px;
+    border-bottom:1px solid color-mix(in srgb, var(--hairline) 55%, transparent);
+  }
+  .chg .op {
+    font-family:var(--mono); font-size:9px; padding:1px 5px; border-radius:8px; white-space:nowrap;
+    background:var(--secondary-bg); color:var(--text2); border:1px solid var(--hairline);
+  }
+  .op.add { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 45%, transparent); }
+  .op.mod { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, transparent); }
+  .op.del { color:var(--err); border-color:color-mix(in srgb, var(--err) 45%, transparent); }
+  .chg .what { flex:1; line-height:1.35; }
+  .chg .what .mono { font-size:11px; }
+  .chg .x { color:var(--faint); cursor:pointer; font-size:12px; }
+  .chg .x:hover { color:var(--err); }
+  .changes .ft { padding:9px 11px; border-top:1px solid var(--hairline); display:flex; gap:6px; }
+
+  pre.ddl {
+    margin:0; padding:12px 14px; font-family:var(--mono); font-size:11px; line-height:1.6;
+    background:var(--canvas); color:var(--text); overflow:auto; max-height:300px;
+  }
+  pre.ddl .kw { color:var(--accent); }
+  pre.ddl .id { color:var(--text); }
+  pre.ddl .cm { color:var(--faint); font-style:italic; }
+  pre.ddl .ty { color:var(--ok); }
+
+  .inline-err {
+    display:flex; align-items:flex-start; gap:8px; margin:10px; padding:9px 11px;
+    border:1px solid color-mix(in srgb, var(--err) 45%, transparent);
+    background:color-mix(in srgb, var(--err) 8%, transparent);
+    border-radius:var(--radius); font-size:11.5px; color:var(--text);
+  }
+  .inline-err .mark { color:var(--err); font-weight:700; }
+</style>
+</head>
+<body>
+
+<button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Toggle theme</button>
+
+<h1>ER diagram <span style="font-weight:400;color:var(--text2)">— SE-82, the last open item on the DBeaver/DataGrip roadmap (SE-67)</span></h1>
+<p class="sub">
+  Drawn as a <b>tool plugin</b> with its own view, like Schema Diff — not a result viewer: this renders a
+  <i>schema</i>, not a result set. Foreign keys come from <span class="mono">Shared.Schema</span>'s
+  <span class="mono">ForeignKeyDef</span>, which Schema Diff and Copy Table already use, so no SDK or provider
+  work is involved.
+</p>
+
+<!-- ══════════════════════════════════════════════════════════ STATE 1 -->
+<p class="caption"><b>1 · The diagram.</b> Clicking a table highlights it and the relations it takes part in, and fades the rest — the one interaction that makes a busy diagram readable. Crow's foot marks the many side.</p>
+
+<div class="win">
+  <div class="titlebar">
+    <span class="dot"></span>
+    <b>ER Diagram</b>
+    <span class="who">· Demo shop · public</span>
+  </div>
+
+  <div class="toolbar">
+    <span class="lbl">Schema</span>
+    <select class="sel"><option>public</option></select>
+    <button class="btn">Tables… <span style="color:var(--faint)">6 of 24</span></button>
+    <span class="lbl" style="margin-left:6px">Detail</span>
+    <div class="seg">
+      <button>Names</button>
+      <button>Keys</button>
+      <button class="on">Columns</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="seg">
+      <button>−</button>
+      <button style="min-width:52px">100%</button>
+      <button>+</button>
+    </div>
+    <button class="btn">Re-layout</button>
+    <button class="btn">Export PNG</button>
+  </div>
+
+  <div class="canvas">
+    <div class="grid-dots"></div>
+    <svg>
+      <defs>
+        <marker id="crow" viewBox="-13 0 13 10" refX="0" refY="5" markerWidth="11" markerHeight="9" orient="auto">
+          <path d="M0,5 L-13,0 M0,5 L-13,5 M0,5 L-13,10" fill="none" stroke="var(--hairline)" stroke-width="1.3"/>
+        </marker>
+        <marker id="one" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto">
+          <path d="M4,1 L4,9" fill="none" stroke="var(--hairline)" stroke-width="1.4"/>
+        </marker>
+        <marker id="crowA" viewBox="-13 0 13 10" refX="0" refY="5" markerWidth="11" markerHeight="9" orient="auto">
+          <path d="M0,5 L-13,0 M0,5 L-13,5 M0,5 L-13,10" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        </marker>
+        <marker id="oneA" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto">
+          <path d="M4,1 L4,9" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+        </marker>
+      </defs>
+
+      <!-- products.category_id → categories.id -->
+      <path d="M290,84.5 C250,84.5 240,75.5 200,75.5" fill="none" stroke="var(--hairline)"
+            stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <!-- addresses.customer_id → customers.id -->
+      <path d="M290,424.5 C245,424.5 240,265.5 200,265.5" fill="none" stroke="var(--hairline)"
+            stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <!-- order_items.product_id → products.id -->
+      <path d="M570,173.5 C525,173.5 520,65.5 480,65.5" fill="none" stroke="var(--hairline)"
+            stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+
+      <!-- highlighted: orders.customer_id → customers.id -->
+      <path d="M290,254.5 C250,254.5 240,265.5 200,265.5" fill="none" stroke="var(--accent)"
+            stroke-width="1.7" marker-start="url(#crowA)" marker-end="url(#oneA)"/>
+      <!-- highlighted: order_items.order_id → orders.id -->
+      <path d="M570,154.5 C530,154.5 520,235.5 480,235.5" fill="none" stroke="var(--accent)"
+            stroke-width="1.7" marker-start="url(#crowA)" marker-end="url(#oneA)"/>
+    </svg>
+
+    <!-- depth 0 -->
+    <div class="tbl dim" style="left:30px; top:40px; width:170px;">
+      <div class="th">categories <span class="cnt">8</span></div>
+      <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+      <div class="col"><span class="key"></span>name<span class="ty">text</span></div>
+      <div class="col"><span class="key"></span>slug<span class="ty">text</span></div>
+    </div>
+
+    <div class="tbl" style="left:30px; top:230px; width:170px;">
+      <div class="th">customers <span class="cnt">1.2k</span></div>
+      <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+      <div class="col"><span class="key"></span>name<span class="ty">text</span></div>
+      <div class="col"><span class="key"></span>email<span class="ty">text</span></div>
+      <div class="col"><span class="key"></span>created_at<span class="ty">timestamp</span></div>
+    </div>
+
+    <!-- depth 1 -->
+    <div class="tbl dim" style="left:290px; top:30px; width:190px;">
+      <div class="th">products <span class="cnt">340</span></div>
+      <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+      <div class="col"><span class="key fk">FK</span>category_id<span class="ty">int</span></div>
+      <div class="col"><span class="key"></span>name<span class="ty">text</span></div>
+      <div class="col"><span class="key"></span>price<span class="ty">numeric</span></div>
+      <div class="col"><span class="key"></span>sku<span class="ty">text</span></div>
+    </div>
+
+    <div class="tbl on" style="left:290px; top:200px; width:190px;">
+      <div class="th">orders <span class="cnt">8.4k</span></div>
+      <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+      <div class="col"><span class="key fk">FK</span>customer_id<span class="ty">int</span></div>
+      <div class="col"><span class="key"></span>status<span class="ty">text</span></div>
+      <div class="col"><span class="key"></span>total<span class="ty">numeric</span></div>
+      <div class="col"><span class="key"></span>placed_at<span class="ty">timestamp</span></div>
+    </div>
+
+    <div class="tbl dim" style="left:290px; top:370px; width:190px;">
+      <div class="th">addresses <span class="cnt">1.5k</span></div>
+      <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+      <div class="col"><span class="key fk">FK</span>customer_id<span class="ty">int</span></div>
+      <div class="col"><span class="key"></span>line1<span class="ty">text</span></div>
+      <div class="col"><span class="key"></span>city<span class="ty">text</span></div>
+      <div class="col"><span class="key"></span>country<span class="ty">char(2)</span></div>
+    </div>
+
+    <!-- depth 2 -->
+    <div class="tbl" style="left:570px; top:100px; width:190px;">
+      <div class="th">order_items <span class="cnt">31k</span></div>
+      <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+      <div class="col"><span class="key fk">FK</span>order_id<span class="ty">int</span></div>
+      <div class="col"><span class="key fk">FK</span>product_id<span class="ty">int</span></div>
+      <div class="col"><span class="key"></span>qty<span class="ty">int</span></div>
+      <div class="col"><span class="key"></span>unit_price<span class="ty">numeric</span></div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>6 tables · 5 relations</span>
+    <span class="spacer"></span>
+    <span>Selected: <b style="color:var(--text)">orders</b> — 1 outgoing, 1 incoming</span>
+  </div>
+</div>
+
+<div class="note">
+  <b>Reading the canvas.</b> Tables are laid out by dependency depth, left to right: what nothing points at
+  sits on the left, what points at everything ends up on the right. Row counts sit in the header because
+  "which of these is the big table" is usually the first question asked of a diagram.
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ STATE 2 -->
+<p class="caption"><b>2 · Choosing what to draw.</b> A schema with 200 tables cannot be drawn blind — the result is a hairball nobody reads. So the diagram opens on a picker rather than on a canvas, defaulting to nothing selected.</p>
+
+<div class="win">
+  <div class="titlebar">
+    <span class="dot"></span>
+    <b>ER Diagram</b>
+    <span class="who">· Demo shop · public</span>
+  </div>
+
+  <div class="pick">
+    <div class="picklist">
+      <div class="pickhead">
+        <input class="sel" style="width:100%" placeholder="Filter tables…" />
+        <div style="margin-top:7px; display:flex; gap:6px;">
+          <button class="btn sm">All</button>
+          <button class="btn sm">None</button>
+          <button class="btn sm">+ Related</button>
+        </div>
+      </div>
+      <div class="pickrow checked"><span class="box on"></span>customers<span class="n">1.2k</span></div>
+      <div class="pickrow checked"><span class="box on"></span>orders<span class="n">8.4k</span></div>
+      <div class="pickrow checked"><span class="box on"></span>order_items<span class="n">31k</span></div>
+      <div class="pickrow checked"><span class="box on"></span>products<span class="n">340</span></div>
+      <div class="pickrow checked"><span class="box on"></span>categories<span class="n">8</span></div>
+      <div class="pickrow checked"><span class="box on"></span>addresses<span class="n">1.5k</span></div>
+      <div class="pickrow"><span class="box"></span>audit_log<span class="n">2.1M</span></div>
+      <div class="pickrow"><span class="box"></span>carriers<span class="n">12</span></div>
+      <div class="pickrow"><span class="box"></span>coupons<span class="n">88</span></div>
+      <div class="pickrow"><span class="box"></span>inventory<span class="n">340</span></div>
+      <div class="pickrow"><span class="box"></span>invoices<span class="n">8.1k</span></div>
+      <div class="pickrow"><span class="box"></span>payments<span class="n">8.3k</span></div>
+      <div class="pickrow"><span class="box"></span>refunds<span class="n">210</span></div>
+      <div class="pickrow"><span class="box"></span>schema_migrations<span class="n">47</span></div>
+      <div class="pickrow"><span class="box"></span>sessions<span class="n">54k</span></div>
+      <div class="pickrow"><span class="box"></span>shipments<span class="n">7.9k</span></div>
+    </div>
+    <div class="preview">Pick tables on the left, then Draw.</div>
+  </div>
+
+  <div class="statusbar">
+    <span>6 of 24 selected</span>
+    <span class="spacer"></span>
+    <button class="btn sm">Cancel</button>
+    <button class="btn sm accent">Draw</button>
+  </div>
+</div>
+
+<div class="note q">
+  <b>Worth your call.</b> <i>+ Related</i> grows the selection by one hop along foreign keys — tick
+  <span class="mono">orders</span>, press it, and <span class="mono">customers</span> and
+  <span class="mono">order_items</span> come along. That is the feature that makes this usable on a real
+  database, and it is also the one I would cut first if the diagram has to be small.
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ STATE 3 -->
+<p class="caption"><b>3 · Names-only detail.</b> The same diagram with the boxes collapsed to table names, which is what you want once more than a dozen tables are on screen. Same layout, same relations — only the density changes.</p>
+
+<div class="win">
+  <div class="toolbar">
+    <span class="lbl">Schema</span>
+    <select class="sel"><option>public</option></select>
+    <button class="btn">Tables… <span style="color:var(--faint)">11 of 24</span></button>
+    <span class="lbl" style="margin-left:6px">Detail</span>
+    <div class="seg">
+      <button class="on">Names</button>
+      <button>Keys</button>
+      <button>Columns</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="seg">
+      <button>−</button>
+      <button style="min-width:52px">80%</button>
+      <button>+</button>
+    </div>
+    <button class="btn">Re-layout</button>
+  </div>
+
+  <div class="canvas short">
+    <div class="grid-dots"></div>
+    <svg>
+      <path d="M250,64 C215,64 210,54 175,54" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M250,134 C215,134 210,144 175,144" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M250,214 C215,214 210,144 175,144" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M250,284 C215,284 210,144 175,144" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M480,94 C445,94 440,64 405,64" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M480,164 C445,164 440,134 405,134" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M480,234 C445,234 440,134 405,134" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M480,304 C445,304 440,134 405,134" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M700,124 C665,124 660,94 625,94" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+      <path d="M700,204 C665,204 660,164 625,164" fill="none" stroke="var(--hairline)" stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+    </svg>
+
+    <div class="tbl mini" style="left:45px; top:44px; width:130px;"><div class="th">categories <span class="cnt">8</span></div></div>
+    <div class="tbl mini" style="left:45px; top:134px; width:130px;"><div class="th">customers <span class="cnt">1.2k</span></div></div>
+    <div class="tbl mini" style="left:45px; top:224px; width:130px;"><div class="th">carriers <span class="cnt">12</span></div></div>
+    <div class="tbl mini" style="left:45px; top:314px; width:130px;"><div class="th">coupons <span class="cnt">88</span></div></div>
+
+    <div class="tbl mini" style="left:250px; top:54px; width:155px;"><div class="th">products <span class="cnt">340</span></div></div>
+    <div class="tbl mini" style="left:250px; top:124px; width:155px;"><div class="th">orders <span class="cnt">8.4k</span></div></div>
+    <div class="tbl mini" style="left:250px; top:204px; width:155px;"><div class="th">addresses <span class="cnt">1.5k</span></div></div>
+    <div class="tbl mini" style="left:250px; top:274px; width:155px;"><div class="th">sessions <span class="cnt">54k</span></div></div>
+
+    <div class="tbl mini" style="left:480px; top:84px; width:145px;"><div class="th">inventory <span class="cnt">340</span></div></div>
+    <div class="tbl mini" style="left:480px; top:154px; width:145px;"><div class="th">order_items <span class="cnt">31k</span></div></div>
+    <div class="tbl mini" style="left:480px; top:224px; width:145px;"><div class="th">invoices <span class="cnt">8.1k</span></div></div>
+    <div class="tbl mini" style="left:480px; top:294px; width:145px;"><div class="th">shipments <span class="cnt">7.9k</span></div></div>
+
+    <div class="tbl mini" style="left:700px; top:114px; width:135px;"><div class="th">payments <span class="cnt">8.3k</span></div></div>
+    <div class="tbl mini" style="left:700px; top:194px; width:135px;"><div class="th">refunds <span class="cnt">210</span></div></div>
+  </div>
+
+  <div class="statusbar">
+    <span>14 tables · 10 relations</span>
+    <span class="spacer"></span>
+    <span>Double-click a table to open it in a browse tab</span>
+  </div>
+</div>
+
+<div class="note">
+  <b>Three detail levels, one layout.</b> <i>Names</i> for the overview, <i>Keys</i> for PK/FK rows only
+  (the middle ground — most diagrams are read for their relations, not their column types), <i>Columns</i>
+  for everything. Switching detail keeps the positions, so you don't lose your bearings.
+</div>
+
+<div class="note q">
+  <b>Open, and genuinely undecided.</b>
+  <ul>
+    <li><b>Layout algorithm.</b> Everything above assumes a layered left-to-right layout, hand-placed here.
+      Whether that comes from ~150 lines of our own topological layering, a force-directed pass, or a NuGet
+      graph library is the one decision with real consequences — a library means a dependency inside a plugin.</li>
+    <li><b>Can boxes be dragged?</b> Every serious tool lets you nudge a table and remembers it. That means
+      persisting positions per connection+schema, which is a chunk of work the mockup quietly assumes away.</li>
+    <li><b>Where does it open?</b> Drawn here as a tool window. It could equally be a tab in the main window,
+      beside a query tab — better for keeping it open while you work, more host plumbing.</li>
+    <li><b>Engine coverage.</b> <span class="mono">Shared.Schema</span> reads postgres, mysql, sqlserver and
+      sqlite. Mongo, Redis, ClickHouse and DuckDB get nothing — the menu entry should be absent there rather
+      than opening an empty canvas.</li>
+  </ul>
+</div>
+
+<h1 style="margin-top:52px">Phase 2 — editing <span style="font-weight:400;color:var(--text2)">(Model A: edit against the live schema)</span></h1>
+<p class="sub">
+  The diagram <i>is</i> the database. Edits never touch it directly — they accumulate as pending changes and
+  become a migration script you read and run yourself. Every operation below already exists as a
+  <span class="mono">SchemaChange</span>; <span class="mono">AlterScriptWriter</span> renders them per engine.
+</p>
+
+<!-- ══════════════════════════════════════════════════════════ STATE 4 -->
+<p class="caption"><b>4 · Editing.</b> A new table dropped on the canvas, a column being typed, and a relation mid-drag from <span class="mono">wishlists.customer_id</span> to <span class="mono">customers.id</span>. Pending work is dashed and accent-coloured, so what exists and what is proposed never blur together.</p>
+
+<div class="win">
+  <div class="titlebar">
+    <span class="dot"></span>
+    <b>ER Diagram</b>
+    <span class="who">· Demo shop · public · editing</span>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn accent">+ Table</button>
+    <button class="btn">+ Column</button>
+    <button class="btn">Relation</button>
+    <span class="lbl" style="margin-left:6px">Detail</span>
+    <div class="seg">
+      <button>Names</button>
+      <button>Keys</button>
+      <button class="on">Columns</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="seg">
+      <button>−</button>
+      <button style="min-width:52px">100%</button>
+      <button>+</button>
+    </div>
+    <button class="btn">Re-layout</button>
+  </div>
+
+  <div class="editwrap">
+    <div class="canvas" style="height:440px">
+      <div class="grid-dots"></div>
+      <svg>
+        <!-- existing relation, unchanged -->
+        <path d="M290,214.5 C250,214.5 240,225.5 200,225.5" fill="none" stroke="var(--hairline)"
+              stroke-width="1.3" marker-start="url(#crow)" marker-end="url(#one)" opacity=".55"/>
+        <!-- the relation being dragged: dashed until it lands -->
+        <path d="M300,384.5 C255,384.5 245,235.5 205,235.5" fill="none" stroke="var(--accent)"
+              stroke-width="1.7" stroke-dasharray="5 4" marker-end="url(#oneA)"/>
+        <circle cx="300" cy="384.5" r="3.5" fill="var(--accent)"/>
+      </svg>
+
+      <div class="tbl" style="left:30px; top:190px; width:170px;">
+        <div class="th">customers <span class="cnt">1.2k</span></div>
+        <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+        <div class="col"><span class="key"></span>name<span class="ty">text</span></div>
+        <div class="col"><span class="key"></span>email<span class="ty">text</span></div>
+      </div>
+
+      <div class="tbl" style="left:290px; top:160px; width:190px;">
+        <div class="th">orders <span class="cnt">8.4k</span></div>
+        <div class="col"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+        <div class="col"><span class="key fk">FK</span>customer_id<span class="ty">int</span></div>
+        <div class="col"><span class="key"></span>status<span class="ty">text</span></div>
+        <div class="col added"><span class="key"></span>coupon_code<span class="ty">text</span></div>
+      </div>
+
+      <!-- the new table -->
+      <div class="tbl new" style="left:300px; top:330px; width:210px;">
+        <div class="th">wishlists <span class="cnt" style="color:var(--accent)">new</span></div>
+        <div class="col added"><span class="key pk">PK</span>id<span class="ty">int</span></div>
+        <div class="col added"><span class="key fk">FK</span>customer_id<span class="ty">int</span></div>
+        <div class="col added"><span class="key"></span>name<span class="ty">text</span></div>
+        <div class="col editing"><span class="key"></span>created_at<span class="caret"></span><span class="ty">timestamp</span></div>
+      </div>
+    </div>
+
+    <div class="changes">
+      <div class="hd">Pending changes <span class="n">4</span></div>
+      <div class="body">
+        <div class="chg">
+          <span class="op add">CREATE</span>
+          <span class="what">table <span class="mono">wishlists</span></span>
+          <span class="x">✕</span>
+        </div>
+        <div class="chg">
+          <span class="op add">COLUMN</span>
+          <span class="what"><span class="mono">wishlists.created_at</span> <span style="color:var(--faint)">timestamp</span></span>
+          <span class="x">✕</span>
+        </div>
+        <div class="chg">
+          <span class="op add">COLUMN</span>
+          <span class="what"><span class="mono">orders.coupon_code</span> <span style="color:var(--faint)">text</span></span>
+          <span class="x">✕</span>
+        </div>
+        <div class="chg">
+          <span class="op add">FK</span>
+          <span class="what"><span class="mono">wishlists.customer_id</span> → <span class="mono">customers.id</span></span>
+          <span class="x">✕</span>
+        </div>
+      </div>
+      <div class="ft">
+        <button class="btn sm">Discard all</button>
+        <span class="spacer"></span>
+        <button class="btn sm accent">Review SQL…</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>3 tables drawn · 2 relations</span>
+    <span class="spacer"></span>
+    <span>Drop on <b style="color:var(--text)">customers.id</b> to complete the relation</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ STATE 5 -->
+<p class="caption"><b>5 · Review.</b> The pending changes rendered to DDL for this engine. Nothing has run — the script goes to a query tab, where you read it and decide. Ordering is the substance here: the table is created before the key that references it.</p>
+
+<div class="win" style="max-width:760px">
+  <div class="titlebar">
+    <span class="dot"></span>
+    <b>Review changes</b>
+    <span class="who">· Demo shop · PostgreSQL 16</span>
+  </div>
+
+  <pre class="ddl"><span class="cm">-- 4 changes · generated for PostgreSQL · nothing has been executed</span>
+
+<span class="kw">CREATE TABLE</span> public.wishlists (
+    id          <span class="ty">integer</span> <span class="kw">GENERATED BY DEFAULT AS IDENTITY</span>,
+    customer_id <span class="ty">integer</span> <span class="kw">NOT NULL</span>,
+    name        <span class="ty">text</span> <span class="kw">NOT NULL</span>,
+    created_at  <span class="ty">timestamp</span> <span class="kw">NOT NULL DEFAULT</span> now(),
+    <span class="kw">CONSTRAINT</span> wishlists_pkey <span class="kw">PRIMARY KEY</span> (id)
+);
+
+<span class="kw">ALTER TABLE</span> public.orders <span class="kw">ADD COLUMN</span> coupon_code <span class="ty">text</span>;
+
+<span class="cm">-- after the table exists, not before</span>
+<span class="kw">ALTER TABLE</span> public.wishlists
+    <span class="kw">ADD CONSTRAINT</span> wishlists_customer_id_fkey
+    <span class="kw">FOREIGN KEY</span> (customer_id) <span class="kw">REFERENCES</span> public.customers (id);</pre>
+
+  <div class="statusbar">
+    <span>3 statements</span>
+    <span class="spacer"></span>
+    <button class="btn sm">Copy</button>
+    <button class="btn sm">Back</button>
+    <button class="btn sm accent">Open in query tab</button>
+  </div>
+</div>
+
+<div class="note">
+  <b>Why it stops here.</b> Transactional DDL exists in PostgreSQL and SQL Server, but not in MySQL — there a
+  half-failed migration leaves a half-changed table and no way back. Handing over a script keeps that decision,
+  and its blast radius, with the person who owns the database. Running it from the diagram is a later
+  refinement, once generated scripts have earned trust.
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ STATE 6 -->
+<p class="caption"><b>6 · An edit the engine cannot express.</b> The same relation drawn on a SQLite connection. SQLite cannot add a foreign key to an existing table, and the dialect already says so — so the edit is refused where it is made, rather than generating a silent table rebuild.</p>
+
+<div class="win" style="max-width:760px">
+  <div class="titlebar">
+    <span class="dot" style="background:var(--warn)"></span>
+    <b>ER Diagram</b>
+    <span class="who">· Local file · SQLite 3.50</span>
+  </div>
+
+  <div class="inline-err">
+    <span class="mark">✕</span>
+    <div>
+      <b>SQLite can't add a foreign key to an existing table.</b><br>
+      <span style="color:var(--text2)">
+        The relation <span class="mono">wishlists.customer_id → customers.id</span> was not added. SQLite only
+        accepts foreign keys declared in <span class="mono">CREATE TABLE</span>; adding one afterwards means
+        rebuilding and copying the table, which this tool will not do behind your back.
+      </span>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>No changes were made</span>
+    <span class="spacer"></span>
+    <span>Declare it on a new table instead, or write the rebuild yourself</span>
+  </div>
+</div>
+
+<div class="note q">
+  <b>Still open in Phase 2.</b>
+  <ul>
+    <li><b>The column-type editor.</b> Drawn here as free text with the type on the right. A curated per-engine
+      pick-list is friendlier and considerably more work — <span class="mono">SqlDialect.ColumnSpec</span> knows
+      how to <i>write</i> a type, not how to offer one. Free text with validation is the cheap route and can be
+      tightened later.</li>
+    <li><b>Composite foreign keys.</b> <span class="mono">ForeignKeyDef</span> carries column <i>lists</i>, so
+      multi-column keys must be expressible. Dragging one pair at a time and extending the pending edge is the
+      likely answer; the mockup shows only the single-column case.</li>
+    <li><b>Drop and rename.</b> Both exist as <span class="mono">SchemaChange</span> and neither is drawn above.
+      Dropping a table that others reference needs its incoming keys dropped first — the same ordering problem
+      as state 5, in the harder direction.</li>
+  </ul>
+</div>
+
+</body>
+</html>

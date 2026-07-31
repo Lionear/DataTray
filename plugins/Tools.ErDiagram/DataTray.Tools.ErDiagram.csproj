@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Tools.ErDiagram</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contract only: the diagram reads the schema through the host's IDbProvider and draws it. Nothing
+         is written, so there is no driver dependency. Private=false keeps Sdk.dll out of the plugin folder
+         so the host's copy is used across the ALC boundary. -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- TableDef/ForeignKeyDef and the reader are shared with Schema Diff, Copy Table and Generate
+         Scripts, source-linked rather than packaged. See plugins/Shared.Schema/README.md. -->
+    <Compile Include="..\Shared.Schema\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The layout engine is provider-agnostic graph work and is tested directly. -->
+    <InternalsVisibleTo Include="DataTray.Tools.ErDiagram.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DataTray.Sdk" />
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Plugins.Schema" />
+  </ItemGroup>
+
+</Project>
