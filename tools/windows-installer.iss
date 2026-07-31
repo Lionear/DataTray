@@ -1,8 +1,8 @@
 ; Windows installer for DataTray (Inno Setup 6).
 ;
 ; Per-user install by design: no admin prompt, and it matches where the app already writes — the Plugin
-; Store installs into %APPDATA%\Lionear\SqlExplorer\plugins, so an installer needing elevation would be
-; the only part of the product that does. (That path still carries the old product name; SE-206 moves it.)
+; Store installs into %APPDATA%\Lionear\DataTray\plugins, so an installer needing elevation would be
+; the only part of the product that does. (SE-206 moved that path off the old product name.)
 ;
 ; Built by .github/workflows/build.yml, which passes the values that change per run:
 ;   ISCC.exe tools\windows-installer.iss /DAppVersion=0.1.0-nightly.20260717.42 /DArch=x64 /DSourceDir=... /DOutputDir=...
