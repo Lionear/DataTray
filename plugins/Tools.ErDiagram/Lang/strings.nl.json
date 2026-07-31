@@ -12,5 +12,16 @@
   "er.pick.related": "+ Gerelateerd",
   "er.pick.draw": "Tekenen",
   "er.pick.cancel": "Annuleren",
-  "er.pick.count": "{0} van {1} geselecteerd"
+  "er.pick.count": "{0} van {1} geselecteerd",
+  "er.save": "Opslaan…",
+  "er.open": "Openen…",
+  "er.export": "Exporteren…",
+  "er.saved": "Opgeslagen als {0}.",
+  "er.saveFailed": "Opslaan mislukt: {0}",
+  "er.exported": "Geëxporteerd naar {0}.",
+  "er.exportFailed": "Exporteren mislukt: {0}",
+  "er.openFailed": "Kon dat diagram niet openen: {0}",
+  "er.openMissing": "{0} tabellen getekend. {1} bestaan niet meer: {2}",
+  "er.openNothingLeft": "Geen van de tabellen uit {0} bestaat nog in deze database.",
+  "er.openOtherProvider": "Dat diagram is opgeslagen tegen {0}; deze connectie is {1}."
 }

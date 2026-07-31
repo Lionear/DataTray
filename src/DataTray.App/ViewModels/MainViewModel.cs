@@ -1068,7 +1068,11 @@ public partial class MainViewModel : ViewModelBase
             _tools.LocalizerFor(tool.Id),
             title => document.Title = title,
             sql => OpenQueryWithContent(connection, database, sql),
-            () => CloseTabCommand.Execute(document));
+            () => CloseTabCommand.Execute(document),
+            (name, extensions) => DocumentSaveFileRequested?.Invoke(name, extensions)
+                                  ?? Task.FromResult<string?>(null),
+            extensions => DocumentOpenFileRequested?.Invoke(extensions)
+                          ?? Task.FromResult<string?>(null));
 
         Avalonia.Controls.Control view;
         try
@@ -1096,6 +1100,12 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Set by the view so the VM can show the generic tool dialog.</summary>
     public Func<ToolDialogViewModel, Task>? ToolDialogRequested { get; set; }
+
+    /// <summary>Set by the view: file pickers for a plugin-owned tab (SE-216). Only the view owns a
+    /// TopLevel, and a document tab lives long enough that it cannot borrow the tool dialog's.</summary>
+    public Func<string, string[], Task<string?>>? DocumentSaveFileRequested { get; set; }
+
+    public Func<string[], Task<string?>>? DocumentOpenFileRequested { get; set; }
 
     // Full rebuild — used only at startup. Add/edit/delete go through the targeted helpers below so
     // that touching one connection never collapses the whole tree (loses every other node's expand +

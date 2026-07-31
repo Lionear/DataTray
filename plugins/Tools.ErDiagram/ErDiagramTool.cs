@@ -79,7 +79,16 @@ public sealed class ErDiagramView : UserControl, IDisposable
     private readonly ScrollViewer _scroller = new();
     private readonly CancellationTokenSource _cancellation = new();
 
+    private readonly StackPanel _toolbar = new()
+    {
+        Orientation = Orientation.Horizontal,
+        Spacing = 6,
+        Margin = new Avalonia.Thickness(8),
+        IsVisible = false,
+    };
+
     private ErGraph? _graph;
+    private ErDiagramCanvas? _canvas;
     private IReadOnlyList<TableDef> _tables = [];
 
     public ErDiagramView(IToolDocumentContext context)
@@ -91,7 +100,9 @@ public sealed class ErDiagramView : UserControl, IDisposable
 
         var root = new DockPanel();
         DockPanel.SetDock(_status, Dock.Bottom);
+        DockPanel.SetDock(_toolbar, Dock.Top);
         root.Children.Add(_status);
+        root.Children.Add(_toolbar);
         _scroller.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
         _scroller.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         _scroller.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -144,21 +155,155 @@ public sealed class ErDiagramView : UserControl, IDisposable
         _status.Text = _loc.Get("er.pick.hint");
     }
 
+    private void BuildToolbar()
+    {
+        if (_toolbar.Children.Count > 0)
+        {
+            return;
+        }
+
+        var save = new Button { Content = _loc.Get("er.save") };
+        save.Click += async (_, _) => await SaveAsync();
+
+        var open = new Button { Content = _loc.Get("er.open") };
+        open.Click += async (_, _) => await OpenAsync();
+
+        var export = new Button { Content = _loc.Get("er.export") };
+        export.Click += async (_, _) => await ExportAsync();
+
+        _toolbar.Children.Add(save);
+        _toolbar.Children.Add(open);
+        _toolbar.Children.Add(export);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_graph is null)
+        {
+            return;
+        }
+
+        var suggested = $"{_context.Profile.Name}.{ErDiagramFile.Extension}";
+        var path = await _context.PickSaveFileAsync(suggested, ErDiagramFile.Extension);
+        if (path is null)
+        {
+            return;
+        }
+
+        var file = new ErDiagramFile
+        {
+            ProviderId = _context.ProviderId,
+            ConnectionName = _context.Profile.Name,
+            Database = _context.Profile.Database,
+            Tables = _graph.Nodes.Select(n => n.Key).ToList(),
+        };
+
+        try
+        {
+            await File.WriteAllTextAsync(path, file.ToJson());
+            _status.Text = _loc.Get("er.saved", Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            _status.Text = _loc.Get("er.saveFailed", ex.Message);
+        }
+    }
+
+    private async Task OpenAsync()
+    {
+        var path = await _context.PickOpenFileAsync(ErDiagramFile.Extension);
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var file = ErDiagramFile.FromJson(await File.ReadAllTextAsync(path));
+            var resolved = file.ResolveAgainst(_tables);
+
+            if (resolved.Present.Count == 0)
+            {
+                _status.Text = _loc.Get("er.openNothingLeft", Path.GetFileName(path));
+                return;
+            }
+
+            Draw(resolved.Present);
+
+            // Tables that have gone are reported, never quietly dropped: a table disappearing between
+            // saving a diagram and opening it is exactly what the diagram is opened to find out.
+            if (resolved.Missing.Count > 0)
+            {
+                _status.Text = _loc.Get("er.openMissing",
+                    resolved.Present.Count, resolved.Missing.Count, string.Join(", ", resolved.Missing));
+            }
+
+            if (!string.Equals(file.ProviderId, _context.ProviderId, StringComparison.OrdinalIgnoreCase)
+                && file.ProviderId.Length > 0)
+            {
+                _status.Text = _loc.Get("er.openOtherProvider", file.ProviderId, _context.ProviderId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _status.Text = _loc.Get("er.openFailed", ex.Message);
+        }
+    }
+
+    private async Task ExportAsync()
+    {
+        if (_canvas is null)
+        {
+            return;
+        }
+
+        var suggested = $"{_context.Profile.Name}.{ErDiagramExport.Png}";
+        var path = await _context.PickSaveFileAsync(suggested, ErDiagramExport.Png, ErDiagramExport.Svg);
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // The extension decides the format — the picker offers both and the user has already chosen
+            // by the time we get here.
+            if (Path.GetExtension(path).TrimStart('.').Equals(ErDiagramExport.Svg, StringComparison.OrdinalIgnoreCase))
+            {
+                ErDiagramExport.WriteSvg(_canvas, path);
+            }
+            else
+            {
+                ErDiagramExport.WritePng(_canvas, path);
+            }
+
+            _status.Text = _loc.Get("er.exported", Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            _status.Text = _loc.Get("er.exportFailed", ex.Message);
+        }
+    }
+
     private void Draw(IReadOnlyList<string> selected)
     {
         var chosen = new HashSet<string>(selected, StringComparer.OrdinalIgnoreCase);
         _graph = ErGraph.Build(_tables.Where(t => chosen.Contains(t.Key)));
         var layout = new LayeredErLayout().Compute(_graph);
 
+        BuildToolbar();
+        _toolbar.IsVisible = true;
+
         var palette = PaletteForHost();
         // Top-left, not centred: a diagram is read from its left edge, and a ScrollViewer would
         // otherwise float a small one in the middle of the tab.
         _scroller.Background = palette.Canvas;
-        _scroller.Content = new ErDiagramCanvas(_graph, layout, Detail, palette)
+        _canvas = new ErDiagramCanvas(_graph, layout, Detail, palette)
         {
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
         };
+        _scroller.Content = _canvas;
 
         // Relations to tables the user chose not to draw are counted rather than dropped — with a picker
         // in front of the canvas that is now the ordinary case, not an edge one.
@@ -192,6 +337,7 @@ public sealed class ErDiagramView : UserControl, IDisposable
         _cancellation.Cancel();
         _cancellation.Dispose();
         _scroller.Content = null;
+        _canvas = null;
         _graph = null;
         _tables = [];
     }

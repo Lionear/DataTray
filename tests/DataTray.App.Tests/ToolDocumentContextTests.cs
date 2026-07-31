@@ -15,7 +15,8 @@ public class ToolDocumentContextTests
     private static ToolDocumentContext Build(
         Action<string>? setTitle = null,
         Action<string>? openQuery = null,
-        Action? close = null) =>
+        Action? close = null,
+        Func<string, string[], Task<string?>>? pickSave = null) =>
         new(
             provider: null!,
             providerId: "postgres",
@@ -24,7 +25,9 @@ public class ToolDocumentContextTests
             localizer: EmptyPluginLocalizer.Instance,
             setTitle: setTitle ?? (_ => { }),
             openQueryEditor: openQuery ?? (_ => { }),
-            closeDocument: close ?? (() => { }));
+            closeDocument: close ?? (() => { }),
+            pickSaveFile: pickSave ?? ((_, _) => Task.FromResult<string?>(null)),
+            pickOpenFile: _ => Task.FromResult<string?>(null));
 
     [Fact]
     public void SetTitle_renames_the_tab()
@@ -64,6 +67,24 @@ public class ToolDocumentContextTests
         Build(close: () => closed = true).CloseDocument();
 
         Assert.True(closed);
+    }
+
+    [Fact]
+    public async Task The_file_picker_reaches_the_host()
+    {
+        // SE-225/SE-226 fold-in: a document that can be saved or exported needs a picker, and the first
+        // cut of the seam had none.
+        string? asked = null;
+        var context = Build(pickSave: (name, _) =>
+        {
+            asked = name;
+            return Task.FromResult<string?>("/tmp/diagram.dterd");
+        });
+
+        var chosen = await context.PickSaveFileAsync("shop.dterd", "dterd");
+
+        Assert.Equal("shop.dterd", asked);
+        Assert.Equal("/tmp/diagram.dterd", chosen);
     }
 
     [Fact]

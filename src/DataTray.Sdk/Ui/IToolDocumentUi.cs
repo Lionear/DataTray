@@ -45,6 +45,14 @@ public interface IToolDocumentContext
 
     /// <summary>Close this tab.</summary>
     void CloseDocument();
+
+    /// <summary>Show a save-file picker; returns the chosen path, or null if cancelled. The counterpart of
+    /// <see cref="IToolUiContext.PickSaveFileAsync"/> — a document that can be saved or exported needs it
+    /// as much as a dialog does, and it was simply missing from the first cut of this seam.</summary>
+    Task<string?> PickSaveFileAsync(string suggestedName, params string[] extensions);
+
+    /// <summary>Show an open-file picker; returns the chosen path, or null if cancelled.</summary>
+    Task<string?> PickOpenFileAsync(params string[] extensions);
 }
 
 /// <summary>

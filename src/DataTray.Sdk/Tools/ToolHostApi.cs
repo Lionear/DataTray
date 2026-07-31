@@ -64,6 +64,11 @@ public static class ToolHostApi
     //                  existing tool is affected. A new number rather than a fold-in because v5 shipped —
     //                  copy-table 0.3.0 declares 5 — and folding post-release surface into a released number
     //                  is the SE-166 crash trap. MinimumSupported stays 1.
+    //   also in v6 (2026-07-31): IToolDocumentContext gains PickSaveFileAsync/PickOpenFileAsync, mirroring
+    //                  IToolUiContext's. A document that can be saved, opened or exported (SE-225/SE-226)
+    //                  needs a file picker as much as a dialog does; the first cut of the seam simply
+    //                  lacked it. Folded into 6 rather than given a 7 because 6 has not shipped — the
+    //                  SE-166 trap is folding into a *released* number, not an unreleased one.
     public const int Version = 6;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
