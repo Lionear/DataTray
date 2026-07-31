@@ -1254,6 +1254,15 @@
   <data name="StoreCategoryExtensions" xml:space="preserve">
     <value>Extensions</value>
   </data>
+  <data name="StoreCategoryViewers" xml:space="preserve">
+    <value>Viewers</value>
+  </data>
+  <data name="ViewLabel" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="ViewGrid" xml:space="preserve">
+    <value>Grid</value>
+  </data>
   <data name="StoreCategoryOther" xml:space="preserve">
     <value>Other</value>
   </data>

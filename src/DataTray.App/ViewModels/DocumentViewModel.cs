@@ -18,9 +18,12 @@ using DataTray.Core.Providers;
 using DataTray.Core.Schema;
 using DataTray.Core.Settings;
 using DataTray.Core.Sql;
+using DataTray.Core.Viewers;
+using DataTray.App.Viewers;
 using DataTray.Sdk;
 using DataTray.Sdk.Editing;
 using DataTray.Sdk.Ui;
+using DataTray.Sdk.Viewers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -96,6 +99,7 @@ public partial class DocumentViewModel : ViewModelBase
     private readonly IQueryLog _queryLog;
     private readonly ISchemaCache _schemaCache;
     private readonly IServerVersionCache _serverVersions;
+    private readonly IViewerRegistry? _viewers;
 
     private string? _database;
     private string? _schema;
@@ -341,8 +345,10 @@ public partial class DocumentViewModel : ViewModelBase
         ISchemaCache schemaCache,
         IServerVersionCache serverVersions,
         IAppSettingsStore settingsStore,
-        ILocalizer localizer)
+        ILocalizer localizer,
+        IViewerRegistry? viewers = null)
     {
+        _viewers = viewers;
         _providers = providers;
         _connections = connections;
         _formatter = formatter;
@@ -1956,10 +1962,177 @@ public partial class DocumentViewModel : ViewModelBase
         DeleteRowCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged();
         DiscardCommand.NotifyCanExecuteChanged();
+        RefreshViewers();
     }
 
-    partial void OnSelectedRowChanged(EditableRow? value) =>
+    partial void OnSelectedRowChanged(EditableRow? value)
+    {
         DeleteRowCommand.NotifyCanExecuteChanged();
+        _viewerContext?.SetSelection(RowIndexOf(value), SelectedColumnIndex);
+    }
+
+    // ── Result viewers (SE-75) ───────────────────────────────────────────────────────────────────────
+    // The grid is entry zero and always present; plugin viewers are appended when they say they can render
+    // the current snapshot. Rebuilt on every Editable swap, because a page turn can change the answer (a
+    // NULL-only binary column on this page, bytes on the next).
+
+    /// <summary>Column index the grid last reported as selected; fed to the viewer context alongside the row.</summary>
+    [ObservableProperty]
+    private int? _selectedColumnIndex;
+
+    partial void OnSelectedColumnIndexChanged(int? value) =>
+        _viewerContext?.SetSelection(RowIndexOf(SelectedRow), value);
+
+    public ObservableCollection<ViewOption> AvailableViews { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsGridView))]
+    private ViewOption? _selectedView;
+
+    /// <summary>True while the built-in grid is showing — the grid, the aggregation bar and the paging row
+    /// bind their visibility to this, so a viewer gets the whole area.</summary>
+    public bool IsGridView => SelectedView is null || SelectedView.IsGrid;
+
+    /// <summary>Whether the switcher is worth drawing: only once something other than the grid is on offer.
+    /// Row 4 shows when this or <see cref="HasMultipleResultSets"/> holds.</summary>
+    public bool HasViewSwitcher => AvailableViews.Count > 1;
+
+    private DocumentViewerContext? _viewerContext;
+
+    /// <summary>The context handed to the active viewer's control. The view builds the control off this and
+    /// keeps it until the selection changes.</summary>
+    public DocumentViewerContext? ViewerContext => _viewerContext;
+
+    private void RefreshViewers()
+    {
+        if (_viewers is null)
+        {
+            return;
+        }
+
+        var snapshot = BuildResultView();
+        if (snapshot is null)
+        {
+            AvailableViews.Clear();
+            _viewerContext = null;
+            SelectedView = null;
+            OnPropertyChanged(nameof(HasViewSwitcher));
+            OnPropertyChanged(nameof(ViewerContext));
+            return;
+        }
+
+        var previousId = SelectedView?.Id;
+
+        AvailableViews.Clear();
+        AvailableViews.Add(new ViewOption(ViewOption.GridId, Loc["ViewGrid"], null));
+        foreach (var viewer in _viewers.Applicable(snapshot))
+        {
+            AvailableViews.Add(new ViewOption(viewer.Id, LabelFor(viewer), viewer));
+        }
+
+        OnPropertyChanged(nameof(HasViewSwitcher));
+
+        // Keep the choice across a refresh when it still applies; fall back to the grid when it doesn't,
+        // rather than leaving a viewer mounted over data it just said it cannot render.
+        var restored = previousId is null ? null : AvailableViews.FirstOrDefault(v => v.Id == previousId);
+        SelectedView = restored ?? AvailableViews[0];
+
+        if (SelectedView.Plugin is { } plugin)
+        {
+            // Same viewer as before → keep its control and its state, just push the new data in.
+            if (_viewerContext is not null && restored is not null)
+            {
+                _viewerContext.Update(snapshot);
+            }
+            else
+            {
+                _viewerContext = new DocumentViewerContext(snapshot, _viewers.LocalizerFor(plugin.Id));
+                OnPropertyChanged(nameof(ViewerContext));
+            }
+
+            // A refresh replaces every row object, so the old selection is gone — land on the first row of
+            // the new page rather than dropping the viewer back to its empty state mid-browse.
+            SelectFirstRowIfNoneSelected();
+            _viewerContext.SetSelection(RowIndexOf(SelectedRow), SelectedColumnIndex);
+        }
+        else
+        {
+            _viewerContext = null;
+            OnPropertyChanged(nameof(ViewerContext));
+        }
+    }
+
+    partial void OnSelectedViewChanged(ViewOption? value)
+    {
+        if (_viewers is null || value?.Plugin is not { } plugin || BuildResultView() is not { } snapshot)
+        {
+            _viewerContext = null;
+            OnPropertyChanged(nameof(ViewerContext));
+            return;
+        }
+
+        // A viewer renders the selected row, so opening one with nothing selected would land on its
+        // "select a row" state — an instruction where the user asked for content. Selecting the first row
+        // is what they'd have done next anyway, and it keeps the grid in step for when they switch back.
+        SelectFirstRowIfNoneSelected();
+
+        // A fresh context per switch: the previous viewer's control is discarded with it.
+        _viewerContext = new DocumentViewerContext(snapshot, _viewers.LocalizerFor(plugin.Id));
+        _viewerContext.SetSelection(RowIndexOf(SelectedRow), SelectedColumnIndex);
+        OnPropertyChanged(nameof(ViewerContext));
+    }
+
+    private void SelectFirstRowIfNoneSelected()
+    {
+        if (SelectedRow is null && Editable?.Rows.FirstOrDefault(r => !r.IsDeleted) is { } first)
+        {
+            SelectedRow = first;
+        }
+    }
+
+    private string LabelFor(IViewerPlugin viewer)
+    {
+        if (viewer.TitleKey is not { Length: > 0 } key)
+        {
+            return viewer.Title;
+        }
+
+        var localized = _viewers!.LocalizerFor(viewer.Id).Get(key);
+        return string.IsNullOrWhiteSpace(localized) ? viewer.Title : localized;
+    }
+
+    /// <summary>A read-only copy of what the grid currently holds. Deleted rows are left out — a viewer
+    /// should show what the result set is, not the pending-delete bookkeeping.</summary>
+    private ResultView? BuildResultView()
+    {
+        if (Editable is not { } editable)
+        {
+            return null;
+        }
+
+        var rows = editable.Rows
+            .Where(r => !r.IsDeleted)
+            .Select(r => Enumerable.Range(0, editable.Columns.Count).Select(r.CurrentAt).ToArray())
+            .ToList();
+
+        return new ResultView(editable.Columns, rows, Connection?.ProviderId ?? string.Empty)
+        {
+            QualifiedTable = editable.Target is { } target
+                ? target.Schema is { Length: > 0 } schema ? $"{schema}.{target.Table}" : target.Table
+                : null
+        };
+    }
+
+    private int? RowIndexOf(EditableRow? row)
+    {
+        if (row is null || Editable is not { } editable)
+        {
+            return null;
+        }
+
+        var index = editable.Rows.IndexOf(row);
+        return index >= 0 ? index : null;
+    }
 
     private static string BuildPreview(IReadOnlyList<SqlStatement> statements)
     {

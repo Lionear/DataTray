@@ -1,0 +1,10 @@
+{
+  "JsonViewerTitle": "JSON",
+  "ImageViewerTitle": "Afbeelding",
+  "NoRowSelected": "Selecteer een rij om die als JSON te zien.",
+  "NoImageColumn": "Deze resultaatset heeft geen binaire kolom.",
+  "NotAnImage": "Geen herkend afbeeldingsformaat",
+  "EmptyCell": "NULL — geen bytes in deze cel",
+  "RowOf": "Rij {0} van {1}",
+  "Bytes": "{0} bytes"
+}

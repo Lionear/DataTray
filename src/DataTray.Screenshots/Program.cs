@@ -168,7 +168,7 @@ internal static class SceneCatalog
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
         "hero" => BuildHeroAsync(services, sandbox),
-        "query" => BuildQueryAsync(services, sandbox),
+        "query" => BuildQueryAsync(services, sandbox, state),
         "store" => Task.FromResult<Window?>(BuildStore(services)),
         "export" => Task.FromResult<Window?>(BuildExport(services)),
         "main" => Task.FromResult<Window?>(BuildMain(services)),
@@ -352,7 +352,8 @@ internal static class SceneCatalog
             services.GetRequiredService<ISchemaCache>(),
             services.GetRequiredService<IServerVersionCache>(),
             services.GetRequiredService<IAppSettingsStore>(),
-            services.GetRequiredService<ILocalizer>());
+            services.GetRequiredService<ILocalizer>(),
+            services.GetRequiredService<DataTray.Core.Viewers.IViewerRegistry>());
         document.InitBrowse(connection, database: null, schema: null, table: "customers");
         viewModel.Documents.Add(document);
         viewModel.SelectedDocument = document;
@@ -418,7 +419,12 @@ internal static class SceneCatalog
 
     // The query editor: a SQL query typed into the editor with its result set loaded below — the same
     // synthetic "shop" database as the hero, driven through the real query path (InitQuery → Sql → Run).
-    private static async Task<Window?> BuildQueryAsync(IServiceProvider services, string sandbox)
+    /// <summary>
+    /// The SQL editor with a query and its results. <paramref name="state"/> picks which result view is
+    /// showing: the default grid, or a viewer plugin by its id (<c>json-tree</c>, <c>image</c>) — the
+    /// switcher and the viewers it mounts are otherwise unreachable without a display (SE-75).
+    /// </summary>
+    private static async Task<Window?> BuildQueryAsync(IServiceProvider services, string sandbox, string state)
     {
         var dbPath = Path.Combine(sandbox, "demo-shop.db");
         DemoData.CreateShopDatabase(dbPath);
@@ -446,7 +452,8 @@ internal static class SceneCatalog
             services.GetRequiredService<ISchemaCache>(),
             services.GetRequiredService<IServerVersionCache>(),
             services.GetRequiredService<IAppSettingsStore>(),
-            services.GetRequiredService<ILocalizer>());
+            services.GetRequiredService<ILocalizer>(),
+            services.GetRequiredService<DataTray.Core.Viewers.IViewerRegistry>());
 
         document.InitQuery(connection, database: null);
         // Set before the window is shown: DocumentView.OnDataContextChanged pushes VM.Sql into the editor
@@ -470,6 +477,19 @@ internal static class SceneCatalog
         // Run through the real command so the result grid is populated exactly as a user's Run would.
         await document.RunCommand.ExecuteAsync(null);
         Program.Settle(rounds: 20);
+
+        // No explicit row selection: picking a viewer with nothing selected is exactly the case that used
+        // to land on an empty "select a row" state, so the scene renders it the way a user meets it.
+        if (document.AvailableViews.FirstOrDefault(v => v.Id == state) is { } view)
+        {
+            document.SelectedView = view;
+            Program.Settle(rounds: 10);
+        }
+        else if (state is not ("input" or "grid"))
+        {
+            Console.Error.WriteLine(
+                $"No view '{state}' on this result set. Available: {string.Join(", ", document.AvailableViews.Select(v => v.Id))}");
+        }
 
         return new MainWindow(
             services.GetRequiredService<IAppSettingsStore>(),
