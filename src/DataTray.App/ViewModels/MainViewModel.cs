@@ -1014,6 +1014,14 @@ public partial class MainViewModel : ViewModelBase
         var profile = _connections.Resolve(connection, node.DatabaseName);
         DbNodeRef? nodeRef = node.NodeKind is { } kind ? new DbNodeRef(kind, node.Name) : null;
 
+        // A tool that supplies a document opens as a tab instead of a dialog (SE-216). Its ExecuteAsync is
+        // never called — opening the tab is the action — so this returns before the dialog is built.
+        if (tool is IToolDocumentUi document)
+        {
+            OpenPluginDocument(tool, document, connection, node.DatabaseName, nodeRef, profile, provider);
+            return;
+        }
+
         var dialog = _toolDialogFactory();
         dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId);
         // Let a tool hand generated SQL to a query tab on the launched connection/database (SchemaDiff).
@@ -1021,6 +1029,59 @@ public partial class MainViewModel : ViewModelBase
         // ...or on a picked secondary connection/database, for a tool that scripts to the destination (Copy Table).
         dialog.OpenQueryOnConnectionRequested = (target, database, sql) => OpenQueryWithContent(target, database, sql);
         await ToolDialogRequested(dialog);
+    }
+
+    /// <summary>
+    /// Open (or focus) a plugin-owned tab for a tool that implements <see cref="IToolDocumentUi"/>.
+    ///
+    /// <para>Identity is the tool plus what it was launched on, so reopening the same diagram on the same
+    /// schema focuses the tab that is already there rather than stacking a second copy of it — the same
+    /// rule browse and monitor tabs follow.</para>
+    ///
+    /// <para>A plugin that throws while building its view must not take the window with it: the tab is
+    /// simply not opened and the error is reported the way any other tool failure is.</para>
+    /// </summary>
+    private void OpenPluginDocument(
+        IToolPlugin tool,
+        IToolDocumentUi documentUi,
+        SavedConnection connection,
+        string? database,
+        DbNodeRef? node,
+        ConnectionProfile profile,
+        IDbProvider provider)
+    {
+        var key = $"{tool.Id}|{connection.Id}|{database}|{node?.Name}";
+
+        var existing = Documents.FirstOrDefault(d => d.MatchesPluginDocument(key));
+        if (existing is not null)
+        {
+            SelectedDocument = existing;
+            return;
+        }
+
+        var document = NewDocument();
+        var context = new ToolDocumentContext(
+            provider,
+            profile,
+            node,
+            _tools.LocalizerFor(tool.Id),
+            title => document.Title = title,
+            sql => OpenQueryWithContent(connection, database, sql),
+            () => CloseTabCommand.Execute(document));
+
+        Avalonia.Controls.Control view;
+        try
+        {
+            view = documentUi.CreateDocument(context);
+        }
+        catch (Exception ex)
+        {
+            ReportError(tool.Title, ex.Message);
+            return;
+        }
+
+        document.InitPluginDocument(connection, database, key, tool.Title, view, documentUi.Icon);
+        AddDocument(document);
     }
 
     // Open a new query tab on a connection/database pre-filled with SQL (no file backing).
@@ -2495,6 +2556,9 @@ public partial class MainViewModel : ViewModelBase
                 _closedTabs = new Stack<(SavedConnection, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
             }
         }
+
+        // A plugin tab's content outlives the tab unless it is told not to (SE-216).
+        document.DisposePluginView();
 
         var index = Documents.IndexOf(document);
         Documents.Remove(document);
