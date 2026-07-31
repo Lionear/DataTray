@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using DataTray.Sdk.Branding;
 using DataTray.Sdk.Localization;
 using DataTray.Sdk.Tools;
 using DataTray.Sdk.Ui;
@@ -51,7 +52,24 @@ public sealed class ErDiagramTool : IToolPlugin, IToolDocumentUi
         IProgress<ToolProgress> progress,
         CancellationToken ct) => Task.CompletedTask;
 
-    public Geometry? Icon => null;
+    /// <summary>
+    /// The plugin's mark, from the embedded icon.png — this is what the Plugin Store's Installed row and
+    /// Settings ▸ Plugins read. Not the same thing as the tab glyph below: this one is a raster
+    /// (<see cref="ProviderIcon"/>), that one a stroked path, and they are two different members that
+    /// happen to share a name across two interfaces.
+    /// </summary>
+    public ProviderIcon? Icon { get; } = ProviderIconLoader.Load(typeof(ErDiagramTool), "🗺");
+
+    /// <summary>
+    /// The tab-strip glyph: two linked tables, in the stroked 24×24 idiom the host's own tab icons use
+    /// (Lucide-derived, stroke-width 2, round joins). Written out rather than borrowed — a plugin cannot
+    /// reach the host's icon resources across the ALC boundary. Matches icon.png, so the tab and the
+    /// plugin lists show the same mark.
+    /// </summary>
+    Geometry? IToolDocumentUi.Icon { get; } = Geometry.Parse(
+        "M4 3 h7 a1 1 0 0 1 1 1 v4 a1 1 0 0 1 -1 1 h-7 a1 1 0 0 1 -1 -1 v-4 a1 1 0 0 1 1 -1 z " +
+        "M13 15 h7 a1 1 0 0 1 1 1 v4 a1 1 0 0 1 -1 1 h-7 a1 1 0 0 1 -1 -1 v-4 a1 1 0 0 1 1 -1 z " +
+        "M7.5 9 v5 a3 3 0 0 0 3 3 h1.5");
 
     public Control CreateDocument(IToolDocumentContext context)
     {
