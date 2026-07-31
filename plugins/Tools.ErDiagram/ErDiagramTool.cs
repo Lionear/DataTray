@@ -80,6 +80,7 @@ public sealed class ErDiagramView : UserControl, IDisposable
     private readonly CancellationTokenSource _cancellation = new();
 
     private ErGraph? _graph;
+    private IReadOnlyList<TableDef> _tables = [];
 
     public ErDiagramView(IToolDocumentContext context)
     {
@@ -110,28 +111,17 @@ public sealed class ErDiagramView : UserControl, IDisposable
             var reader = new SchemaReader(_context.Provider);
             var snapshot = await reader.ReadAsync(_context.Profile, _context.ProviderId, _cancellation.Token);
 
-            _graph = ErGraph.Build(snapshot.Tables);
-            var layout = new LayeredErLayout().Compute(_graph);
+            _tables = snapshot.Tables;
 
-            if (_graph.Nodes.Count == 0)
+            if (_tables.Count == 0)
             {
                 _status.Text = _loc.Get("er.empty", _context.Profile.Name);
                 return;
             }
 
-            var palette = PaletteForHost();
-            // Top-left, not centred: a diagram is read from its left edge, and a ScrollViewer would
-            // otherwise float a small one in the middle of the tab.
-            _scroller.Background = palette.Canvas;
-            _scroller.Content = new ErDiagramCanvas(_graph, layout, Detail, palette)
-            {
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-            };
-            _status.Text = _graph.RelationsOutOfScope > 0
-                ? _loc.Get("er.statusOutOfScope",
-                    _graph.Nodes.Count, _graph.Edges.Count, _graph.RelationsOutOfScope)
-                : _loc.Get("er.status", _graph.Nodes.Count, _graph.Edges.Count);
+            // Open on the picker, not on a canvas. A schema with two hundred tables drawn blind is a
+            // hairball nobody reads, and the user is the only one who knows which corner they came for.
+            ShowPicker();
         }
         catch (OperationCanceledException)
         {
@@ -141,6 +131,43 @@ public sealed class ErDiagramView : UserControl, IDisposable
         {
             _status.Text = _loc.Get("er.error", ex.Message);
         }
+    }
+
+    private void ShowPicker()
+    {
+        var picker = new ErScopePicker(_tables, key => _loc.Get(key));
+        picker.Drawn += Draw;
+        picker.Cancelled += _context.CloseDocument;
+
+        _scroller.Background = null;
+        _scroller.Content = picker;
+        _status.Text = _loc.Get("er.pick.hint");
+    }
+
+    private void Draw(IReadOnlyList<string> selected)
+    {
+        var chosen = new HashSet<string>(selected, StringComparer.OrdinalIgnoreCase);
+        _graph = ErGraph.Build(_tables.Where(t => chosen.Contains(t.Key)));
+        var layout = new LayeredErLayout().Compute(_graph);
+
+        var palette = PaletteForHost();
+        // Top-left, not centred: a diagram is read from its left edge, and a ScrollViewer would
+        // otherwise float a small one in the middle of the tab.
+        _scroller.Background = palette.Canvas;
+        _scroller.Content = new ErDiagramCanvas(_graph, layout, Detail, palette)
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+
+        // Relations to tables the user chose not to draw are counted rather than dropped — with a picker
+        // in front of the canvas that is now the ordinary case, not an edge one.
+        _status.Text = _graph.RelationsOutOfScope > 0
+            ? _loc.Get("er.statusOutOfScope",
+                _graph.Nodes.Count, _graph.Edges.Count, _graph.RelationsOutOfScope)
+            : _loc.Get("er.status", _graph.Nodes.Count, _graph.Edges.Count);
+
+        _context.SetTitle(_loc.Get("er.tab", _context.Profile.Name));
     }
 
     /// <summary>
@@ -166,5 +193,6 @@ public sealed class ErDiagramView : UserControl, IDisposable
         _cancellation.Dispose();
         _scroller.Content = null;
         _graph = null;
+        _tables = [];
     }
 }
