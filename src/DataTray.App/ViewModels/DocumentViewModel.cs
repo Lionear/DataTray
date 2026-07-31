@@ -30,7 +30,11 @@ public enum DocumentMode
 {
     Query,
     Browse,
-    Monitor
+    Monitor,
+
+    /// <summary>A tab whose content is supplied by a plugin (<see cref="IToolDocumentUi"/>, SE-216). The
+    /// host owns the tab — title, icon, close — and nothing inside it.</summary>
+    Plugin
 }
 
 /// <summary>One entry in the Activity Monitor's auto-refresh interval dropdown. <see cref="Seconds"/> 0
@@ -408,12 +412,15 @@ public partial class DocumentViewModel : ViewModelBase
 
     public bool IsMonitorMode => Mode == DocumentMode.Monitor;
 
+    public bool IsPluginMode => Mode == DocumentMode.Plugin;
+
     /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
     /// tab is recognisable at a glance (SE-123, mockup icon-per-tabtype).</summary>
     public Avalonia.Media.Geometry TabIcon => Mode switch
     {
         DocumentMode.Browse => NodeIcons.TabBrowse,
         DocumentMode.Monitor => NodeIcons.TabMonitor,
+        DocumentMode.Plugin => _pluginIcon ?? NodeIcons.TabPlugin,
         _ => NodeIcons.TabQuery
     };
 
@@ -587,6 +594,67 @@ public partial class DocumentViewModel : ViewModelBase
 
     [ObservableProperty]
     private RefreshOption? _selectedRefreshOption;
+
+    // ── Plugin documents (SE-216) ─────────────────────────────────────────────────────────────────────
+
+    private Avalonia.Media.Geometry? _pluginIcon;
+
+    /// <summary>The plugin-supplied content of a <see cref="DocumentMode.Plugin"/> tab, bound by
+    /// DocumentView. Null in every other mode.</summary>
+    public Avalonia.Controls.Control? PluginView { get; private set; }
+
+    /// <summary>Identity of a plugin tab, so reopening the same tool on the same target focuses the tab
+    /// that is already open instead of stacking a second one. Null in every other mode.</summary>
+    public string? PluginDocumentKey { get; private set; }
+
+    /// <summary>
+    /// Turn this document into a plugin-owned tab. The host keeps the tab chrome — title, icon, close —
+    /// and hands everything inside it to <paramref name="view"/>.
+    /// </summary>
+    public void InitPluginDocument(
+        SavedConnection connection,
+        string? database,
+        string key,
+        string title,
+        Avalonia.Controls.Control view,
+        Avalonia.Media.Geometry? icon)
+    {
+        Mode = DocumentMode.Plugin;
+        // Same guard as InitBrowse/InitMonitor: the query connection combo is collapsed here but still
+        // realized, and would coerce Connection back to null without a seeded single-item list.
+        AvailableConnections = [connection];
+        Connection = connection;
+        SelectedDatabase = database;
+        Title = title;
+        PluginDocumentKey = key;
+        PluginView = view;
+        _pluginIcon = icon;
+    }
+
+    public bool MatchesPluginDocument(string key) =>
+        IsPluginMode && string.Equals(PluginDocumentKey, key, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Release a plugin tab's content when the tab closes. A document holds what a dialog never does — a
+    /// schema snapshot, a timer — and without this they would live as long as the app. Best-effort: a
+    /// plugin throwing on dispose must not stop the tab from closing.
+    /// </summary>
+    public void DisposePluginView()
+    {
+        if (PluginView is IDisposable disposable)
+        {
+            try
+            {
+                disposable.Dispose();
+            }
+            catch
+            {
+                // A plugin that fails to clean up is its own problem; the tab still goes.
+            }
+        }
+
+        PluginView = null;
+    }
 
     public void InitMonitor(SavedConnection connection)
     {

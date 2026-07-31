@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ae="using:AvaloniaEdit"
              xmlns:conv="using:Avalonia.Data.Converters"
+             xmlns:vm="using:DataTray.App.ViewModels"
              x:Class="DataTray.App.Views.DocumentView">
   <UserControl.Styles>
     <!-- Flat tabs matching the document-tab strip (Theme.axaml TabItem): plain text, no button
@@ -173,7 +174,7 @@
     </ItemsControl>
 
     <!-- Row 5: editable result grid, framed. Columns are built per result set in code-behind. -->
-    <Border Grid.Row="5"
+    <Border Grid.Row="5" IsVisible="{Binding !IsPluginMode}"
             BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
             CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
       <DataGrid x:Name="ResultsGrid"
@@ -228,5 +229,14 @@
                  FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}"
                  Text="{Binding RowRange}" />
     </Grid>
+
+    <!-- A plugin-owned tab (SE-216): the plugin's control gets the whole body. It spans every row rather
+         than living in one, because the host's rows are the query/browse/monitor layout and none of them
+         mean anything here. Everything else in this grid is already gated on a mode or on having a result,
+         except the results border above, which is why that one gets an explicit !IsPluginMode. -->
+    <ContentControl Grid.Row="0" Grid.RowSpan="7"
+                    x:CompileBindings="True" x:DataType="vm:DocumentViewModel"
+                    IsVisible="{Binding IsPluginMode}"
+                    Content="{Binding PluginView}" />
   </Grid>
 </UserControl>

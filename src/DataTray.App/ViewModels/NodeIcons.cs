@@ -43,6 +43,10 @@ public static class NodeIcons
     public static readonly Geometry TabBrowse = Icons.Table;
     public static readonly Geometry TabMonitor = Icons.Clock;
 
+    /// <summary>Fallback for a plugin-owned tab that supplies no icon of its own (SE-216). The puzzle
+    /// piece is already the product's mark for "this came from a plugin".</summary>
+    public static readonly Geometry TabPlugin = Icons.Puzzle;
+
     // --- Tool-window glyphs (status-bar / stripe toggles). ---
     public static readonly Geometry ToolOutput = Icons.Terminal;
     public static readonly Geometry ToolHistory = Icons.Clock;
