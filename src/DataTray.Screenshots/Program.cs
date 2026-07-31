@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -175,7 +176,7 @@ internal static class SceneCatalog
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
-        "erdiagram" => BuildErDiagramAsync(services, sandbox),
+        "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
         _ => Task.FromResult<Window?>(null)
     };
 
@@ -329,7 +330,7 @@ internal static class SceneCatalog
     /// <c>IToolDocumentUi</c> path the tool menu uses — including DocumentView's binding to
     /// <c>PluginView</c>, which is the part a compile cannot check.
     /// </summary>
-    private static Task<Window?> BuildErDiagramAsync(IServiceProvider services, string sandbox)
+    private static Task<Window?> BuildErDiagramAsync(IServiceProvider services, string sandbox, string state)
     {
         var tool = services.GetRequiredService<IToolRegistry>().All.FirstOrDefault(t => t.Id == "er-diagram");
         if (tool is not IToolDocumentUi documentUi)
@@ -387,6 +388,26 @@ internal static class SceneCatalog
         // it waits; awaiting a plain Task.Delay here deadlocks, because the continuation is posted to a
         // dispatcher that nothing is pumping.
         Program.Settle(rounds: 60);
+
+        // "drawn" walks the picker the way a user would — tick everything, press Draw — through the real
+        // controls rather than a back door, so the capture proves the flow and not just the painting.
+        if (state == "drawn")
+        {
+            // The logical tree, not the visual one: the control has not been laid out yet at this point,
+            // so it has no visual children to walk.
+            foreach (var box in view.GetLogicalDescendants().OfType<CheckBox>())
+            {
+                box.IsChecked = true;
+            }
+
+            Program.Settle(rounds: 10);
+
+            var draw = view.GetLogicalDescendants().OfType<Button>()
+                .FirstOrDefault(b => b.Content as string == "Draw");
+            draw?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+            Program.Settle(rounds: 20);
+        }
 
         return Task.FromResult<Window?>(new MainWindow { DataContext = viewModel });
     }
