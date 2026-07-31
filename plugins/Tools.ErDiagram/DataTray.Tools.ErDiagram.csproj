@@ -18,6 +18,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The diagram is a Route-B style view (IToolDocumentUi), so it returns an Avalonia Control.
+         ExcludeAssets="runtime" keeps Avalonia out of the plugin folder — the host's copy is shared across
+         the ALC so the control has one type identity with the window that hosts it. -->
+    <PackageReference Include="Avalonia" Version="12.0.5" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
+    <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The layout engine is provider-agnostic graph work and is tested directly. -->
     <InternalsVisibleTo Include="DataTray.Tools.ErDiagram.Tests" />
   </ItemGroup>
@@ -28,6 +41,7 @@
     <Using Include="DataTray.Sdk.Schema" />
     <Using Include="DataTray.Sdk.Query" />
     <Using Include="DataTray.Plugins.Schema" />
+    <Using Include="DataTray.Sdk.Tools" />
   </ItemGroup>
 
 </Project>
