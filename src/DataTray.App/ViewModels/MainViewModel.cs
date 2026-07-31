@@ -1062,6 +1062,7 @@ public partial class MainViewModel : ViewModelBase
         var document = NewDocument();
         var context = new ToolDocumentContext(
             provider,
+            connection.ProviderId,
             profile,
             node,
             _tools.LocalizerFor(tool.Id),

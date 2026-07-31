@@ -23,6 +23,12 @@ public interface IToolDocumentContext
 
     ConnectionProfile Profile { get; }
 
+    /// <summary>The provider's id ("postgres", "sqlite", …). Carried separately because
+    /// <see cref="IDbProvider"/> does not name itself, and the schema-reading helpers in
+    /// <c>plugins/Shared.Schema</c> need it to pick a dialect — the same reason
+    /// <see cref="Tools.ToolExecutionContext"/> carries it beside the provider.</summary>
+    string ProviderId { get; }
+
     /// <summary>The node the tool was launched on, or null at the connection root.</summary>
     DbNodeRef? Node { get; }
 

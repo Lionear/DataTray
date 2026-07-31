@@ -14,6 +14,7 @@ namespace DataTray.App.ViewModels;
 /// </summary>
 public sealed class ToolDocumentContext(
     IDbProvider provider,
+    string providerId,
     ConnectionProfile profile,
     DbNodeRef? node,
     IPluginLocalizer localizer,
@@ -22,6 +23,8 @@ public sealed class ToolDocumentContext(
     Action closeDocument) : IToolDocumentContext
 {
     public IDbProvider Provider { get; } = provider;
+
+    public string ProviderId { get; } = providerId;
 
     public ConnectionProfile Profile { get; } = profile;
 

@@ -18,6 +18,7 @@ public class ToolDocumentContextTests
         Action? close = null) =>
         new(
             provider: null!,
+            providerId: "postgres",
             profile: new ConnectionProfile { Name = "Prod", ConnectionString = "Host=db" },
             node: new DbNodeRef(DbNodeKind.Table, "orders"),
             localizer: EmptyPluginLocalizer.Instance,
@@ -72,6 +73,7 @@ public class ToolDocumentContextTests
 
         Assert.Equal("orders", context.Node?.Name);
         Assert.Equal("Prod", context.Profile.Name);
+        Assert.Equal("postgres", context.ProviderId);
         Assert.NotNull(context.Localizer);
     }
 }
