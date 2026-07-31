@@ -51,7 +51,16 @@ public sealed class ErDiagramTool : IToolPlugin, IToolDocumentUi
         IProgress<ToolProgress> progress,
         CancellationToken ct) => Task.CompletedTask;
 
-    public Geometry? Icon => null;
+    /// <summary>
+    /// The tab-strip glyph: two linked tables, in the stroked 24×24 idiom the host's own tab icons use
+    /// (Lucide-derived, stroke-width 2, round joins). Written out rather than borrowed — a plugin cannot
+    /// reach the host's icon resources across the ALC boundary. Matches the plugin's icon.png, so the tab
+    /// and the Plugin Store row show the same mark.
+    /// </summary>
+    public Geometry? Icon { get; } = Geometry.Parse(
+        "M4 3 h7 a1 1 0 0 1 1 1 v4 a1 1 0 0 1 -1 1 h-7 a1 1 0 0 1 -1 -1 v-4 a1 1 0 0 1 1 -1 z " +
+        "M13 15 h7 a1 1 0 0 1 1 1 v4 a1 1 0 0 1 -1 1 h-7 a1 1 0 0 1 -1 -1 v-4 a1 1 0 0 1 1 -1 z " +
+        "M7.5 9 v5 a3 3 0 0 0 3 3 h1.5");
 
     public Control CreateDocument(IToolDocumentContext context)
     {

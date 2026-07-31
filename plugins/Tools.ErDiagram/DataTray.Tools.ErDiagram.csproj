@@ -26,6 +26,8 @@
 
   <ItemGroup>
     <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Plugin icon, embedded so the plugin ships as one DLL — same as Tools.MsSqlBacpac. -->
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" Condition="Exists('icon.png')" />
     <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
     <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
   </ItemGroup>
