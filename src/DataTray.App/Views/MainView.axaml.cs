@@ -506,6 +506,8 @@ public partial class MainView : UserControl
             _viewModel.ExportFileRequested = WriteExportFileAsync;
             _viewModel.SettingsDialogRequested = ShowSettingsDialogAsync;
             _viewModel.ToolDialogRequested = ShowToolDialogAsync;
+            _viewModel.DocumentSaveFileRequested = PickDocumentSaveFileAsync;
+            _viewModel.DocumentOpenFileRequested = PickDocumentOpenFileAsync;
             _viewModel.ShowPluginDialogRequested = ShowPluginDialogAsync;
             _viewModel.ShowPluginConfirmRequested = ShowPluginConfirmAsync;
             PopulateConnectionMenu(_viewModel);
@@ -726,6 +728,44 @@ public partial class MainView : UserControl
 
         var dialog = new SettingsWindow { DataContext = dialogViewModel };
         await dialog.ShowDialog(owner);
+    }
+
+    // File pickers for a plugin-owned tab (SE-216). The tool dialog has its own pair on ToolDialog; a
+    // document tab has no dialog to borrow one from, and only a view can reach a TopLevel.
+    private async Task<string?> PickDocumentSaveFileAsync(string suggestedName, string[] extensions)
+    {
+        if (TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return null;
+        }
+
+        var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            SuggestedFileName = suggestedName,
+            FileTypeChoices = extensions
+                .Select(e => new FilePickerFileType(e.ToUpperInvariant()) { Patterns = [$"*.{e}"] })
+                .ToList(),
+        });
+
+        return file?.TryGetLocalPath();
+    }
+
+    private async Task<string?> PickDocumentOpenFileAsync(string[] extensions)
+    {
+        if (TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return null;
+        }
+
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            AllowMultiple = false,
+            FileTypeFilter = extensions
+                .Select(e => new FilePickerFileType(e.ToUpperInvariant()) { Patterns = [$"*.{e}"] })
+                .ToList(),
+        });
+
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
     private async Task ShowToolDialogAsync(ToolDialogViewModel dialogViewModel)

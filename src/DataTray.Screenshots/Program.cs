@@ -365,7 +365,15 @@ internal static class SceneCatalog
             services.GetRequiredService<IToolRegistry>().LocalizerFor(tool.Id),
             setTitle: _ => { },
             openQueryEditor: _ => { },
-            closeDocument: () => { });
+            closeDocument: () => { },
+            // A picker that answers with a fixed path, so the export and save paths can be driven without
+            // a dialog — the point is to prove the files are actually written, not to show a file chooser.
+            pickSaveFile: (name, extensions) => Task.FromResult<string?>(Path.Combine(
+                Path.GetTempPath(),
+                // "exportsvg" picks the last offered extension, which is how the SVG path gets exercised
+                // without a dialog to click through.
+                "er-export." + (state == "exportsvg" ? extensions[^1] : extensions[0]))),
+            pickOpenFile: _ => Task.FromResult<string?>(null));
 
         var view = documentUi.CreateDocument(context);
 
@@ -391,7 +399,9 @@ internal static class SceneCatalog
 
         // "drawn" walks the picker the way a user would — tick everything, press Draw — through the real
         // controls rather than a back door, so the capture proves the flow and not just the painting.
-        if (state == "drawn")
+        // "export" goes one further and presses Save and Export too, which is the only way to find out
+        // whether the files are really written through the seam's new pickers.
+        if (state is "drawn" or "export" or "exportsvg")
         {
             // The logical tree, not the visual one: the control has not been laid out yet at this point,
             // so it has no visual children to walk.
@@ -407,6 +417,17 @@ internal static class SceneCatalog
             draw?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
             Program.Settle(rounds: 20);
+        }
+
+        if (state is "export" or "exportsvg")
+        {
+            foreach (var label in new[] { "Save…", "Export…" })
+            {
+                var button = view.GetLogicalDescendants().OfType<Button>()
+                    .FirstOrDefault(b => b.Content as string == label);
+                button?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                Program.Settle(rounds: 20);
+            }
         }
 
         return Task.FromResult<Window?>(new MainWindow { DataContext = viewModel });

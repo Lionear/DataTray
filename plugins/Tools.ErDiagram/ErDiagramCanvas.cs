@@ -24,7 +24,10 @@ public sealed class ErDiagramCanvas : Control
 {
     // Geometry. Column width is fixed so ranks line up; height follows the row count.
     private const double BoxWidth = 190;
-    private const double HeaderHeight = 26;
+    /// <summary>Public so the export can place a header without a second copy of the number.</summary>
+    public const double HeaderHeightPx = 26;
+
+    private const double HeaderHeight = HeaderHeightPx;
     private const double RowHeight = 18;
     private const double GapX = 74;
     private const double GapY = 26;
@@ -50,6 +53,9 @@ public sealed class ErDiagramCanvas : Control
 
     /// <summary>The drawing's own size, so a scroll viewer can scroll it.</summary>
     public Size DiagramSize { get; private set; }
+
+    /// <summary>The colours in use, so an export renders the same diagram rather than a second opinion.</summary>
+    public ErPalette Palette => _palette;
 
     private void MeasureBoxes()
     {
@@ -104,10 +110,12 @@ public sealed class ErDiagramCanvas : Control
     {
         context.FillRectangle(_palette.Canvas, new Rect(Bounds.Size));
 
+        var pen = new Pen(_palette.Relation, 1.2);
+
         // Relations first so the lines pass behind the boxes rather than over their text.
-        foreach (var edge in _graph.Edges.Where(e => !e.IsSelfReference))
+        foreach (var segment in RelationSegments())
         {
-            DrawRelation(context, edge);
+            context.DrawLine(pen, segment.A, segment.B);
         }
 
         var byKey = _graph.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
@@ -117,44 +125,88 @@ public sealed class ErDiagramCanvas : Control
         }
     }
 
-    private void DrawRelation(DrawingContext context, ErEdge edge)
+    /// <summary>
+    /// Every straight segment of every relation, crow's feet included, as plain points. Both the screen
+    /// and the export draw from this, so the two cannot disagree — the alternative is a second copy of the
+    /// routing that stays right only until someone edits one of them.
+    /// </summary>
+    public IEnumerable<ErRelationSegment> RelationSegments()
     {
-        if (!_boxes.TryGetValue(edge.FromKey, out var from) || !_boxes.TryGetValue(edge.ToKey, out var to))
+        foreach (var edge in _graph.Edges.Where(e => !e.IsSelfReference))
         {
-            return;
+            if (!_boxes.TryGetValue(edge.FromKey, out var from) || !_boxes.TryGetValue(edge.ToKey, out var to))
+            {
+                continue;
+            }
+
+            // The referenced table sits to the left, so the line leaves the child's left edge and arrives
+            // at the parent's right edge. An elbow rather than a diagonal: with boxes on a grid, right
+            // angles read as structure and diagonals read as noise.
+            //
+            // The child end attaches at the row of the column that holds the key, so two foreign keys into
+            // the same table are two distinct lines rather than one drawn twice.
+            var start = new Point(from.X, RowY(edge.FromKey, from, edge.ForeignKey.Columns.FirstOrDefault()));
+            var end = new Point(to.Right, to.Y + HeaderHeight / 2);
+            var midX = (start.X + end.X) / 2;
+
+            yield return new ErRelationSegment(start, new Point(midX, start.Y));
+            yield return new ErRelationSegment(new Point(midX, start.Y), new Point(midX, end.Y));
+            yield return new ErRelationSegment(new Point(midX, end.Y), end);
+
+            // The many side: three prongs converging on a point out along the line and opening onto the
+            // box. Converging on the box instead makes an arrowhead, which is the notation for the one
+            // side and says the opposite of what is meant.
+            const double length = 9;
+            const double spread = 4.5;
+            var apex = new Point(start.X - length, start.Y);
+            yield return new ErRelationSegment(apex, new Point(start.X, start.Y - spread));
+            yield return new ErRelationSegment(apex, start);
+            yield return new ErRelationSegment(apex, new Point(start.X, start.Y + spread));
         }
-
-        // The referenced table sits to the left, so the line leaves the child's left edge and arrives at
-        // the parent's right edge. An elbow rather than a diagonal: with boxes on a grid, right angles
-        // read as structure and diagonals read as noise.
-        //
-        // The child end attaches at the row of the column that actually holds the key, so two foreign keys
-        // into the same table are two distinct lines rather than one drawn twice.
-        var start = new Point(from.X, RowY(edge.FromKey, from, edge.ForeignKey.Columns.FirstOrDefault()));
-        var end = new Point(to.Right, to.Y + HeaderHeight / 2);
-        var midX = (start.X + end.X) / 2;
-
-        var pen = new Pen(_palette.Relation, 1.2);
-        context.DrawLine(pen, start, new Point(midX, start.Y));
-        context.DrawLine(pen, new Point(midX, start.Y), new Point(midX, end.Y));
-        context.DrawLine(pen, new Point(midX, end.Y), end);
-
-        DrawCrowsFoot(context, pen, start);
     }
 
-    /// <summary>
-    /// The many side, at the referencing table: three prongs converging on a point out along the line and
-    /// opening onto the box edge. Drawing it the other way round — converging on the box — makes an
-    /// arrowhead, which is the notation for the one side and says the opposite of what is meant.
-    /// </summary>
-    private static void DrawCrowsFoot(DrawingContext context, Pen pen, Point at)
+    /// <summary>The boxes and their rows, for an export that writes text as text.</summary>
+    public IReadOnlyList<ErTableShape> TableShapes()
     {
-        const double length = 9;
-        const double spread = 4.5;
-        var apex = new Point(at.X - length, at.Y);
-        context.DrawLine(pen, apex, new Point(at.X, at.Y - spread));
-        context.DrawLine(pen, apex, at);
-        context.DrawLine(pen, apex, new Point(at.X, at.Y + spread));
+        var byKey = _graph.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
+
+        return _boxes
+            .OrderBy(b => b.Value.X)
+            .ThenBy(b => b.Value.Y)
+            .Select(b =>
+            {
+                var node = byKey[b.Key];
+                return new ErTableShape(node.Table.Name, b.Value, RowShapes(node, b.Value));
+            })
+            .ToList();
+    }
+
+    private IReadOnlyList<ErRowShape> RowShapes(ErNode node, Rect box)
+    {
+        if (_detail == ErDetail.Names)
+        {
+            return [];
+        }
+
+        var columns = _detail == ErDetail.Columns
+            ? node.Table.Columns.OrderBy(c => c.Ordinal).ToList()
+            : KeyColumns(node);
+
+        var primaryKey = new HashSet<string>(node.Table.PrimaryKey?.Columns ?? [], StringComparer.OrdinalIgnoreCase);
+        var foreignKeys = new HashSet<string>(
+            node.Table.ForeignKeys.SelectMany(f => f.Columns), StringComparer.OrdinalIgnoreCase);
+
+        var rows = new List<ErRowShape>(columns.Count);
+        var y = box.Y + HeaderHeight + 3;
+
+        foreach (var column in columns)
+        {
+            var badge = primaryKey.Contains(column.Name) ? "PK" : foreignKeys.Contains(column.Name) ? "FK" : "";
+            rows.Add(new ErRowShape(badge, column.Name, column.DataType, y));
+            y += RowHeight;
+        }
+
+        return rows;
     }
 
     /// <summary>
@@ -201,29 +253,17 @@ public sealed class ErDiagramCanvas : Control
             return;
         }
 
-        var columns = _detail == ErDetail.Columns
-            ? node.Table.Columns.OrderBy(c => c.Ordinal).ToList()
-            : KeyColumns(node);
-
-        var primaryKey = new HashSet<string>(node.Table.PrimaryKey?.Columns ?? [], StringComparer.OrdinalIgnoreCase);
-        var foreignKeys = new HashSet<string>(
-            node.Table.ForeignKeys.SelectMany(f => f.Columns), StringComparer.OrdinalIgnoreCase);
-
-        var y = box.Y + HeaderHeight + 3;
-        foreach (var column in columns)
+        foreach (var row in RowShapes(node, box))
         {
-            var badge = primaryKey.Contains(column.Name) ? "PK" : foreignKeys.Contains(column.Name) ? "FK" : "";
-            if (badge.Length > 0)
+            if (row.Badge.Length > 0)
             {
-                Draw(context, badge, box.X + 10, y, 9.5,
-                    badge == "PK" ? _palette.KeyPrimary : _palette.KeyForeign, FontWeight.Bold);
+                Draw(context, row.Badge, box.X + 10, row.Y, 9.5,
+                    row.Badge == "PK" ? _palette.KeyPrimary : _palette.KeyForeign, FontWeight.Bold);
             }
 
-            Draw(context, column.Name, box.X + 34, y, 11, _palette.Text, FontWeight.Normal);
-            Draw(context, column.DataType, box.Right - 10, y, 10, _palette.TextFaint, FontWeight.Normal,
+            Draw(context, row.Column, box.X + 34, row.Y, 11, _palette.Text, FontWeight.Normal);
+            Draw(context, row.DataType, box.Right - 10, row.Y, 10, _palette.TextFaint, FontWeight.Normal,
                 alignRight: true);
-
-            y += RowHeight;
         }
     }
 
@@ -238,6 +278,15 @@ public sealed class ErDiagramCanvas : Control
         context.DrawText(formatted, new Point(alignRight ? x - formatted.Width : x, y));
     }
 }
+
+/// <summary>One straight piece of a relation line, in diagram coordinates.</summary>
+public sealed record ErRelationSegment(Point A, Point B);
+
+/// <summary>One row inside a drawn table. <see cref="Y"/> is the row's top, in diagram coordinates.</summary>
+public sealed record ErRowShape(string Badge, string Column, string DataType, double Y);
+
+/// <summary>One drawn table: where it sits and what is printed in it.</summary>
+public sealed record ErTableShape(string Name, Rect Bounds, IReadOnlyList<ErRowShape> Rows);
 
 /// <summary>
 /// The diagram's colours. Passed in rather than read from resources: a plugin cannot reach the host's

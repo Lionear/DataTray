@@ -20,7 +20,9 @@ public sealed class ToolDocumentContext(
     IPluginLocalizer localizer,
     Action<string> setTitle,
     Action<string> openQueryEditor,
-    Action closeDocument) : IToolDocumentContext
+    Action closeDocument,
+    Func<string, string[], Task<string?>> pickSaveFile,
+    Func<string[], Task<string?>> pickOpenFile) : IToolDocumentContext
 {
     public IDbProvider Provider { get; } = provider;
 
@@ -43,4 +45,9 @@ public sealed class ToolDocumentContext(
     public void OpenQueryEditor(string sql) => openQueryEditor(sql);
 
     public void CloseDocument() => closeDocument();
+
+    public Task<string?> PickSaveFileAsync(string suggestedName, params string[] extensions) =>
+        pickSaveFile(suggestedName, extensions);
+
+    public Task<string?> PickOpenFileAsync(params string[] extensions) => pickOpenFile(extensions);
 }
