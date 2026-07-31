@@ -1,0 +1,9 @@
+{
+  "er.title": "ER Diagram",
+  "er.tab": "ER · {0}",
+  "er.loading": "Reading the schema…",
+  "er.empty": "{0} has no tables to draw.",
+  "er.error": "Could not read the schema: {0}",
+  "er.status": "{0} tables · {1} relations",
+  "er.statusOutOfScope": "{0} tables · {1} relations · {2} pointing outside this schema"
+}

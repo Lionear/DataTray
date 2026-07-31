@@ -1,0 +1,9 @@
+{
+  "er.title": "ER-diagram",
+  "er.tab": "ER · {0}",
+  "er.loading": "Schema lezen…",
+  "er.empty": "{0} heeft geen tabellen om te tekenen.",
+  "er.error": "Kon het schema niet lezen: {0}",
+  "er.status": "{0} tabellen · {1} relaties",
+  "er.statusOutOfScope": "{0} tabellen · {1} relaties · {2} wijzen buiten dit schema"
+}
