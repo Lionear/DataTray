@@ -40,6 +40,7 @@
       <!-- Tool plugins whose dialogs have their own scene (Copy Table renders its own dialog end to end,
            so its four states are captured here rather than only being looked at by hand). -->
       <ShotPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.CopyTable\bin\$(Configuration)\$(TargetFramework)\**\*"><PluginId>copy-table</PluginId></ShotPluginFile>
+      <ShotPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.ErDiagram\bin\$(Configuration)\$(TargetFramework)\**\*"><PluginId>er-diagram</PluginId></ShotPluginFile>
     </ItemGroup>
   </Target>
 

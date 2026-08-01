@@ -50,6 +50,7 @@
     <ProjectReference Include="..\..\plugins\Tools.SchemaDiff\DataTray.Tools.SchemaDiff.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.GenerateScripts\DataTray.Tools.GenerateScripts.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.CopyTable\DataTray.Tools.CopyTable.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Tools.ErDiagram\DataTray.Tools.ErDiagram.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.UniversalBackup\DataTray.Tools.UniversalBackup.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.MsSqlBacpac\DataTray.Tools.MsSqlBacpac.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Backends.Docker\DataTray.Backends.Docker.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
