@@ -1020,6 +1020,8 @@ public sealed class PostgresProvider : IDbProvider
 
     public string SessionIdColumn => "pid";
 
+    public string SessionDatabaseColumn => "datname";
+
     public bool SupportsCancelQuery => true;
 
     public async Task<ActiveSessionSnapshot> GetActiveSessionsAsync(ConnectionProfile profile, CancellationToken ct)

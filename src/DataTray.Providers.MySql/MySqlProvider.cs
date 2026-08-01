@@ -809,6 +809,8 @@ public sealed class MySqlProvider : IDbProvider
 
     public string SessionIdColumn => "Id";
 
+    public string SessionDatabaseColumn => "db";
+
     public bool SupportsCancelQuery => true;
 
     public async Task<ActiveSessionSnapshot> GetActiveSessionsAsync(ConnectionProfile profile, CancellationToken ct)

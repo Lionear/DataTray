@@ -1430,6 +1430,10 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
     public string SessionIdColumn => "session_id";
 
+    public string SessionDatabaseColumn => "database";
+
+    public string BlockingSessionColumn => "blocking_session_id";
+
     public async Task<ActiveSessionSnapshot> GetActiveSessionsAsync(ConnectionProfile profile, CancellationToken ct)
     {
         const string sql = """
