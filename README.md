@@ -24,51 +24,85 @@ Every database engine ships as a plugin; the Plugin Store manages them:
 
 | Project | Role |
 |---------|------|
-| `src/Provider.Sdk` | **Public contract** (`DataTray.Sdk`): `IDbProvider`, `ISqlDialect`, schema/query DTOs. Interfaces and DTOs only — no host internals. This is the only assembly external providers reference. **MIT-licensed** (see below). |
-| `src/Core` | Host domain: formatter, i18n seam, provider registry, edit models. No UI, no driver dependencies. References `Provider.Sdk`. |
-| `src/Providers.Postgres` | `IDbProvider` for PostgreSQL (Npgsql). **References only `Provider.Sdk`** — proof that a provider builds independently of the host. |
-| `src/App` | Avalonia UI (MVVM, CommunityToolkit.Mvvm): views, view models, resx localization, DI. Platform-agnostic. |
-| `src/Desktop` | Desktop head (Windows / Linux / macOS). |
+| `src/DataTray.Sdk` | **Public contract**: `IDbProvider`, `ISqlDialect`, `ISqlFormatter`, schema/query DTOs. Interfaces and DTOs only — no host internals. This is the only assembly external plugins reference. **MIT-licensed** (see below). |
+| `src/DataTray.Core` | Host domain: formatter baseline, i18n seam, provider registry, edit models, sessions. No UI, no driver dependencies. References `DataTray.Sdk`. |
+| `src/DataTray.Infrastructure` | Host plumbing: persistence, secret stores, plugin extensibility, the Plugin Store client and the app/plugin updaters. |
+| `src/DataTray.Providers.*` | Bundled `IDbProvider` plugins: PostgreSQL (Npgsql), SQLite, MySQL/MariaDB, SQL Server. **They reference only `DataTray.Sdk`** — proof that a provider builds independently of the host. |
+| `src/DataTray.Tools.MsSqlAdmin` | Bundled tool plugin: the SQL Server admin dialogs. |
+| `src/DataTray.Mcp.Hosting` | Host-side MCP server and the seam that exposes plugin-contributed tools to an AI client. |
+| `src/DataTray.Mcp.Server` | Bundled first-party MCP tools plugin (`datatray-mcp`). |
+| `src/DataTray.App` | Avalonia UI (MVVM, CommunityToolkit.Mvvm): views, view models, resx localization, DI. Platform-agnostic. |
+| `src/DataTray.Desktop` | Desktop head (Windows / Linux / macOS) — the runnable project. |
+| `src/DataTray.Screenshots` | Headless renderer for the README screenshots. |
+| `plugins/` | Store-only plugins, installed from the Plugin Store rather than bundled: ClickHouse, DuckDB, MongoDB, Redis, DragonflyDB, Elasticsearch, the Local Containers (Docker) backend, the Schema Diff / Copy Table / Generate Scripts / ER Diagram / Universal Backup / BACPAC tools, and a provider template. |
 
-A new database = a new `Providers.*` project that references only `Provider.Sdk`.
-No UI change, no Core dependency.
+A new database = a new provider plugin that references only `DataTray.Sdk`.
+No UI change, no Core dependency — see [`docs/PLUGINS.md`](docs/PLUGINS.md).
 
 ## Build & run (desktop)
 
 ```bash
 dotnet build
-dotnet run --project src/Desktop
+dotnet run --project src/DataTray.Desktop
 ```
+
+A Debug build also stages the `plugins/` tree, so the store-only plugins are
+present while developing; a Release build ships only the bundled ones.
 
 ## Features
 
-- Solution builds cleanly across Core / Provider.Sdk / Providers.* / App / Desktop.
-- **Providers as ALC plugins** (PostgreSQL + SQLite + MySQL/MariaDB + SQL Server),
-  loaded from `plugins/<id>/` — the host binaries carry no driver dependencies.
+**Everything is a plugin**
+
+- **Providers as ALC plugins**, loaded from `plugins/<id>/` — the host binaries
+  carry no driver dependencies. Bundled: PostgreSQL, SQLite, MySQL/MariaDB,
+  SQL Server. From the **Plugin Store**: ClickHouse, DuckDB, MongoDB, Redis,
+  DragonflyDB, Elasticsearch.
+- **Plugin Store** with an Updates section, proactive update notifications and
+  staged updates that apply on restart. Tool and panel plugins extend the UI
+  (own dialogs, own toggle icons) through the same seam.
+- **Store-only tools**: Schema Diff, Copy Table (across connections), Generate
+  Scripts, ER Diagram, Universal Backup & Restore, SQL Server BACPAC/DACPAC.
+  A tool plugin can open as a dialog or as its own tab beside your queries.
+- **Local Containers (Docker)**: start a local database container from a
+  provider-declared recipe and get a connection for it.
+
+**Working with data**
+
 - Connect and browse a **lazy schema tree** (server → database → schema →
   tables/views → columns, DBeaver-style).
-- **Tabs**: multiple query and browse panes open at once.
-- **Query tab**: SQL pane (AvaloniaEdit, syntax highlighting) with a
-  dialect-aware format button.
+- **Tabs**: multiple query and browse panes open at once; the session restores
+  the tabs you left on.
+- **Query tab**: SQL pane (AvaloniaEdit, syntax highlighting) with scope-aware
+  completion, formatting options, paged results, and open/save as `.sql`.
 - **Browse tab** (double-click a table): page through rows without writing SQL —
   paging (previous/next), a WHERE filter and column-header sort (server-side
   ORDER BY). Editable, with the same save flow.
-- Result grid with **dynamic columns** per result set.
 - **Editable result set + save flow**: edit cells, add or delete rows; Save shows
   the generated INSERT/UPDATE/DELETE for review and runs them in a single
   transaction. Enabled only when the result traces back to a single table with a
-  primary key (otherwise read-only, with the reason shown).
+  primary key (otherwise read-only, with the reason shown). Cell editors follow
+  the column's type; a cell value opens in its own window on double-click.
+- **Query history and logging**, starred queries and starred connections.
+
+**Around it**
+
 - Connection management with **secure credential storage** (OS keychain via
-  `ISecretStore`).
+  `ISecretStore`), plus import/export.
 - **SSH tunnelling** to reach a database behind a bastion: host-side, so every
   provider gets it without knowing about it. Optional host-key pinning.
+- **MCP server** owned by the host: an AI client can query, browse and create
+  connections, per-connection AI access is opt-in, and an AI-activity panel shows
+  what it did.
+- **In-app updater** with release channels, a Restart-app command, an
+  About/diagnostics dialog, and configurable keyboard shortcuts.
 - **Runtime language switch** NL ⇄ EN (resx + `ILocalizer`).
 
 ## Not yet (roadmap)
 
 - **Mobile heads** (Android / iOS / iPadOS): separate head projects requiring
   `dotnet workload install android` / `ios` plus a macOS runner for iOS signing.
-- **Per-dialect SQL formatter** (currently a generic baseline).
+- **Per-dialect SQL formatting** beyond SQL Server: the `ISqlFormatter` seam is
+  there, but other providers still fall back to the generic baseline.
 
 ## Conventions
 
@@ -91,10 +125,10 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 This project is **source-available**, split across two licenses:
 
-- **`src/Provider.Sdk`** — [MIT](src/Provider.Sdk/LICENSE). The public plugin
+- **`src/DataTray.Sdk`** — [MIT](src/DataTray.Sdk/LICENSE). The public plugin
   contract is permissively licensed so anyone can build and distribute their own
   database providers freely.
-- **Everything else** (App, Core, Desktop, Providers.*) —
+- **Everything else** (App, Core, Infrastructure, Desktop, Providers.*) —
   [Apache-2.0 with the Commons Clause](LICENSE). You may use, modify, and share
   it freely, **including for internal business use**. You may **not sell** it —
   the Commons Clause removes the right to sell the software or to offer a paid
