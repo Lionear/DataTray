@@ -102,6 +102,14 @@
           </DataTemplate>
         </ComboBox.ItemTemplate>
       </ComboBox>
+      <TextBlock Text="{Binding Loc[MonitorDatabase]}" VerticalAlignment="Center"
+                 Foreground="{DynamicResource SETextSecondaryBrush}"
+                 IsVisible="{Binding HasDatabaseFilter}" />
+      <ComboBox MinWidth="140" ItemsSource="{Binding MonitorDatabases}"
+                SelectedItem="{Binding SelectedMonitorDatabase}"
+                IsVisible="{Binding HasDatabaseFilter}" />
+      <CheckBox Content="{Binding Loc[MonitorBlockingOnly]}" IsChecked="{Binding BlockingOnly}"
+                VerticalAlignment="Center" IsVisible="{Binding HasBlockingFilter}" />
     </StackPanel>
 
     <!-- Row 1: SQL editor (query mode only; the row is collapsed for browse in code-behind). -->

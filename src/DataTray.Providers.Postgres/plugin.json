@@ -4,6 +4,6 @@
   "type": "provider",
   "name": "PostgreSQL",
   "version": "0.4.0",
-  "hostApiVersion": 27,
+  "hostApiVersion": 28,
   "entryAssembly": "DataTray.Providers.Postgres.dll"
 }

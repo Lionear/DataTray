@@ -4,6 +4,6 @@
   "type": "provider",
   "name": "SQL Server",
   "version": "0.6.0",
-  "hostApiVersion": 27,
+  "hostApiVersion": 28,
   "entryAssembly": "DataTray.Providers.MsSql.dll"
 }

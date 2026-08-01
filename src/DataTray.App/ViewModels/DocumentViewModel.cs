@@ -574,6 +574,12 @@ public partial class DocumentViewModel : ViewModelBase
 
     private string? _currentSessionId;
 
+    /// <summary>Provider-declared column names driving the two monitor filters (empty = filter hidden):
+    /// which column names the session's database, and which holds the id of its blocker.</summary>
+    private string _databaseColumn = string.Empty;
+
+    private string _blockingColumn = string.Empty;
+
     private bool _monitorSupportsCancel;
 
     private bool _monitorRefreshing;
@@ -594,6 +600,26 @@ public partial class DocumentViewModel : ViewModelBase
 
     [ObservableProperty]
     private RefreshOption? _selectedRefreshOption;
+
+    /// <summary>Whether the provider's session list carries a database / blocker column — drives the
+    /// visibility of the two monitor filters.</summary>
+    public bool HasDatabaseFilter => _databaseColumn.Length > 0;
+
+    public bool HasBlockingFilter => _blockingColumn.Length > 0;
+
+    /// <summary>The databases seen in the latest snapshot, "(all)" first. Rebuilt on every refresh; the
+    /// current selection survives as long as that database still has sessions.</summary>
+    public ObservableCollection<string> MonitorDatabases { get; } = [];
+
+    [ObservableProperty]
+    private string? _selectedMonitorDatabase;
+
+    [ObservableProperty]
+    private bool _blockingOnly;
+
+    partial void OnSelectedMonitorDatabaseChanged(string? value) => RenderSessions();
+
+    partial void OnBlockingOnlyChanged(bool value) => RenderSessions();
 
     // ── Plugin documents (SE-216) ─────────────────────────────────────────────────────────────────────
 
@@ -668,8 +694,12 @@ public partial class DocumentViewModel : ViewModelBase
 
         var provider = _providers.Get(connection.ProviderId);
         _sessionIdColumn = provider.SessionIdColumn;
+        _databaseColumn = provider.SessionDatabaseColumn;
+        _blockingColumn = provider.BlockingSessionColumn;
         _monitorSupportsCancel = provider.SupportsCancelQuery;
         OnPropertyChanged(nameof(MonitorSupportsCancel));
+        OnPropertyChanged(nameof(HasDatabaseFilter));
+        OnPropertyChanged(nameof(HasBlockingFilter));
 
         RefreshOptions =
         [
@@ -734,8 +764,8 @@ public partial class DocumentViewModel : ViewModelBase
             var profile = _connections.Resolve(Connection, _database);
             var snapshot = await provider.GetActiveSessionsAsync(profile, ct);
             _currentSessionId = snapshot.CurrentSessionId;
-            _lastRowCount = snapshot.Sessions.Rows.Count;
             _lastSessions = snapshot.Sessions;
+            SyncMonitorDatabases(snapshot.Sessions);
             RenderSessions();
         }
         catch (OperationCanceledException)
@@ -761,14 +791,141 @@ public partial class DocumentViewModel : ViewModelBase
             return;
         }
 
-        var sorted = new QueryResult
+        var filtered = new QueryResult
         {
             Columns = sessions.Columns,
-            Rows = SortSessionRows(sessions),
+            Rows = FilterSessionRows(
+                sessions,
+                _databaseColumn,
+                _blockingColumn,
+                _sessionIdColumn,
+                SelectedMonitorDatabase == MonitorDatabases.FirstOrDefault() ? null : SelectedMonitorDatabase,
+                BlockingOnly),
             RecordsAffected = sessions.RecordsAffected,
             Elapsed = sessions.Elapsed
         };
+        _lastRowCount = filtered.Rows.Count;
+
+        var sorted = new QueryResult
+        {
+            Columns = filtered.Columns,
+            Rows = SortSessionRows(filtered),
+            RecordsAffected = filtered.RecordsAffected,
+            Elapsed = filtered.Elapsed
+        };
         SetResultSets([new ResultSetTab("Sessions", EditableResultSet.From(sorted))]);
+    }
+
+    // Rebuild the Database dropdown from the databases actually present in this snapshot, "(all)" first.
+    // Rewritten in place so the combo keeps its selection when the set is unchanged (every 5s otherwise
+    // it would flicker); a selected database that no longer has sessions falls back to "(all)".
+    private void SyncMonitorDatabases(QueryResult sessions)
+    {
+        if (!HasDatabaseFilter)
+        {
+            return;
+        }
+
+        var index = ColumnIndex(sessions, _databaseColumn);
+        var names = new List<string> { Loc["MonitorAllDatabases"] };
+        if (index >= 0)
+        {
+            names.AddRange(sessions.Rows
+                .Select(row => row[index]?.ToString())
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Select(name => name!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+        }
+
+        if (names.SequenceEqual(MonitorDatabases))
+        {
+            return;
+        }
+
+        var selected = SelectedMonitorDatabase;
+        MonitorDatabases.Clear();
+        foreach (var name in names)
+        {
+            MonitorDatabases.Add(name);
+        }
+
+        // Assigning the property re-renders through OnSelectedMonitorDatabaseChanged; the caller's own
+        // RenderSessions then runs against the settled selection.
+        SelectedMonitorDatabase = selected is not null && names.Contains(selected) ? selected : names[0];
+    }
+
+    /// <summary>Apply the monitor's two filters to a session snapshot: keep only rows in
+    /// <paramref name="database"/> (null = all), and — when <paramref name="blockingOnly"/> — only rows
+    /// involved in blocking, i.e. blocked sessions plus the sessions blocking them. Pure and static so it
+    /// can be exercised without a view-model; missing columns mean the corresponding filter is a no-op.</summary>
+    public static IReadOnlyList<object?[]> FilterSessionRows(
+        QueryResult sessions,
+        string databaseColumn,
+        string blockingColumn,
+        string sessionIdColumn,
+        string? database,
+        bool blockingOnly)
+    {
+        var rows = sessions.Rows;
+
+        if (blockingOnly)
+        {
+            var blockingIndex = ColumnIndex(sessions, blockingColumn);
+            var sessionIndex = ColumnIndex(sessions, sessionIdColumn);
+            if (blockingIndex >= 0)
+            {
+                // Blockers are resolved against the full snapshot, before the database filter — a blocker
+                // in another database is then dropped by that filter, which is what "show me database X" means.
+                var blockers = rows
+                    .Select(row => BlockerId(row[blockingIndex]))
+                    .Where(id => id is not null)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                rows = rows.Where(row =>
+                    BlockerId(row[blockingIndex]) is not null ||
+                    (sessionIndex >= 0 && blockers.Contains(row[sessionIndex]?.ToString() ?? string.Empty)))
+                    .ToList();
+            }
+        }
+
+        if (database is not null)
+        {
+            var index = ColumnIndex(sessions, databaseColumn);
+            if (index >= 0)
+            {
+                rows = rows
+                    .Where(row => string.Equals(row[index]?.ToString(), database, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+
+        return rows;
+    }
+
+    // A blocker id, or null when the cell says "not blocked" — engines write that as NULL or 0.
+    private static string? BlockerId(object? cell)
+    {
+        var text = cell is null or DBNull ? null : cell.ToString();
+        return string.IsNullOrEmpty(text) || text == "0" ? null : text;
+    }
+
+    private static int ColumnIndex(QueryResult sessions, string column)
+    {
+        if (column.Length == 0)
+        {
+            return -1;
+        }
+
+        for (var i = 0; i < sessions.Columns.Count; i++)
+        {
+            if (sessions.Columns[i].Name == column)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private IReadOnlyList<object?[]> SortSessionRows(QueryResult sessions)
@@ -778,16 +935,7 @@ public partial class DocumentViewModel : ViewModelBase
             return sessions.Rows;
         }
 
-        var index = -1;
-        for (var i = 0; i < sessions.Columns.Count; i++)
-        {
-            if (sessions.Columns[i].Name == _sortColumn)
-            {
-                index = i;
-                break;
-            }
-        }
-
+        var index = ColumnIndex(sessions, _sortColumn);
         if (index < 0)
         {
             return sessions.Rows;
