@@ -37,7 +37,7 @@ All of these are documented in
 [Optional capabilities](plugins/capabilities.md).
 
 All plugin contracts live in the single public SDK assembly
-`DataTray.Sdk` (`src/Sdk`, namespace `DataTray.Sdk.*`) —
+`DataTray.Sdk` (`src/DataTray.Sdk`, namespace `DataTray.Sdk.*`) —
 the only assembly a plugin references from this repository.
 
 ## Guides
@@ -53,10 +53,10 @@ the only assembly a plugin references from this repository.
 
 | Plugin | Type | Notable for |
 |---|---|---|
-| `src/Providers.Sqlite` | provider | Simplest complete example — no server/database/schema layers, good starting template. |
-| `src/Providers.Postgres` | provider | Full server → database → schema → table hierarchy; also the proof-of-concept that a provider builds independently of the host. |
-| `src/Providers.MySql` | provider | MySQL/MariaDB dialect quirks. |
-| `src/Providers.MsSql` | provider | SQL Server dialect and schema layering. |
+| `src/DataTray.Providers.Sqlite` | provider | Simplest complete example — no server/database/schema layers, good starting template. |
+| `src/DataTray.Providers.Postgres` | provider | Full server → database → schema → table hierarchy; also the proof-of-concept that a provider builds independently of the host. |
+| `src/DataTray.Providers.MySql` | provider | MySQL/MariaDB dialect quirks. |
+| `src/DataTray.Providers.MsSql` | provider | SQL Server dialect and schema layering. |
 | `plugins/Tools.UniversalBackup` | tool | Full `IToolPlugin` example (streaming backup/restore); also implements `IPluginSettings` (default backup folder). |
 | `plugins/Providers.Template` | provider | Debug-only reference example implementing **every** capability: `IPluginSettings` (Route A, all field types), `IShortcutContributor` (two shortcuts). The place to copy from. |
 
@@ -64,5 +64,5 @@ the only assembly a plugin references from this repository.
 
 The manifest's `type` field is a discriminator, so more plugin kinds can be added
 without a breaking format change. A per-dialect SQL formatter (currently a single
-host-owned `ISqlFormatter` baseline, see `src/Core/Formatting/`) is noted as a
+host-owned `ISqlFormatter` baseline, see `src/DataTray.Core/Formatting/`) is noted as a
 roadmap candidate.

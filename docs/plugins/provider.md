@@ -207,8 +207,10 @@ values and its changelog comments before starting a new provider.
 
 ### 1. Create the project
 
-Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
-**only** `Sdk`:
+Add a new project, referencing **only** `Sdk`. In-tree providers live in one of
+two places: `src/DataTray.Providers.<Engine>/` for one that ships bundled with
+the app, or `plugins/Providers.<Engine>/` for a store-only one that is installed
+from the Plugin Store (Debug builds stage those too, Release builds do not).
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -242,11 +244,11 @@ Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
 
 ### 2. Implement `IDbProvider` and `ISqlDialect`
 
-Use `src/Providers.Sqlite/SqliteProvider.cs` and `SqliteDialect.cs` as the
+Use `src/DataTray.Providers.Sqlite/SqliteProvider.cs` and `SqliteDialect.cs` as the
 simplest reference implementation (no server/database/schema layers — SQLite
 exposes Tables/Views/Sequences directly under the connection root). For an
 engine with server → database → schema layering, see
-`src/Providers.Postgres` or `src/Providers.MsSql`.
+`src/DataTray.Providers.Postgres` or `src/DataTray.Providers.MsSql`.
 
 Minimal skeleton:
 
@@ -328,7 +330,7 @@ plugins/
 ```
 
 For the first-party providers this copy is automated by an MSBuild target,
-`StageProviderPlugins`, in `src/Desktop/DataTray.Desktop.csproj`,
+`StageProviderPlugins`, in `src/DataTray.Desktop/DataTray.Desktop.csproj`,
 which runs after build and copies each `Providers.*` project's full output
 into `<TargetDir>/plugins/<id>/`. A genuinely third-party/out-of-tree plugin
 ships the same way manually — just place the built output (including the
