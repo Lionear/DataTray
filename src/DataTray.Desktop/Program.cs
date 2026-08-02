@@ -20,6 +20,13 @@ internal static class Program
         // plugin state, which AppServices does while building the container.
         var pluginIds = DataTray.Core.Migration.PluginIdMigration.Migrate();
 
+        // Until now an unhandled exception killed the app with nothing on disk, so every "it crashed"
+        // report arrived without a stack trace and died there. Same file as the restart lines — it is the
+        // one "what happened to this process" log — and the same never-throw contract. Registered after
+        // the migrations above for the app-data-root reason spelled out there.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            DataTray.App.RestartDiagnostics.Log($"crash: {e.ExceptionObject}");
+
         // A relaunch (Restart-app button / in-app updater) must always take over the UI. Skip the
         // single-instance probe when relaunched, so the new instance doesn't connect to the old one's pipe
         // (still open while it shuts down), defer to it and exit — which left no window at all (SE-125).
