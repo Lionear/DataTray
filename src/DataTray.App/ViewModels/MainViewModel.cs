@@ -74,6 +74,21 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private DocumentViewModel? _selectedDocument;
 
+    // Only the tab you can actually see polls: a backgrounded Activity Monitor querying the server every
+    // 5s is waste, and one less thing rebuilding a grid nobody is watching.
+    partial void OnSelectedDocumentChanged(DocumentViewModel? oldValue, DocumentViewModel? newValue)
+    {
+        if (oldValue is { IsMonitorMode: true } previous)
+        {
+            previous.PauseMonitor();
+        }
+
+        if (newValue is { IsMonitorMode: true } current)
+        {
+            current.ResumeMonitor();
+        }
+    }
+
     [ObservableProperty]
     private string _historySearch = string.Empty;
 

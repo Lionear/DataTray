@@ -958,6 +958,24 @@ public partial class DocumentViewModel : ViewModelBase
         return new CellActionContext(profile, provider, editable.Columns[columnIndex].Name, row.CurrentAt(columnIndex), values);
     }
 
+    /// <summary>Hold the auto-refresh while this tab isn't the visible one: polling the server every 5s for
+    /// a grid nobody is looking at is waste, and it kept replacing the tab's rows behind the user's back.
+    /// Unlike <see cref="StopMonitor"/> the timer is kept, so <see cref="ResumeMonitor"/> can pick it up.</summary>
+    public void PauseMonitor() => _refreshTimer?.Stop();
+
+    /// <summary>Resume auto-refresh when the tab comes back, with an immediate catch-up refresh so the grid
+    /// isn't showing a stale snapshot for up to one interval. No-op while the interval is Off.</summary>
+    public void ResumeMonitor()
+    {
+        if (_refreshTimer is null || SelectedRefreshOption is not { Seconds: > 0 })
+        {
+            return;
+        }
+
+        _refreshTimer.Start();
+        _ = RefreshMonitorAsync();
+    }
+
     /// <summary>Stop and release the auto-refresh timer — called when the monitor tab closes so it doesn't
     /// keep polling in the background.</summary>
     public void StopMonitor()
