@@ -9,5 +9,17 @@
   "shrinkfile.error.noFile": "Select a file to shrink.",
   "shrinkfile.progress.complete": "Shrink complete for file {0}.",
 
-  "shrink.progress.running": "Running: {0}"
+  "shrink.progress.running": "Running: {0}",
+
+  "agentjob.start.title": "Start Job",
+  "agentjob.start.description": "Starts the job now, at its first step. Agent runs it in the background — the outcome lands in the job's history, not here.",
+  "agentjob.stop.title": "Stop Job",
+  "agentjob.stop.description": "Asks Agent to stop the running job. A job that is not running reports an error rather than stopping silently.",
+  "agentjob.enable.title": "Enable Job",
+  "agentjob.enable.description": "Lets the job's schedules fire again. Does not start it now.",
+  "agentjob.disable.title": "Disable Job",
+  "agentjob.disable.description": "Stops the job's schedules from firing. A run already in progress keeps going.",
+  "agentjob.error.noJob": "Select an Agent job first.",
+  "agentjob.progress.running": "Running: {0}",
+  "agentjob.progress.complete": "Done: {0}."
 }
