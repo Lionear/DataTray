@@ -185,6 +185,8 @@ internal sealed class AgentJobSchedulesPage
             }
         };
 
+        // Same as the alerts page: nothing has selected a schedule yet, so settle the rows here.
+        SyncVisibility();
         return new ScrollViewer { Content = page, Padding = new Thickness(12) };
     }
 
@@ -252,7 +254,7 @@ internal sealed class AgentJobSchedulesPage
                 while (await reader.ReadAsync())
                 {
                     schedules.Add(new Schedule(
-                        reader.GetInt32(0), reader.GetString(1), reader.GetByte(2) == 1, reader.GetInt32(3),
+                        reader.GetInt32(0), reader.GetString(1), reader.GetInt32(2) == 1, reader.GetInt32(3),
                         reader.GetInt32(4), reader.GetInt32(5), reader.GetInt32(6), reader.GetInt32(7),
                         reader.GetInt32(8), reader.GetInt32(9), reader.GetInt32(10), reader.GetInt32(11),
                         reader.GetInt32(12)));

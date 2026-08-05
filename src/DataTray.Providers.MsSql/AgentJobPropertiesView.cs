@@ -240,7 +240,9 @@ public sealed class AgentJobPropertiesView : UserControl
         // retention (1000 rows, 100 per job by default) already bounds it.
         var table = new Table(
             ["Run", "Step", "Outcome", "Duration", "Message"],
-            [150, 190, 90, 80, 520]);
+            // Sized to what is left of a default-width dialog beside the rail, so the message —
+            // the whole reason to open this page — is readable without scrolling sideways first.
+            [140, 170, 85, 70, 265]);
 
         _ = LoadHistoryAsync(table);
         return new ScrollViewer { Content = table.Control, Padding = new Thickness(12) };

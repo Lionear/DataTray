@@ -144,6 +144,8 @@ internal sealed class AgentJobStepsPage
             }
         };
 
+        // A job with no steps never reaches ShowSelected, so hide the jump-to-step boxes up front.
+        SyncStepPickers();
         return new ScrollViewer { Content = page, Padding = new Thickness(12) };
     }
 
@@ -188,7 +190,10 @@ internal sealed class AgentJobStepsPage
                 """
                 SELECT s.step_id, s.step_name, s.subsystem, s.command, ISNULL(s.database_name, ''),
                        ISNULL(s.output_file_name, ''), s.retry_attempts, s.retry_interval,
-                       s.on_success_action, s.on_success_step_id, s.on_fail_action, s.on_fail_step_id,
+                       -- on_success_action and on_fail_action are tinyint while every other number here
+                       -- is int; cast so one reader call type covers the row.
+                       CAST(s.on_success_action AS int), s.on_success_step_id,
+                       CAST(s.on_fail_action AS int), s.on_fail_step_id,
                        ISNULL(p.name, ''), s.last_run_outcome
                 FROM msdb.dbo.sysjobsteps s
                 JOIN msdb.dbo.sysjobs j ON j.job_id = s.job_id

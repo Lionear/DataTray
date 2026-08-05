@@ -120,6 +120,8 @@ internal sealed class AgentJobAlertsPage
             }
         };
 
+        // An empty list means neither ShowSelected nor NewAlert has run, so settle the conditional rows here.
+        SyncVisibility();
         return new ScrollViewer { Content = page, Padding = new Thickness(12) };
     }
 
