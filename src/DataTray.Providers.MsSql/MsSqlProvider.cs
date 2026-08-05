@@ -87,11 +87,14 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
     // Route B, third capability: SQL Server's "Database Properties" dialog on a Database node. Read-only,
     // no Execute/progress — the host shows the view in generic info-dialog chrome.
-    public bool HasInfoFor(DbNodeRef node) => node.Kind == DbNodeKind.Database;
+    public bool HasInfoFor(DbNodeRef node) => node.Kind is DbNodeKind.Database or DbNodeKind.AgentJob;
 
-    public string InfoTitle(DbNodeRef node) => "Database Properties";
+    public string InfoTitle(DbNodeRef node) =>
+        node.Kind == DbNodeKind.AgentJob ? "Job Properties" : "Database Properties";
 
-    public Control CreateInfoView(NodeInfoContext context) => new DatabasePropertiesView(context);
+    public Control CreateInfoView(NodeInfoContext context) => context.Node.Kind == DbNodeKind.AgentJob
+        ? new AgentJobPropertiesView(context)
+        : new DatabasePropertiesView(context);
 
     public string DisplayName => "Microsoft SQL Server";
 
