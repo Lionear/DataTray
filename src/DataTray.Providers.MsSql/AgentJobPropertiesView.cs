@@ -17,15 +17,15 @@ namespace DataTray.Providers.MsSql;
 /// <remarks>
 /// SSMS' rail is General / Steps / Schedules / Alerts / Notifications / Targets, with history in a separate
 /// Log File Viewer window; here History is the last page instead, so the dialog you open to ask "why did
-/// this fail" answers it without a second window. Schedules, Alerts, Notifications and Targets are still to
-/// come — a rail entry that opens an apology is worse than one that is not there yet.
+/// this fail" answers it without a second window. Alerts, Notifications and Targets are still to come — a
+/// rail entry that opens an apology is worse than one that is not there yet.
 ///
 /// <see cref="NodeInfoContext"/> is documented as read-only but hands over the provider, so the write path
 /// goes through the same <c>ExecuteDdlAsync</c> the Agent job tools use. No host API bump needed.
 /// </remarks>
 public sealed class AgentJobPropertiesView : UserControl
 {
-    private static readonly string[] Pages = ["General", "Steps", "History"];
+    private static readonly string[] Pages = ["General", "Steps", "Schedules", "History"];
 
     private readonly NodeInfoContext _context;
     private readonly string _job;
@@ -67,7 +67,8 @@ public sealed class AgentJobPropertiesView : UserControl
         {
             0 => BuildGeneral(),
             1 => new AgentJobStepsPage(_context).Control,
-            2 => BuildHistory(),
+            2 => new AgentJobSchedulesPage(_context).Control,
+            3 => BuildHistory(),
             _ => new TextBlock()
         };
 
