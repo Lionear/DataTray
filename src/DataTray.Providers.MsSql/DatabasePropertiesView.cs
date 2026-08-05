@@ -24,7 +24,9 @@ public sealed class DatabasePropertiesView : UserControl
 
     private readonly NodeInfoContext _context;
     private readonly string _database;
-    private readonly ContentControl _host = new();
+    // A ScrollViewer rather than a ContentControl: the dialog no longer scrolls the whole view,
+    // so each page carries its own scrolling and the page rail stays where it is.
+    private readonly ScrollViewer _host = new();
     private readonly Control?[] _built = new Control?[Pages.Length];
 
     public DatabasePropertiesView(NodeInfoContext context)

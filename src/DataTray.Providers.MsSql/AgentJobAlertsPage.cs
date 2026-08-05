@@ -81,25 +81,27 @@ internal sealed class AgentJobAlertsPage
             Spacing = 8,
             Children =
             {
-                Row("Error number / severity (0 = ignore)", _messageId, _severity),
-                Labelled("Database", _database),
-                Labelled("Only when the message contains", _keyword)
+                FormBits.Row("Error number / severity (0 = ignore)", _messageId, _severity),
+                FormBits.Labelled("Database", _database),
+                FormBits.Labelled("Only when the message contains", _keyword)
             }
         };
-        _performanceRow = Labelled("Condition", _performance);
+        _performanceRow = FormBits.Labelled("Condition", _performance);
 
         var form = new StackPanel
         {
-            Spacing = 8,
+            Spacing = 10,
             Children =
             {
-                Labelled("Name", _name),
+                FormBits.Section("Alert"),
+                FormBits.Labelled("Name", _name),
                 _enabled,
-                Labelled("Type", _kind),
+                FormBits.Labelled("Type", _kind),
                 _eventRows,
                 _performanceRow,
-                Row("Delay between responses (seconds)", _delay),
-                Labelled("Notification message", _message),
+                FormBits.Section("Response"),
+                FormBits.Row("Delay between responses (seconds)", _delay),
+                FormBits.Labelled("Notification message", _message),
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
@@ -108,38 +110,15 @@ internal sealed class AgentJobAlertsPage
             }
         };
 
-        var page = new StackPanel
-        {
-            Spacing = 8,
-            Children =
-            {
-                new TextBlock { Text = "Alerts that run this job", FontWeight = FontWeight.SemiBold },
-                _list,
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { add, delete } },
-                form
-            }
-        };
+        var page = FormBits.Page(
+            FormBits.Section("Alerts that run this job"),
+            _list,
+            new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { add, delete } },
+            form);
 
         // An empty list means neither ShowSelected nor NewAlert has run, so settle the conditional rows here.
         SyncVisibility();
-        return new ScrollViewer { Content = page, Padding = new Thickness(12) };
-    }
-
-    private static Control Labelled(string label, Control editor) => new StackPanel
-    {
-        Spacing = 2,
-        Children = { new TextBlock { Text = label, Opacity = 0.65 }, editor }
-    };
-
-    private static Control Row(string label, params Control[] controls)
-    {
-        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        foreach (var control in controls)
-        {
-            line.Children.Add(control);
-        }
-
-        return new StackPanel { Spacing = 2, Children = { new TextBlock { Text = label, Opacity = 0.65 }, line } };
+        return page;
     }
 
     private async Task GuardAsync(Button button, Func<Task> action)

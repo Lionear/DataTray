@@ -135,36 +135,38 @@ internal sealed class AgentJobSchedulesPage
             dayBoxes.Children.Add(box);
         }
 
-        _recurrenceRow = Row("Recurs every", _recurrence, _recurrenceUnit);
+        _recurrenceRow = FormBits.Row("Recurs every", _recurrence, _recurrenceUnit);
         _weeklyRow = new StackPanel
         {
             Spacing = 2,
             Children = { new TextBlock { Text = "On these days", Opacity = 0.65 }, dayBoxes }
         };
-        _monthlyRow = Row("Day of the month", _dayOfMonth);
-        _relativeRow = Row("On the", _ordinal, _relativeDay);
+        _monthlyRow = FormBits.Row("Day of the month", _dayOfMonth);
+        _relativeRow = FormBits.Row("On the", _ordinal, _relativeDay);
         // Each control sits in exactly one row: the start time is always shown when the schedule has a time
         // at all, and the end time only when it repeats inside a window.
-        _timeRow = Row("Occurs", _subdayType, _subdayInterval);
-        _startRow = Row("At / from", _startTime);
-        _windowRow = Row("Until", _endTime);
+        _timeRow = FormBits.Row("Occurs", _subdayType, _subdayInterval);
+        _startRow = FormBits.Row("At / from", _startTime);
+        _windowRow = FormBits.Row("Until", _endTime);
 
         var form = new StackPanel
         {
-            Spacing = 8,
+            Spacing = 10,
             Children =
             {
-                Labelled("Name", _name),
+                FormBits.Section("Schedule"),
+                FormBits.Labelled("Name", _name),
                 _enabled,
-                Labelled("Frequency", _frequency),
+                FormBits.Labelled("Frequency", _frequency),
                 _recurrenceRow,
                 _weeklyRow,
                 _monthlyRow,
                 _relativeRow,
+                FormBits.Section("Time of day"),
                 _timeRow,
                 _startRow,
                 _windowRow,
-                Row("Starts / ends (yyyy-mm-dd)", _startDate, _endDate),
+                FormBits.Row("Starts / ends (yyyy-mm-dd)", _startDate, _endDate),
                 _summary,
                 new StackPanel
                 {
@@ -174,41 +176,15 @@ internal sealed class AgentJobSchedulesPage
             }
         };
 
-        var page = new StackPanel
-        {
-            Spacing = 8,
-            Children =
-            {
-                _list,
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { add, remove } },
-                form
-            }
-        };
+        var page = FormBits.Page(
+            FormBits.Section("Schedules on this job"),
+            _list,
+            new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { add, remove } },
+            form);
 
         // Same as the alerts page: nothing has selected a schedule yet, so settle the rows here.
         SyncVisibility();
-        return new ScrollViewer { Content = page, Padding = new Thickness(12) };
-    }
-
-    private static Control Labelled(string label, Control editor) => new StackPanel
-    {
-        Spacing = 2,
-        Children = { new TextBlock { Text = label, Opacity = 0.65 }, editor }
-    };
-
-    private static Control Row(string label, params Control[] controls)
-    {
-        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        foreach (var control in controls)
-        {
-            line.Children.Add(control);
-        }
-
-        return new StackPanel
-        {
-            Spacing = 2,
-            Children = { new TextBlock { Text = label, Opacity = 0.65 }, line }
-        };
+        return page;
     }
 
     private async Task GuardAsync(Button button, Func<Task> action)

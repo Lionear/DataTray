@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
@@ -152,4 +153,74 @@ internal sealed class Table
         _status.IsVisible = true;
         _status.Text = $"(unavailable: {ex.Message})";
     });
+}
+
+/// <summary>
+/// The pieces the editable Agent job pages are laid out from. They started as a copy of the same two static
+/// helpers in three pages, which is how three pages drift into looking like three products.
+/// </summary>
+internal static class FormBits
+{
+    /// <summary>How wide an editor column gets. Wide enough for a path or a command, narrow enough that a
+    /// maximised dialog does not stretch a text box across the whole screen.</summary>
+    public const double ColumnWidth = 620;
+
+    /// <summary>Half a column, for two short fields side by side.</summary>
+    private const double HalfWidth = (ColumnWidth - 16) / 2;
+
+    public static TextBlock Section(string header) => new()
+    {
+        Text = header,
+        FontWeight = FontWeight.SemiBold,
+        Margin = new Thickness(0, 6, 0, 0)
+    };
+
+    /// <summary>A label above its editor.</summary>
+    public static Control Labelled(string label, Control editor) => new StackPanel
+    {
+        Spacing = 3,
+        Children = { new TextBlock { Text = label, Opacity = 0.65 }, editor }
+    };
+
+    /// <summary>A label above a run of controls that belong together (a number and its unit, say).</summary>
+    public static Control Row(string label, params Control[] controls)
+    {
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        foreach (var control in controls)
+        {
+            line.Children.Add(control);
+        }
+
+        return Labelled(label, line);
+    }
+
+    /// <summary>Two labelled fields side by side, each half a column.</summary>
+    public static Control Pair(Control left, Control right)
+    {
+        left.Width = HalfWidth;
+        right.Width = HalfWidth;
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 16,
+            Children = { left, right }
+        };
+    }
+
+    /// <summary>The page body: one column, left-aligned, so nothing stretches to the window's width.</summary>
+    public static Control Page(params Control[] children)
+    {
+        var stack = new StackPanel
+        {
+            Spacing = 10,
+            MaxWidth = ColumnWidth,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        foreach (var child in children)
+        {
+            stack.Children.Add(child);
+        }
+
+        return new ScrollViewer { Content = stack, Padding = new Thickness(4, 0, 14, 12) };
+    }
 }

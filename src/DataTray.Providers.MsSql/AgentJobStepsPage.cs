@@ -47,7 +47,7 @@ internal sealed class AgentJobStepsPage
     private readonly ComboBox _subsystem = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox _proxy = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBox _database = new();
-    private readonly TextBox _command = new() { AcceptsReturn = true, Height = 150, TextWrapping = TextWrapping.Wrap, FontFamily = FontFamily.Parse("Consolas, Menlo, monospace") };
+    private readonly TextBox _command = new() { AcceptsReturn = true, Height = 120, TextWrapping = TextWrapping.Wrap, FontFamily = FontFamily.Parse("Consolas, Menlo, monospace") };
     private readonly TextBox _outputFile = new();
     private readonly NumericUpDown _retries = new() { Minimum = 0, Maximum = 9999, Width = 100 };
     private readonly NumericUpDown _retryInterval = new() { Minimum = 0, Maximum = 9999, Width = 100 };
@@ -97,30 +97,22 @@ internal sealed class AgentJobStepsPage
 
         var editor = new StackPanel
         {
-            Spacing = 8,
+            Spacing = 10,
             Children =
             {
-                Labelled("Step name", _name),
-                Labelled("Type", _subsystem),
-                Labelled("Run as", _proxy),
-                Labelled("Database", _database),
-                Labelled("Command", _command),
-                Labelled("Output file", _outputFile),
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, Spacing = 16,
-                    Children = { Labelled("Retry attempts", _retries), Labelled("Retry interval (min)", _retryInterval) }
-                },
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, Spacing = 16,
-                    Children = { Labelled("On success", _onSuccess), Labelled("Step", _onSuccessStep) }
-                },
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, Spacing = 16,
-                    Children = { Labelled("On failure", _onFail), Labelled("Step", _onFailStep) }
-                },
+                FormBits.Section("Step"),
+                FormBits.Labelled("Step name", _name),
+                FormBits.Pair(FormBits.Labelled("Type", _subsystem), FormBits.Labelled("Run as", _proxy)),
+                FormBits.Pair(FormBits.Labelled("Database", _database),
+                    FormBits.Labelled("Output file", _outputFile)),
+                FormBits.Labelled("Command", _command),
+                FormBits.Section("On completion"),
+                FormBits.Pair(FormBits.Labelled("Retry attempts", _retries),
+                    FormBits.Labelled("Retry interval (min)", _retryInterval)),
+                FormBits.Pair(FormBits.Labelled("On success", _onSuccess),
+                    FormBits.Labelled("Go to step", _onSuccessStep)),
+                FormBits.Pair(FormBits.Labelled("On failure", _onFail),
+                    FormBits.Labelled("Go to step", _onFailStep)),
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
@@ -129,31 +121,20 @@ internal sealed class AgentJobStepsPage
             }
         };
 
-        var page = new StackPanel
-        {
-            Spacing = 8,
-            Children =
+        var page = FormBits.Page(
+            FormBits.Section("Steps in this job"),
+            _list,
+            new StackPanel
             {
-                _list,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, Spacing = 6,
-                    Children = { add, delete, up, down }
-                },
-                editor
-            }
-        };
+                Orientation = Orientation.Horizontal, Spacing = 6,
+                Children = { add, delete, up, down }
+            },
+            editor);
 
         // A job with no steps never reaches ShowSelected, so hide the jump-to-step boxes up front.
         SyncStepPickers();
-        return new ScrollViewer { Content = page, Padding = new Thickness(12) };
+        return page;
     }
-
-    private static Control Labelled(string label, Control editor) => new StackPanel
-    {
-        Spacing = 2,
-        Children = { new TextBlock { Text = label, Opacity = 0.65 }, editor }
-    };
 
     // Run a button's action with the button disabled, and put whatever went wrong where the user can read it.
     private async Task GuardAsync(Button button, Func<Task> action)

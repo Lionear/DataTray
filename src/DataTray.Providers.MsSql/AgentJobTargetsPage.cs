@@ -63,24 +63,18 @@ internal sealed class AgentJobTargetsPage
             }
         };
 
-        var page = new StackPanel
-        {
-            Spacing = 10,
-            Children =
+        var page = FormBits.Page(
+            FormBits.Section("Servers that run this job"),
+            _local,
+            _targetsHeader,
+            _targets,
+            new StackPanel
             {
-                new TextBlock { Text = "Servers that run this job", FontWeight = FontWeight.SemiBold },
-                _local,
-                _targetsHeader,
-                _targets,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8, Children = { _status, save }
-                }
-            }
-        };
+                Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
+                Spacing = 8, Children = { _status, save }
+            });
 
-        return new ScrollViewer { Content = page, Padding = new Thickness(12) };
+        return page;
     }
 
     private async Task ReloadAsync()

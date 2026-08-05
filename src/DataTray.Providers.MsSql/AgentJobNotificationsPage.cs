@@ -82,25 +82,19 @@ internal sealed class AgentJobNotificationsPage
             }
         };
 
-        var page = new StackPanel
-        {
-            Spacing = 10,
-            Children =
+        var page = FormBits.Page(
+            FormBits.Section("When this job completes, notify"),
+            Channel("E-mail", _emailLevel, _emailOperator),
+            Channel("Net send", _netSendLevel, _netSendOperator),
+            Channel("Pager", _pageLevel, _pageOperator),
+            Channel("Windows application event log", _eventLogLevel, null),
+            new StackPanel
             {
-                new TextBlock { Text = "When this job completes, notify:", FontWeight = FontWeight.SemiBold },
-                Channel("E-mail", _emailLevel, _emailOperator),
-                Channel("Net send", _netSendLevel, _netSendOperator),
-                Channel("Pager", _pageLevel, _pageOperator),
-                Channel("Windows application event log", _eventLogLevel, null),
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8, Children = { _status, save }
-                }
-            }
-        };
+                Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
+                Spacing = 8, Children = { _status, save }
+            });
 
-        return new ScrollViewer { Content = page, Padding = new Thickness(12) };
+        return page;
     }
 
     private static Control Channel(string label, ComboBox level, ComboBox? target)
@@ -111,11 +105,7 @@ internal sealed class AgentJobNotificationsPage
             line.Children.Add(target);
         }
 
-        return new StackPanel
-        {
-            Spacing = 2,
-            Children = { new TextBlock { Text = label, Opacity = 0.65 }, line }
-        };
+        return FormBits.Labelled(label, line);
     }
 
     private async Task LoadAsync()
