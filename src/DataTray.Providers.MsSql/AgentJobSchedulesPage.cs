@@ -21,7 +21,7 @@ namespace DataTray.Providers.MsSql;
 /// other job still uses it. Fields that do not apply to the chosen frequency are hidden rather than disabled,
 /// because a greyed-out weekday picker on a monthly schedule is noise.
 /// </remarks>
-internal sealed class AgentJobSchedulesPage
+internal sealed class AgentJobSchedulesPage : IJobPage
 {
     private static readonly (int Value, string Label)[] Frequencies =
     [
@@ -60,9 +60,11 @@ internal sealed class AgentJobSchedulesPage
 
     private readonly NodeInfoContext _context;
     private readonly string _job;
+    private readonly Action<string> _report;
 
-    private readonly ListBox _list = new() { Height = 120 };
-    private readonly TextBlock _status = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+    private readonly SelectTable _table = new(
+        ["Name", "Enabled", "Recurrence"],
+        [180, 70, 0]);
     private readonly TextBlock _summary = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold };
 
     private readonly TextBox _name = new();
@@ -92,15 +94,18 @@ internal sealed class AgentJobSchedulesPage
     private List<Schedule> _schedules = [];
     private bool _loading;
 
-    public AgentJobSchedulesPage(NodeInfoContext context)
+    public AgentJobSchedulesPage(NodeInfoContext context, Action<string> report)
     {
         _context = context;
         _job = context.Node.Name;
+        _report = report;
         Control = Build();
         _ = ReloadAsync(select: 0);
     }
 
     public Control Control { get; }
+
+    public string ActionLabel => "Save schedule";
 
     private sealed record Schedule(
         int Id, string Name, bool Enabled, int FreqType, int FreqInterval, int SubdayType, int SubdayInterval,
@@ -108,7 +113,7 @@ internal sealed class AgentJobSchedulesPage
 
     private Control Build()
     {
-        _list.SelectionChanged += (_, _) => ShowSelected();
+        _table.SelectionChanged += ShowSelected;
         _frequency.ItemsSource = Frequencies.Select(f => f.Label).ToList();
         _subdayType.ItemsSource = SubdayTypes.Select(s => s.Label).ToList();
         _ordinal.ItemsSource = Ordinals.Select(o => o.Label).ToList();
@@ -123,11 +128,9 @@ internal sealed class AgentJobSchedulesPage
 
         var add = new Button { Content = "New" };
         var remove = new Button { Content = "Remove" };
-        var save = new Button { Content = "Save schedule", HorizontalAlignment = HorizontalAlignment.Right };
 
         add.Click += (_, _) => NewSchedule();
         remove.Click += async (_, _) => await GuardAsync(remove, RemoveSelectedAsync);
-        save.Click += async (_, _) => await GuardAsync(save, SaveSelectedAsync);
 
         var dayBoxes = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         foreach (var box in _weekDays)
@@ -167,18 +170,13 @@ internal sealed class AgentJobSchedulesPage
                 _startRow,
                 _windowRow,
                 FormBits.Row("Starts / ends (yyyy-mm-dd)", _startDate, _endDate),
-                _summary,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8, Children = { _status, save }
-                }
+                _summary
             }
         };
 
         var page = FormBits.Page(
             FormBits.Section("Schedules on this job"),
-            _list,
+            _table.Control,
             new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { add, remove } },
             form);
 
@@ -196,7 +194,7 @@ internal sealed class AgentJobSchedulesPage
         }
         catch (Exception ex)
         {
-            _status.Text = ex.Message;
+            _report(ex.Message);
         }
         finally
         {
@@ -237,12 +235,11 @@ internal sealed class AgentJobSchedulesPage
                 }
             }
 
+            Dispatcher.UIThread.Post(() => _schedules = schedules);
+            _table.Fill(schedules.Select(Row).ToList(), "This job has no schedules.");
             Dispatcher.UIThread.Post(() =>
             {
-                _schedules = schedules;
-                _list.ItemsSource = schedules.Select(Line).ToList();
-                _list.SelectedIndex = schedules.Count == 0 ? -1 : Math.Clamp(select, 0, schedules.Count - 1);
-                _status.Text = schedules.Count == 0 ? "This job has no schedules." : "";
+                _table.SelectedIndex = schedules.Count == 0 ? -1 : Math.Clamp(select, 0, schedules.Count - 1);
                 if (schedules.Count == 0)
                 {
                     _summary.Text = "";
@@ -251,12 +248,16 @@ internal sealed class AgentJobSchedulesPage
         }
         catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => _status.Text = ex.Message);
+            _report(ex.Message);
         }
     }
 
-    private static string Line(Schedule s) =>
-        $"{s.Name}{(s.Enabled ? "" : "  (disabled)")} — {Describe(s)}";
+    private static Cell[] Row(Schedule s) =>
+    [
+        new(s.Name),
+        new(s.Enabled ? "yes" : "no", s.Enabled ? null : AgentJobStepsPage.OutcomeBrush("canceled")),
+        new(Describe(s))
+    ];
 
     private static string Describe(Schedule s) => AgentScheduleText.Describe(
         s.FreqType, s.FreqInterval, s.SubdayType, s.SubdayInterval, s.RelativeInterval, s.RecurrenceFactor,
@@ -264,13 +265,13 @@ internal sealed class AgentJobSchedulesPage
 
     private void ShowSelected()
     {
-        if (_list.SelectedIndex < 0 || _list.SelectedIndex >= _schedules.Count)
+        if (_table.SelectedIndex < 0 || _table.SelectedIndex >= _schedules.Count)
         {
             return;
         }
 
         _loading = true;
-        var s = _schedules[_list.SelectedIndex];
+        var s = _schedules[_table.SelectedIndex];
         _name.Text = s.Name;
         _enabled.IsChecked = s.Enabled;
         _frequency.SelectedIndex = Math.Max(0, Array.FindIndex(Frequencies, f => f.Value == s.FreqType));
@@ -297,7 +298,7 @@ internal sealed class AgentJobSchedulesPage
     private void NewSchedule()
     {
         _loading = true;
-        _list.SelectedIndex = -1;
+        _table.SelectedIndex = -1;
         _name.Text = $"{_job} schedule";
         _enabled.IsChecked = true;
         _frequency.SelectedIndex = 0;
@@ -319,7 +320,7 @@ internal sealed class AgentJobSchedulesPage
         _loading = false;
 
         SyncVisibility();
-        _status.Text = "New schedule — Save schedule creates it and attaches it to this job.";
+        _report("New schedule — Save schedule creates it and attaches it to this job.");
     }
 
     // Only show what the chosen frequency actually uses; a greyed-out weekday picker on a monthly schedule
@@ -360,22 +361,22 @@ internal sealed class AgentJobSchedulesPage
 
     // ── Write ────────────────────────────────────────────────────────────────────────────────────────
 
-    private async Task SaveSelectedAsync()
+    public async Task SaveAsync()
     {
         if (string.IsNullOrWhiteSpace(_name.Text))
         {
-            _status.Text = "A schedule needs a name.";
+            _report("A schedule needs a name.");
             return;
         }
 
         var freq = Pick(_frequency, Frequencies);
         if (freq == AgentScheduleText.Weekly && Interval(freq) == 0)
         {
-            _status.Text = "A weekly schedule needs at least one day.";
+            _report("A weekly schedule needs at least one day.");
             return;
         }
 
-        var isNew = _list.SelectedIndex < 0;
+        var isNew = _table.SelectedIndex < 0;
         var settings =
             $"@enabled = {(_enabled.IsChecked == true ? 1 : 0)}" +
             $", @freq_type = {freq}" +
@@ -396,31 +397,31 @@ internal sealed class AgentJobSchedulesPage
                 $"EXEC msdb.dbo.sp_add_schedule @schedule_name = N'{Escape(_name.Text)}', {settings};\n"
                 + $"EXEC msdb.dbo.sp_attach_schedule @job_name = N'{Escape(_job)}', "
                 + $"@schedule_name = N'{Escape(_name.Text)}';");
-            _status.Text = "Schedule created and attached.";
+            _report("Schedule created and attached.");
         }
         else
         {
-            var current = _schedules[_list.SelectedIndex];
+            var current = _schedules[_table.SelectedIndex];
             await ExecuteAsync($"EXEC msdb.dbo.sp_update_schedule @schedule_id = {current.Id}"
                                + $", @new_name = N'{Escape(_name.Text)}', {settings}");
-            _status.Text = "Schedule saved.";
+            _report("Schedule saved.");
         }
 
-        await ReloadAsync(select: isNew ? _schedules.Count : _list.SelectedIndex);
+        await ReloadAsync(select: isNew ? _schedules.Count : _table.SelectedIndex);
     }
 
     private async Task RemoveSelectedAsync()
     {
-        if (_list.SelectedIndex < 0)
+        if (_table.SelectedIndex < 0)
         {
             return;
         }
 
         // Detach, and let Agent drop the schedule itself only when no other job still points at it.
-        var index = _list.SelectedIndex;
+        var index = _table.SelectedIndex;
         await ExecuteAsync($"EXEC msdb.dbo.sp_detach_schedule @job_name = N'{Escape(_job)}', "
                            + $"@schedule_id = {_schedules[index].Id}, @delete_unused_schedule = 1");
-        _status.Text = "Schedule removed.";
+        _report("Schedule removed.");
         await ReloadAsync(select: Math.Max(0, index - 1));
     }
 

@@ -17,7 +17,7 @@ namespace DataTray.Providers.MsSql;
 /// <c>sp_add_job</c> without <c>sp_add_jobserver</c> leaves exactly that. Multi-server targets only exist on
 /// a master server, so the list appears only when <c>systargetservers</c> has rows.
 /// </remarks>
-internal sealed class AgentJobTargetsPage
+internal sealed class AgentJobTargetsPage : IJobPage
 {
     private const string LocalServer = "(local)";
 
@@ -27,55 +27,37 @@ internal sealed class AgentJobTargetsPage
     private readonly CheckBox _local = new() { Content = "Target the local server" };
     private readonly StackPanel _targets = new() { Spacing = 4 };
     private readonly TextBlock _targetsHeader = new() { Opacity = 0.65, IsVisible = false };
-    private readonly TextBlock _status = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+    private readonly Action<string> _report;
 
     private readonly List<CheckBox> _targetBoxes = [];
     private HashSet<string> _attached = [];
     private string _localName = "";
 
-    public AgentJobTargetsPage(NodeInfoContext context)
+    public AgentJobTargetsPage(NodeInfoContext context, Action<string> report)
     {
         _context = context;
         _job = context.Node.Name;
+        _report = report;
         Control = Build();
         _ = ReloadAsync();
     }
 
     public Control Control { get; }
 
-    private Control Build()
-    {
-        var save = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
-        save.Click += async (_, _) =>
+    public string ActionLabel => "Save";
+
+    private Control Build() => FormBits.Page(
+        FormBits.Section("Servers that run this job"),
+        _local,
+        _targetsHeader,
+        _targets,
+        new TextBlock
         {
-            save.IsEnabled = false;
-            try
-            {
-                await SaveAsync();
-            }
-            catch (Exception ex)
-            {
-                _status.Text = ex.Message;
-            }
-            finally
-            {
-                save.IsEnabled = true;
-            }
-        };
-
-        var page = FormBits.Page(
-            FormBits.Section("Servers that run this job"),
-            _local,
-            _targetsHeader,
-            _targets,
-            new StackPanel
-            {
-                Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                Spacing = 8, Children = { _status, save }
-            });
-
-        return page;
-    }
+            Text = "Target servers appear here as well on a master server. A job with no server checked is "
+                   + "configured but will never fire.",
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap
+        });
 
     private async Task ReloadAsync()
     {
@@ -137,18 +119,19 @@ internal sealed class AgentJobTargetsPage
                     _targets.Children.Add(box);
                 }
 
-                _status.Text = attached.Count == 0
-                    ? "No server runs this job — it is configured but will never fire."
-                    : "";
+                if (attached.Count == 0)
+                {
+                    _report("No server runs this job — it is configured but will never fire.");
+                }
             });
         }
         catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => _status.Text = ex.Message);
+            _report(ex.Message);
         }
     }
 
-    private async Task SaveAsync()
+    public async Task SaveAsync()
     {
         var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (_local.IsChecked == true)
@@ -176,13 +159,13 @@ internal sealed class AgentJobTargetsPage
 
         if (statements.Count == 0)
         {
-            _status.Text = "Nothing to change.";
+            _report("Nothing to change.");
             return;
         }
 
         await _context.Provider.ExecuteDdlAsync(_context.Profile, string.Join(";\n", statements),
             CancellationToken.None);
-        _status.Text = "Targets saved.";
+        _report("Targets saved.");
         await ReloadAsync();
     }
 

@@ -132,6 +132,7 @@ internal sealed class Table
         for (var r = 0; r < rows.Count; r++)
         {
             _grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var cells = new List<Border>();
             for (var c = 0; c < _columns; c++)
             {
                 var cell = new TextBlock
@@ -223,4 +224,144 @@ internal static class FormBits
 
         return new ScrollViewer { Content = stack, Padding = new Thickness(4, 0, 14, 12) };
     }
+}
+
+/// <summary>One cell: its text, and optionally a colour when the value carries a verdict.</summary>
+internal sealed record Cell(string Text, IBrush? Foreground = null);
+
+/// <summary>
+/// A table you can pick a row in — the list half of every master/detail page in the Agent job dialog. The
+/// plugin cannot reach a DataGrid (it references Avalonia core only), and a ListBox of packed sentences is
+/// what this replaces: "1 — Full backup (TSQL, last: succeeded)" is a row pretending to be four columns.
+/// </summary>
+internal sealed class SelectTable
+{
+    private readonly Grid _grid = new();
+    // One entry per row, holding that row's cell borders — the highlight covers the whole width.
+    private readonly List<List<Border>> _rows = [];
+    private readonly TextBlock _empty = new() { Opacity = 0.7, Margin = new Thickness(9, 8, 0, 0) };
+    private readonly int _columns;
+
+    private int _selected = -1;
+
+    public SelectTable(string[] headers, double[] widths, double height = 132)
+    {
+        _columns = headers.Length;
+        foreach (var w in widths)
+        {
+            _grid.ColumnDefinitions.Add(new ColumnDefinition(w <= 0
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(w, GridUnitType.Pixel)));
+        }
+
+        _grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        for (var c = 0; c < headers.Length; c++)
+        {
+            var header = new TextBlock
+            {
+                Text = headers[c],
+                FontWeight = FontWeight.SemiBold,
+                Opacity = 0.75,
+                Margin = new Thickness(9, 4, 9, 5)
+            };
+            Grid.SetColumn(header, c);
+            _grid.Children.Add(header);
+        }
+
+        Control = new Border
+        {
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(40, 128, 128, 128)),
+            CornerRadius = new CornerRadius(4),
+            Height = height,
+            Child = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = new StackPanel { Children = { _grid, _empty } }
+            }
+        };
+    }
+
+    public Control Control { get; }
+
+    public int SelectedIndex
+    {
+        get => _selected;
+        set
+        {
+            _selected = value;
+            for (var i = 0; i < _rows.Count; i++)
+            {
+                IBrush brush = i == value
+                    ? new SolidColorBrush(Color.FromArgb(60, 90, 140, 240))
+                    : Brushes.Transparent;
+                foreach (var cell in _rows[i])
+                {
+                    cell.Background = brush;
+                }
+            }
+
+            SelectionChanged?.Invoke();
+        }
+    }
+
+    public event Action? SelectionChanged;
+
+    /// <summary>Replace every row. <paramref name="emptyText"/> shows when there are none.</summary>
+    public void Fill(IReadOnlyList<Cell[]> rows, string emptyText) => Dispatcher.UIThread.Post(() =>
+    {
+        for (var i = _grid.Children.Count - 1; i >= 0; i--)
+        {
+            if (Grid.GetRow(_grid.Children[i]) > 0)
+            {
+                _grid.Children.RemoveAt(i);
+            }
+        }
+
+        while (_grid.RowDefinitions.Count > 1)
+        {
+            _grid.RowDefinitions.RemoveAt(_grid.RowDefinitions.Count - 1);
+        }
+
+        _rows.Clear();
+        _empty.Text = emptyText;
+        _empty.IsVisible = rows.Count == 0;
+
+        for (var r = 0; r < rows.Count; r++)
+        {
+            _grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var cells = new List<Border>();
+            for (var c = 0; c < _columns; c++)
+            {
+                var cell = c < rows[r].Length ? rows[r][c] : new Cell("");
+                // Every cell of a row is its own Border so the whole width highlights, not just the text.
+                // Assigning a null Foreground is not "leave the default" in Avalonia, it is "no brush" —
+                // and a cell with no brush draws nothing at all.
+                var text = new TextBlock { Text = cell.Text, TextWrapping = TextWrapping.Wrap };
+                if (cell.Foreground is not null)
+                {
+                    text.Foreground = cell.Foreground;
+                }
+
+                var box = new Border { Padding = new Thickness(9, 3, 9, 3), Child = text };
+                var index = r;
+                box.PointerPressed += (_, _) => SelectedIndex = index;
+                Grid.SetColumn(box, c);
+                Grid.SetRow(box, r + 1);
+                _grid.Children.Add(box);
+                cells.Add(box);
+            }
+
+            _rows.Add(cells);
+        }
+
+        // Re-apply the highlight to whatever row index is current.
+        SelectedIndex = rows.Count == 0 ? -1 : Math.Clamp(_selected, 0, rows.Count - 1);
+    });
+
+    public void Fail(Exception ex) => Dispatcher.UIThread.Post(() =>
+    {
+        _empty.IsVisible = true;
+        _empty.Text = ex.Message;
+    });
 }

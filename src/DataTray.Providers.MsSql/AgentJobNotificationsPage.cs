@@ -17,7 +17,7 @@ namespace DataTray.Providers.MsSql;
 /// Messenger service — none of which this page can arrange. It writes the job's intent; whether the message
 /// arrives is Agent's side of the deal.
 /// </remarks>
-internal sealed class AgentJobNotificationsPage
+internal sealed class AgentJobNotificationsPage : IJobPage
 {
     private static readonly (int Value, string Label)[] Levels =
     [
@@ -40,72 +40,115 @@ internal sealed class AgentJobNotificationsPage
     private readonly ComboBox _pageOperator = Operator();
     private readonly ComboBox _eventLogLevel = Level();
 
-    private readonly TextBlock _status = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+    private readonly Action<string> _report;
 
-    public AgentJobNotificationsPage(NodeInfoContext context)
+    public AgentJobNotificationsPage(NodeInfoContext context, Action<string> report)
     {
         _context = context;
         _job = context.Node.Name;
+        _report = report;
         Control = Build();
         _ = LoadAsync();
     }
 
     public Control Control { get; }
 
+    public string ActionLabel => "Save";
+
     private static ComboBox Level() => new()
     {
-        Width = 220,
         ItemsSource = Levels.Select(l => l.Label).ToList(),
         SelectedIndex = 0
     };
 
-    private static ComboBox Operator() => new() { Width = 220 };
+    private static ComboBox Operator() => new();
 
     private Control Build()
     {
-        var save = new Button { Content = "Save", HorizontalAlignment = HorizontalAlignment.Right };
-        save.Click += async (_, _) =>
+        // A table rather than four stacked pairs of dropdowns: channel, when, operator are three columns,
+        // and the operator only means anything once the level is above Never.
+        foreach (var (level, target) in Channels())
         {
-            save.IsEnabled = false;
-            try
+            level.SelectionChanged += (_, _) => SyncOperators();
+            if (target is not null)
             {
-                await SaveAsync();
-                _status.Text = "Saved.";
+                target.IsEnabled = false;
             }
-            catch (Exception ex)
-            {
-                _status.Text = ex.Message;
-            }
-            finally
-            {
-                save.IsEnabled = true;
-            }
-        };
-
-        var page = FormBits.Page(
-            FormBits.Section("When this job completes, notify"),
-            Channel("E-mail", _emailLevel, _emailOperator),
-            Channel("Net send", _netSendLevel, _netSendOperator),
-            Channel("Pager", _pageLevel, _pageOperator),
-            Channel("Windows application event log", _eventLogLevel, null),
-            new StackPanel
-            {
-                Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                Spacing = 8, Children = { _status, save }
-            });
-
-        return page;
-    }
-
-    private static Control Channel(string label, ComboBox level, ComboBox? target)
-    {
-        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { level } };
-        if (target is not null)
-        {
-            line.Children.Add(target);
         }
 
-        return FormBits.Labelled(label, line);
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("200,230,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto")
+        };
+
+        Header(grid, "Channel", 0);
+        Header(grid, "When", 1);
+        Header(grid, "Operator", 2);
+
+        Channel(grid, 1, "E-mail", _emailLevel, _emailOperator);
+        Channel(grid, 2, "Net send", _netSendLevel, _netSendOperator);
+        Channel(grid, 3, "Pager", _pageLevel, _pageOperator);
+        Channel(grid, 4, "Windows application event log", _eventLogLevel, null);
+
+        return FormBits.Page(FormBits.Section("When this job completes, notify"), grid);
+    }
+
+    private (ComboBox Level, ComboBox? Target)[] Channels() =>
+    [
+        (_emailLevel, _emailOperator), (_netSendLevel, _netSendOperator),
+        (_pageLevel, _pageOperator), (_eventLogLevel, null)
+    ];
+
+    private static void Header(Grid grid, string text, int column)
+    {
+        var block = new TextBlock
+        {
+            Text = text, FontWeight = FontWeight.SemiBold, Opacity = 0.75,
+            Margin = new Thickness(0, 0, 12, 6)
+        };
+        Grid.SetColumn(block, column);
+        Grid.SetRow(block, 0);
+        grid.Children.Add(block);
+    }
+
+    private static void Channel(Grid grid, int row, string label, ComboBox level, ComboBox? target)
+    {
+        var name = new TextBlock
+        {
+            Text = label, VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 12, 3)
+        };
+        Grid.SetColumn(name, 0);
+        Grid.SetRow(name, row);
+        grid.Children.Add(name);
+
+        level.Margin = new Thickness(0, 3, 12, 3);
+        Grid.SetColumn(level, 1);
+        Grid.SetRow(level, row);
+        grid.Children.Add(level);
+
+        if (target is null)
+        {
+            return;
+        }
+
+        target.Margin = new Thickness(0, 3, 0, 3);
+        Grid.SetColumn(target, 2);
+        Grid.SetRow(target, row);
+        grid.Children.Add(target);
+    }
+
+    // An operator on a channel set to Never is a value that will never be used; say so by greying it.
+    private void SyncOperators()
+    {
+        foreach (var (level, target) in Channels())
+        {
+            if (target is not null)
+            {
+                target.IsEnabled = Pick(level) != 0;
+            }
+        }
     }
 
     private async Task LoadAsync()
@@ -169,15 +212,16 @@ internal sealed class AgentJobNotificationsPage
                 }
 
                 _eventLogLevel.SelectedIndex = IndexOf(eventLog);
+                SyncOperators();
             });
         }
         catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => _status.Text = ex.Message);
+            _report(ex.Message);
         }
     }
 
-    private Task SaveAsync()
+    public Task SaveAsync()
     {
         // An operator name is only meaningful with a level above Never; sending one for a disabled channel
         // makes Agent reject the whole call.

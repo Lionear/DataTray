@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -9,12 +8,12 @@ using Microsoft.Data.SqlClient;
 namespace DataTray.Providers.MsSql;
 
 /// <summary>
-/// The Steps page of <see cref="AgentJobPropertiesView"/> (SE-235): SSMS' job-step list and step editor in
-/// one master/detail page. Steps can be added, edited, deleted and reordered — this is the page the whole
-/// "manage jobs properly" goal stands on.
+/// The Steps page of <see cref="AgentJobPropertiesView"/> (SE-235): the job's steps as a table, and the
+/// editor for whichever row is selected. Steps can be added, edited, deleted and reordered — this is the
+/// page the whole "manage jobs properly" goal stands on.
 /// </summary>
 /// <remarks>
-/// Reordering is a swap, not a move: <c>sp_update_jobstep</c> has no parameter for changing a step's id
+/// Reordering is an exchange, not a move: <c>sp_update_jobstep</c> has no parameter for changing a step's id
 /// (checked against the procedure's own signature), and delete-then-re-add risks losing a step if the second
 /// call fails. Exchanging every editable field between two neighbours produces the same visible result — in
 /// three phases and one transaction, since step names are unique per job (see <see cref="SwapAsync"/>).
@@ -23,7 +22,7 @@ namespace DataTray.Providers.MsSql;
 /// genuinely differs per server — SSIS is absent on Linux, replication subsystems only appear where
 /// replication is installed.
 /// </remarks>
-internal sealed class AgentJobStepsPage
+internal sealed class AgentJobStepsPage : IJobPage
 {
     // on_success_action / on_fail_action, in the order Agent numbers them.
     private static readonly (int Value, string Label)[] Actions =
@@ -39,35 +38,48 @@ internal sealed class AgentJobStepsPage
 
     private readonly NodeInfoContext _context;
     private readonly string _job;
+    private readonly Action<string> _report;
 
-    private readonly ListBox _list = new() { Height = 150 };
-    private readonly TextBlock _status = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+    private readonly SelectTable _table = new(
+        ["#", "Name", "Type", "On success", "On failure", "Last run"],
+        [34, 0, 90, 130, 130, 90]);
 
+    private readonly TextBlock _heading = FormBits.Section("Step");
     private readonly TextBox _name = new();
-    private readonly ComboBox _subsystem = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _proxy = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _subsystem = new();
+    private readonly ComboBox _proxy = new();
     private readonly TextBox _database = new();
-    private readonly TextBox _command = new() { AcceptsReturn = true, Height = 120, TextWrapping = TextWrapping.Wrap, FontFamily = FontFamily.Parse("Consolas, Menlo, monospace") };
+    private readonly TextBox _command = new()
+    {
+        AcceptsReturn = true, Height = 110, TextWrapping = TextWrapping.Wrap,
+        FontFamily = FontFamily.Parse("Consolas, Menlo, monospace")
+    };
     private readonly TextBox _outputFile = new();
-    private readonly NumericUpDown _retries = new() { Minimum = 0, Maximum = 9999, Width = 100 };
-    private readonly NumericUpDown _retryInterval = new() { Minimum = 0, Maximum = 9999, Width = 100 };
-    private readonly ComboBox _onSuccess = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly NumericUpDown _onSuccessStep = new() { Minimum = 1, Maximum = 999, Width = 100 };
-    private readonly ComboBox _onFail = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly NumericUpDown _onFailStep = new() { Minimum = 1, Maximum = 999, Width = 100 };
+    private readonly NumericUpDown _retries = new() { Minimum = 0, Maximum = 9999 };
+    private readonly NumericUpDown _retryInterval = new() { Minimum = 0, Maximum = 9999 };
+    private readonly ComboBox _onSuccess = new();
+    private readonly NumericUpDown _onSuccessStep = new() { Minimum = 1, Maximum = 999 };
+    private readonly ComboBox _onFail = new();
+    private readonly NumericUpDown _onFailStep = new() { Minimum = 1, Maximum = 999 };
+
+    private Control _successStepRow = null!;
+    private Control _failStepRow = null!;
 
     private List<Step> _steps = [];
     private bool _loading;
 
-    public AgentJobStepsPage(NodeInfoContext context)
+    public AgentJobStepsPage(NodeInfoContext context, Action<string> report)
     {
         _context = context;
         _job = context.Node.Name;
+        _report = report;
         Control = Build();
         _ = ReloadAsync(select: 0);
     }
 
     public Control Control { get; }
+
+    public string ActionLabel => "Save step";
 
     private sealed record Step(
         int Id, string Name, string Subsystem, string Command, string Database, string OutputFile,
@@ -76,67 +88,48 @@ internal sealed class AgentJobStepsPage
 
     private Control Build()
     {
-        _list.SelectionChanged += (_, _) => ShowSelected();
-        _subsystem.ItemsSource = new[] { "TSQL" };
+        _table.SelectionChanged += ShowSelected;
         _onSuccess.ItemsSource = Actions.Select(a => a.Label).ToList();
         _onFail.ItemsSource = Actions.Select(a => a.Label).ToList();
-        _onSuccess.SelectionChanged += (_, _) => SyncStepPickers();
-        _onFail.SelectionChanged += (_, _) => SyncStepPickers();
+        _onSuccess.SelectionChanged += (_, _) => SyncVisibility();
+        _onFail.SelectionChanged += (_, _) => SyncVisibility();
 
         var add = new Button { Content = "New" };
         var delete = new Button { Content = "Delete" };
-        var up = new Button { Content = "↑" };
-        var down = new Button { Content = "↓" };
-        var save = new Button { Content = "Save step", HorizontalAlignment = HorizontalAlignment.Right };
+        var up = new Button { Content = "Move up" };
+        var down = new Button { Content = "Move down" };
 
         add.Click += (_, _) => NewStep();
         delete.Click += async (_, _) => await GuardAsync(delete, DeleteSelectedAsync);
         up.Click += async (_, _) => await GuardAsync(up, () => SwapAsync(-1));
         down.Click += async (_, _) => await GuardAsync(down, () => SwapAsync(+1));
-        save.Click += async (_, _) => await GuardAsync(save, SaveSelectedAsync);
 
-        var editor = new StackPanel
-        {
-            Spacing = 10,
-            Children =
-            {
-                FormBits.Section("Step"),
-                FormBits.Labelled("Step name", _name),
-                FormBits.Pair(FormBits.Labelled("Type", _subsystem), FormBits.Labelled("Run as", _proxy)),
-                FormBits.Pair(FormBits.Labelled("Database", _database),
-                    FormBits.Labelled("Output file", _outputFile)),
-                FormBits.Labelled("Command", _command),
-                FormBits.Section("On completion"),
-                FormBits.Pair(FormBits.Labelled("Retry attempts", _retries),
-                    FormBits.Labelled("Retry interval (min)", _retryInterval)),
-                FormBits.Pair(FormBits.Labelled("On success", _onSuccess),
-                    FormBits.Labelled("Go to step", _onSuccessStep)),
-                FormBits.Pair(FormBits.Labelled("On failure", _onFail),
-                    FormBits.Labelled("Go to step", _onFailStep)),
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8, Children = { _status, save }
-                }
-            }
-        };
+        _successStepRow = FormBits.Labelled("Go to step", _onSuccessStep);
+        _failStepRow = FormBits.Labelled("Go to step", _onFailStep);
 
         var page = FormBits.Page(
             FormBits.Section("Steps in this job"),
-            _list,
+            _table.Control,
             new StackPanel
             {
                 Orientation = Orientation.Horizontal, Spacing = 6,
                 Children = { add, delete, up, down }
             },
-            editor);
+            _heading,
+            FormBits.Pair(FormBits.Labelled("Step name", _name), FormBits.Labelled("Type", _subsystem)),
+            FormBits.Pair(FormBits.Labelled("Run as", _proxy), FormBits.Labelled("Database", _database)),
+            FormBits.Labelled("Command", _command),
+            FormBits.Labelled("Output file", _outputFile),
+            FormBits.Section("On completion"),
+            FormBits.Pair(FormBits.Labelled("On success", _onSuccess), _successStepRow),
+            FormBits.Pair(FormBits.Labelled("On failure", _onFail), _failStepRow),
+            FormBits.Pair(FormBits.Labelled("Retry attempts", _retries),
+                FormBits.Labelled("Retry interval (min)", _retryInterval)));
 
-        // A job with no steps never reaches ShowSelected, so hide the jump-to-step boxes up front.
-        SyncStepPickers();
+        SyncVisibility();
         return page;
     }
 
-    // Run a button's action with the button disabled, and put whatever went wrong where the user can read it.
     private async Task GuardAsync(Button button, Func<Task> action)
     {
         button.IsEnabled = false;
@@ -146,7 +139,7 @@ internal sealed class AgentJobStepsPage
         }
         catch (Exception ex)
         {
-            _status.Text = ex.Message;
+            _report(ex.Message);
         }
         finally
         {
@@ -203,28 +196,56 @@ internal sealed class AgentJobStepsPage
                 // "(default)" is the empty proxy — the step runs as the job owner, which is the usual case.
                 _proxy.ItemsSource = new[] { "(default)" }.Concat(proxies).ToList();
                 _subsystem.ItemsSource = subsystems;
-                _list.ItemsSource = steps
-                    .Select(s => $"{s.Id} — {s.Name}  ({s.Subsystem}, last: {s.LastOutcome})")
-                    .ToList();
-                _list.SelectedIndex = steps.Count == 0 ? -1 : Math.Clamp(select, 0, steps.Count - 1);
-                _status.Text = steps.Count == 0 ? "This job has no steps." : "";
             });
+
+            _table.Fill(steps.Select(Row).ToList(), "This job has no steps.");
+            Dispatcher.UIThread.Post(() =>
+                _table.SelectedIndex = steps.Count == 0 ? -1 : Math.Clamp(select, 0, steps.Count - 1));
         }
         catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => _status.Text = ex.Message);
+            _table.Fail(ex);
+            _report(ex.Message);
         }
     }
 
+    private static Cell[] Row(Step s) =>
+    [
+        new(s.Id.ToString()),
+        new(s.Name),
+        new(s.Subsystem),
+        new(Short(s.OnSuccess, s.OnSuccessStep)),
+        new(Short(s.OnFail, s.OnFailStep)),
+        new(s.LastOutcome, OutcomeBrush(s.LastOutcome))
+    ];
+
+    /// <summary>The completion actions, short enough for a table column.</summary>
+    private static string Short(int action, int step) => action switch
+    {
+        1 => "Quit, success",
+        2 => "Quit, failure",
+        4 => $"Go to step {step}",
+        _ => "Next step"
+    };
+
+    internal static IBrush? OutcomeBrush(string outcome) => outcome switch
+    {
+        "failed" => new SolidColorBrush(Color.FromRgb(0xD6, 0x45, 0x45)),
+        "canceled" or "retry" => new SolidColorBrush(Color.FromRgb(0xE0, 0xA3, 0x3E)),
+        "succeeded" => new SolidColorBrush(Color.FromRgb(0x5A, 0xA5, 0x76)),
+        _ => null
+    };
+
     private void ShowSelected()
     {
-        if (_list.SelectedIndex < 0 || _list.SelectedIndex >= _steps.Count)
+        if (_table.SelectedIndex < 0 || _table.SelectedIndex >= _steps.Count)
         {
             return;
         }
 
         _loading = true;
-        var step = _steps[_list.SelectedIndex];
+        var step = _steps[_table.SelectedIndex];
+        _heading.Text = $"Step {step.Id} — {step.Name}";
         _name.Text = step.Name;
         _subsystem.SelectedItem = step.Subsystem;
         _proxy.SelectedItem = string.IsNullOrEmpty(step.Proxy) ? "(default)" : step.Proxy;
@@ -239,13 +260,14 @@ internal sealed class AgentJobStepsPage
         _onFailStep.Value = Math.Max(1, step.OnFailStep);
         _loading = false;
 
-        SyncStepPickers();
+        SyncVisibility();
     }
 
     private void NewStep()
     {
         _loading = true;
-        _list.SelectedIndex = -1;
+        _table.SelectedIndex = -1;
+        _heading.Text = "New step";
         _name.Text = $"Step {_steps.Count + 1}";
         _subsystem.SelectedItem = "TSQL";
         _proxy.SelectedItem = "(default)";
@@ -258,20 +280,20 @@ internal sealed class AgentJobStepsPage
         _onFail.SelectedIndex = 2;
         _loading = false;
 
-        SyncStepPickers();
-        _status.Text = "New step — Save step adds it at the end.";
+        SyncVisibility();
+        _report("New step — Save step adds it at the end.");
     }
 
     // The "Go to step" number only means anything for that action; hide it the rest of the time.
-    private void SyncStepPickers()
+    private void SyncVisibility()
     {
         if (_loading)
         {
             return;
         }
 
-        _onSuccessStep.IsVisible = Action(_onSuccess) == 4;
-        _onFailStep.IsVisible = Action(_onFail) == 4;
+        _successStepRow.IsVisible = Action(_onSuccess) == 4;
+        _failStepRow.IsVisible = Action(_onFail) == 4;
     }
 
     private static int IndexOfAction(int value) =>
@@ -282,15 +304,16 @@ internal sealed class AgentJobStepsPage
 
     // ── Write ────────────────────────────────────────────────────────────────────────────────────────
 
-    private async Task SaveSelectedAsync()
+    public async Task SaveAsync()
     {
         if (string.IsNullOrWhiteSpace(_name.Text))
         {
-            _status.Text = "A step needs a name.";
+            _report("A step needs a name.");
             return;
         }
 
-        var isNew = _list.SelectedIndex < 0;
+        var index = _table.SelectedIndex;
+        var isNew = index < 0;
         var proxy = _proxy.SelectedItem as string;
         var settings =
             $"@step_name = N'{Escape(_name.Text)}'" +
@@ -309,31 +332,31 @@ internal sealed class AgentJobStepsPage
         var sql = isNew
             ? $"EXEC msdb.dbo.sp_add_jobstep @job_name = N'{Escape(_job)}', {settings}"
             : $"EXEC msdb.dbo.sp_update_jobstep @job_name = N'{Escape(_job)}', "
-              + $"@step_id = {_steps[_list.SelectedIndex].Id}, {settings}";
+              + $"@step_id = {_steps[index].Id}, {settings}";
 
         await ExecuteAsync(sql);
-        _status.Text = isNew ? "Step added." : "Step saved.";
-        await ReloadAsync(select: isNew ? _steps.Count : _list.SelectedIndex);
+        _report(isNew ? "Step added." : "Step saved.");
+        await ReloadAsync(select: isNew ? _steps.Count : index);
     }
 
     private async Task DeleteSelectedAsync()
     {
-        if (_list.SelectedIndex < 0)
+        if (_table.SelectedIndex < 0)
         {
             return;
         }
 
         // Agent renumbers the steps after the one removed, so reload rather than patching the list.
-        var index = _list.SelectedIndex;
+        var index = _table.SelectedIndex;
         await ExecuteAsync($"EXEC msdb.dbo.sp_delete_jobstep @job_name = N'{Escape(_job)}', "
                            + $"@step_id = {_steps[index].Id}");
-        _status.Text = "Step deleted.";
+        _report("Step deleted.");
         await ReloadAsync(select: Math.Max(0, index - 1));
     }
 
     private async Task SwapAsync(int direction)
     {
-        var index = _list.SelectedIndex;
+        var index = _table.SelectedIndex;
         var other = index + direction;
         if (index < 0 || other < 0 || other >= _steps.Count)
         {
@@ -353,7 +376,7 @@ internal sealed class AgentJobStepsPage
             + UpdateWith(a.Id, b) + ";\n"
             + "COMMIT;");
 
-        _status.Text = "Step moved.";
+        _report("Step moved.");
         await ReloadAsync(select: other);
     }
 
@@ -374,8 +397,6 @@ internal sealed class AgentJobStepsPage
 
     private Task ExecuteAsync(string sql) =>
         _context.Provider.ExecuteDdlAsync(_context.Profile, sql, CancellationToken.None);
-
-    // ── Plumbing ─────────────────────────────────────────────────────────────────────────────────────
 
     private async Task<SqlConnection> OpenAsync()
     {

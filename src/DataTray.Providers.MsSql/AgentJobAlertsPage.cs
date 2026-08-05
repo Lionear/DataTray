@@ -22,15 +22,17 @@ namespace DataTray.Providers.MsSql;
 /// their namespace and query outside <c>sysalerts</c>, so the page could write one and then never read it
 /// back — an editor that silently forgets what you typed is worse than one that says it does not do this.
 /// </remarks>
-internal sealed class AgentJobAlertsPage
+internal sealed class AgentJobAlertsPage : IJobPage
 {
     private static readonly string[] Kinds = ["SQL Server event", "SQL Server performance condition"];
 
     private readonly NodeInfoContext _context;
     private readonly string _job;
+    private readonly Action<string> _report;
 
-    private readonly ListBox _list = new() { Height = 120 };
-    private readonly TextBlock _status = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+    private readonly SelectTable _table = new(
+        ["Name", "Enabled", "Responds to", "Database"],
+        [180, 70, 0, 130]);
 
     private readonly TextBox _name = new();
     private readonly CheckBox _enabled = new() { Content = "Enabled" };
@@ -49,15 +51,18 @@ internal sealed class AgentJobAlertsPage
     private List<Alert> _alerts = [];
     private bool _loading;
 
-    public AgentJobAlertsPage(NodeInfoContext context)
+    public AgentJobAlertsPage(NodeInfoContext context, Action<string> report)
     {
         _context = context;
         _job = context.Node.Name;
+        _report = report;
         Control = Build();
         _ = ReloadAsync(select: 0);
     }
 
     public Control Control { get; }
+
+    public string ActionLabel => "Save alert";
 
     private sealed record Alert(
         string Name, bool Enabled, int MessageId, int Severity, string Database, string Keyword,
@@ -65,16 +70,13 @@ internal sealed class AgentJobAlertsPage
 
     private Control Build()
     {
-        _list.SelectionChanged += (_, _) => ShowSelected();
+        _table.SelectionChanged += ShowSelected;
         _kind.SelectionChanged += (_, _) => SyncVisibility();
 
         var add = new Button { Content = "New" };
         var delete = new Button { Content = "Delete" };
-        var save = new Button { Content = "Save alert", HorizontalAlignment = HorizontalAlignment.Right };
-
         add.Click += (_, _) => NewAlert();
         delete.Click += async (_, _) => await GuardAsync(delete, DeleteSelectedAsync);
-        save.Click += async (_, _) => await GuardAsync(save, SaveSelectedAsync);
 
         _eventRows = new StackPanel
         {
@@ -101,18 +103,13 @@ internal sealed class AgentJobAlertsPage
                 _performanceRow,
                 FormBits.Section("Response"),
                 FormBits.Row("Delay between responses (seconds)", _delay),
-                FormBits.Labelled("Notification message", _message),
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8, Children = { _status, save }
-                }
+                FormBits.Labelled("Notification message", _message)
             }
         };
 
         var page = FormBits.Page(
             FormBits.Section("Alerts that run this job"),
-            _list,
+            _table.Control,
             new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { add, delete } },
             form);
 
@@ -130,7 +127,7 @@ internal sealed class AgentJobAlertsPage
         }
         catch (Exception ex)
         {
-            _status.Text = ex.Message;
+            _report(ex.Message);
         }
         finally
         {
@@ -183,35 +180,42 @@ internal sealed class AgentJobAlertsPage
             {
                 _alerts = alerts;
                 _database.ItemsSource = databases;
-                _list.ItemsSource = alerts.Select(Line).ToList();
-                _list.SelectedIndex = alerts.Count == 0 ? -1 : Math.Clamp(select, 0, alerts.Count - 1);
-                _status.Text = alerts.Count == 0 ? "No alert runs this job." : "";
             });
+
+            _table.Fill(alerts.Select(Row).ToList(), "No alert runs this job.");
+            Dispatcher.UIThread.Post(() =>
+                _table.SelectedIndex = alerts.Count == 0 ? -1 : Math.Clamp(select, 0, alerts.Count - 1));
         }
         catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => _status.Text = ex.Message);
+            _report(ex.Message);
         }
     }
 
-    private static string Line(Alert a)
+    private static Cell[] Row(Alert a)
     {
         var cause = !string.IsNullOrEmpty(a.Performance) ? a.Performance
             : a.MessageId > 0 ? $"error {a.MessageId}"
             : a.Severity > 0 ? $"severity {a.Severity}"
             : "any error";
-        return $"{a.Name}{(a.Enabled ? "" : "  (disabled)")} — {cause}";
+        return
+        [
+            new(a.Name),
+            new(a.Enabled ? "yes" : "no", a.Enabled ? null : AgentJobStepsPage.OutcomeBrush("canceled")),
+            new(cause),
+            new(string.IsNullOrEmpty(a.Database) ? "all" : a.Database)
+        ];
     }
 
     private void ShowSelected()
     {
-        if (_list.SelectedIndex < 0 || _list.SelectedIndex >= _alerts.Count)
+        if (_table.SelectedIndex < 0 || _table.SelectedIndex >= _alerts.Count)
         {
             return;
         }
 
         _loading = true;
-        var a = _alerts[_list.SelectedIndex];
+        var a = _alerts[_table.SelectedIndex];
         _name.Text = a.Name;
         _enabled.IsChecked = a.Enabled;
         _kind.SelectedIndex = string.IsNullOrEmpty(a.Performance) ? 0 : 1;
@@ -230,7 +234,7 @@ internal sealed class AgentJobAlertsPage
     private void NewAlert()
     {
         _loading = true;
-        _list.SelectedIndex = -1;
+        _table.SelectedIndex = -1;
         _name.Text = $"{_job} alert";
         _enabled.IsChecked = true;
         _kind.SelectedIndex = 0;
@@ -244,7 +248,7 @@ internal sealed class AgentJobAlertsPage
         _loading = false;
 
         SyncVisibility();
-        _status.Text = "New alert — Save alert creates it pointing at this job.";
+        _report("New alert — Save alert creates it pointing at this job.");
     }
 
     private void SyncVisibility()
@@ -258,18 +262,18 @@ internal sealed class AgentJobAlertsPage
         _performanceRow.IsVisible = _kind.SelectedIndex == 1;
     }
 
-    private async Task SaveSelectedAsync()
+    public async Task SaveAsync()
     {
         if (string.IsNullOrWhiteSpace(_name.Text))
         {
-            _status.Text = "An alert needs a name.";
+            _report("An alert needs a name.");
             return;
         }
 
         var isPerformance = _kind.SelectedIndex == 1;
         if (isPerformance && string.IsNullOrWhiteSpace(_performance.Text))
         {
-            _status.Text = "A performance alert needs a condition.";
+            _report("A performance alert needs a condition.");
             return;
         }
 
@@ -299,7 +303,7 @@ internal sealed class AgentJobAlertsPage
                 ? ""
                 : $", @event_description_keyword = N'{Escape(_keyword.Text)}'");
 
-        var isNew = _list.SelectedIndex < 0;
+        var isNew = _table.SelectedIndex < 0;
         var add = $"EXEC msdb.dbo.sp_add_alert @name = N'{Escape(_name.Text)}', {settings}"
                   + $", @job_name = N'{Escape(_job)}'";
 
@@ -310,7 +314,7 @@ internal sealed class AgentJobAlertsPage
         }
         else
         {
-            var current = _alerts[_list.SelectedIndex];
+            var current = _alerts[_table.SelectedIndex];
             var wasPerformance = !string.IsNullOrEmpty(current.Performance);
 
             // Changing what an alert responds to is the one thing sp_update_alert will not do: handed a
@@ -325,20 +329,20 @@ internal sealed class AgentJobAlertsPage
         }
 
         await ExecuteAsync(sql);
-        _status.Text = isNew ? "Alert created." : "Alert saved.";
-        await ReloadAsync(select: isNew ? _alerts.Count : _list.SelectedIndex);
+        _report(isNew ? "Alert created." : "Alert saved.");
+        await ReloadAsync(select: isNew ? _alerts.Count : _table.SelectedIndex);
     }
 
     private async Task DeleteSelectedAsync()
     {
-        if (_list.SelectedIndex < 0)
+        if (_table.SelectedIndex < 0)
         {
             return;
         }
 
-        var index = _list.SelectedIndex;
+        var index = _table.SelectedIndex;
         await ExecuteAsync($"EXEC msdb.dbo.sp_delete_alert @name = N'{Escape(_alerts[index].Name)}'");
-        _status.Text = "Alert deleted.";
+        _report("Alert deleted.");
         await ReloadAsync(select: Math.Max(0, index - 1));
     }
 
