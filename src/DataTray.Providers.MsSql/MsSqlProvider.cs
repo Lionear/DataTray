@@ -607,11 +607,28 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             }
         }
 
-        await using var command = new SqlCommand("SELECT name FROM msdb.dbo.sysjobs ORDER BY name", connection);
+        // Name plus the two things you look at a job list for: is it on, and did the last run go wrong.
+        // sysjobservers holds the per-server last-run summary; LEFT JOIN so a job with no server row (an
+        // unpushed multi-server job) still lists, just without status.
+        await using var command = new SqlCommand(
+            """
+            SELECT j.name, j.enabled, s.last_run_outcome, s.last_run_date, s.last_run_time
+            FROM msdb.dbo.sysjobs j
+            LEFT JOIN msdb.dbo.sysjobservers s ON s.job_id = j.job_id
+            ORDER BY j.name
+            """, connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            nodes.Add(new DbTreeNode { Kind = DbNodeKind.Object, Name = reader.GetString(0) });
+            var lastRunDate = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+            nodes.Add(new DbTreeNode
+            {
+                Kind = DbNodeKind.AgentJob,
+                Name = reader.GetString(0),
+                Detail = reader.GetByte(1) == 1 ? null : "disabled",
+                Badge = reader.IsDBNull(2) ? null : AgentJobStatus.Badge(reader.GetByte(2), lastRunDate),
+                Tooltip = AgentJobStatus.LastRun(lastRunDate, reader.IsDBNull(4) ? 0 : reader.GetInt32(4))
+            });
         }
 
         return nodes;

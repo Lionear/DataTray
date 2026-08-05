@@ -241,7 +241,7 @@ public partial class TreeNodeViewModel : ViewModelBase
     public bool CanShowActivityMonitor => IsConnectionNode && _provider is { SupportsActivityMonitor: true };
 
     public bool IsCopyable => IsTableOrView || IsColumn
-        || NodeKind is DbNodeKind.Index or DbNodeKind.Sequence or DbNodeKind.Object;
+        || NodeKind is DbNodeKind.Index or DbNodeKind.Sequence or DbNodeKind.Object or DbNodeKind.AgentJob;
 
     public bool IsPlaceholder { get; }
 

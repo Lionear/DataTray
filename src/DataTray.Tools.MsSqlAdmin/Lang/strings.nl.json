@@ -9,5 +9,17 @@
   "shrinkfile.error.noFile": "Selecteer een bestand om te verkleinen.",
   "shrinkfile.progress.complete": "Verkleinen voltooid voor bestand {0}.",
 
-  "shrink.progress.running": "Uitvoeren: {0}"
+  "shrink.progress.running": "Uitvoeren: {0}",
+
+  "agentjob.start.title": "Taak starten",
+  "agentjob.start.description": "Start de taak nu, bij de eerste stap. Agent voert hem op de achtergrond uit — de uitkomst komt in de geschiedenis van de taak terecht, niet hier.",
+  "agentjob.stop.title": "Taak stoppen",
+  "agentjob.stop.description": "Vraagt Agent de lopende taak te stoppen. Een taak die niet loopt geeft een fout in plaats van stil te stoppen.",
+  "agentjob.enable.title": "Taak inschakelen",
+  "agentjob.enable.description": "Laat de planningen van de taak weer afgaan. Start hem niet meteen.",
+  "agentjob.disable.title": "Taak uitschakelen",
+  "agentjob.disable.description": "Zorgt dat de planningen van de taak niet meer afgaan. Een lopende uitvoering gaat door.",
+  "agentjob.error.noJob": "Selecteer eerst een Agent-taak.",
+  "agentjob.progress.running": "Uitvoeren: {0}",
+  "agentjob.progress.complete": "Klaar: {0}."
 }
