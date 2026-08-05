@@ -472,6 +472,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             DbNodeKind.Group => await LoadGroupAsync(profile, ancestors, ct),
             DbNodeKind.UserFolder => await LoadUsersAsync(profile, ancestors, ct),
             // Server logins as manageable Login leaves (SQL + Windows logins; skip system ## principals).
+            DbNodeKind.AgentJobFolder => await LoadAgentJobsAsync(profile, ct),
             DbNodeKind.LoginFolder => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type IN ('S','U','G','C','K') " +
                 "AND name NOT LIKE '##%' ORDER BY name", ct, DbNodeKind.Login),
@@ -539,7 +540,6 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             Administration => [await AgentJobsFolderAsync(profile, ct)],
             ServerRoles => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type = 'R' AND name NOT LIKE '##%' ORDER BY name", ct),
-            AgentJobs => await LoadAgentJobsAsync(profile, ct),
             _ => []
         };
 
@@ -619,7 +619,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             // is not worth failing the expand over — the folder just carries no badge.
         }
 
-        return new DbTreeNode { Kind = DbNodeKind.Group, Name = AgentJobs, HasChildren = true, Badge = badge };
+        return new DbTreeNode { Kind = DbNodeKind.AgentJobFolder, Name = AgentJobs, HasChildren = true, Badge = badge };
     }
 
     private static async Task<IReadOnlyList<DbTreeNode>> LoadAgentJobsAsync(ConnectionProfile profile, CancellationToken ct)
