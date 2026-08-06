@@ -83,6 +83,11 @@ present while developing; a Release build ships only the bundled ones.
   primary key (otherwise read-only, with the reason shown). Cell editors follow
   the column's type; a cell value opens in its own window on double-click.
 - **Query history and logging**, starred queries and starred connections.
+- **SQL Server Agent jobs**, managed rather than just listed: start, stop, enable
+  and disable from the tree, and a Properties dialog with SSMS' six pages —
+  general, steps (add, edit, reorder), schedules with a recurrence editor,
+  alerts, notifications, targets — plus run history as a seventh, in the dialog
+  rather than a separate window.
 
 **Around it**
 
