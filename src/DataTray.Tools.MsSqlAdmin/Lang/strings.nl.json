@@ -21,5 +21,16 @@
   "agentjob.disable.description": "Zorgt dat de planningen van de taak niet meer afgaan. Een lopende uitvoering gaat door.",
   "agentjob.error.noJob": "Selecteer eerst een Agent-taak.",
   "agentjob.progress.running": "Uitvoeren: {0}",
-  "agentjob.progress.complete": "Klaar: {0}."
+  "agentjob.progress.complete": "Klaar: {0}.",
+
+  "agentjob.new.title": "Nieuwe taak…",
+  "agentjob.new.description": "Maakt een lege taak op deze server en richt hem op de lokale server, wat een taak nodig heeft om überhaupt te kunnen draaien. Stappen en planningen voeg je toe via Eigenschappen van de taak.",
+  "agentjob.new.field.name": "Naam",
+  "agentjob.new.field.description": "Omschrijving",
+  "agentjob.new.field.enabled": "Ingeschakeld",
+  "agentjob.new.error.noName": "Een taak heeft een naam nodig.",
+  "agentjob.new.progress.complete": "Taak {0} aangemaakt.",
+  "agentjob.delete.title": "Taak verwijderen…",
+  "agentjob.delete.description": "Verwijdert de taak inclusief zijn stappen, geschiedenis en koppelingen aan planningen. Een planning die een andere taak ook gebruikt blijft bestaan; een die alleen deze taak gebruikte gaat mee.",
+  "agentjob.delete.progress.complete": "Taak {0} verwijderd."
 }

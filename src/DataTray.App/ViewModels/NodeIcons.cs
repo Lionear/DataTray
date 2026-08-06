@@ -93,6 +93,7 @@ public static class NodeIcons
         DbNodeKind.Trigger => Trigger,
         DbNodeKind.Object => Object,
         DbNodeKind.AgentJob => AgentJob,
+        DbNodeKind.AgentJobFolder => Folder,
         _ => Connection
     };
 }

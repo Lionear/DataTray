@@ -309,7 +309,8 @@ public partial class TreeNodeViewModel : ViewModelBase
     public bool CanRefresh => _load is not null && HasChildren && NodeKind is
         DbNodeKind.Database or DbNodeKind.Schema or DbNodeKind.SchemaFolder or DbNodeKind.DatabaseFolder
         or DbNodeKind.TableFolder or DbNodeKind.ViewFolder or DbNodeKind.SequenceFolder or DbNodeKind.ColumnFolder
-        or DbNodeKind.IndexFolder or DbNodeKind.ForeignKeyFolder or DbNodeKind.Group;
+        or DbNodeKind.IndexFolder or DbNodeKind.ForeignKeyFolder or DbNodeKind.Group
+        or DbNodeKind.AgentJobFolder;
 
     /// <summary>Owning schema, if this node sits under one (null for schema-less engines like SQLite).</summary>
     public string? SchemaName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Schema)?.Name;

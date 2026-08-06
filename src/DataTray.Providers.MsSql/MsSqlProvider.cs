@@ -87,11 +87,14 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
     // Route B, third capability: SQL Server's "Database Properties" dialog on a Database node. Read-only,
     // no Execute/progress — the host shows the view in generic info-dialog chrome.
-    public bool HasInfoFor(DbNodeRef node) => node.Kind == DbNodeKind.Database;
+    public bool HasInfoFor(DbNodeRef node) => node.Kind is DbNodeKind.Database or DbNodeKind.AgentJob;
 
-    public string InfoTitle(DbNodeRef node) => "Database Properties";
+    public string InfoTitle(DbNodeRef node) =>
+        node.Kind == DbNodeKind.AgentJob ? "Job Properties" : "Database Properties";
 
-    public Control CreateInfoView(NodeInfoContext context) => new DatabasePropertiesView(context);
+    public Control CreateInfoView(NodeInfoContext context) => context.Node.Kind == DbNodeKind.AgentJob
+        ? new AgentJobPropertiesView(context)
+        : new DatabasePropertiesView(context);
 
     public string DisplayName => "Microsoft SQL Server";
 
@@ -469,6 +472,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             DbNodeKind.Group => await LoadGroupAsync(profile, ancestors, ct),
             DbNodeKind.UserFolder => await LoadUsersAsync(profile, ancestors, ct),
             // Server logins as manageable Login leaves (SQL + Windows logins; skip system ## principals).
+            DbNodeKind.AgentJobFolder => await LoadAgentJobsAsync(profile, ct),
             DbNodeKind.LoginFolder => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type IN ('S','U','G','C','K') " +
                 "AND name NOT LIKE '##%' ORDER BY name", ct, DbNodeKind.Login),
@@ -536,7 +540,6 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             Administration => [await AgentJobsFolderAsync(profile, ct)],
             ServerRoles => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type = 'R' AND name NOT LIKE '##%' ORDER BY name", ct),
-            AgentJobs => await LoadAgentJobsAsync(profile, ct),
             _ => []
         };
 
@@ -616,7 +619,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             // is not worth failing the expand over — the folder just carries no badge.
         }
 
-        return new DbTreeNode { Kind = DbNodeKind.Group, Name = AgentJobs, HasChildren = true, Badge = badge };
+        return new DbTreeNode { Kind = DbNodeKind.AgentJobFolder, Name = AgentJobs, HasChildren = true, Badge = badge };
     }
 
     private static async Task<IReadOnlyList<DbTreeNode>> LoadAgentJobsAsync(ConnectionProfile profile, CancellationToken ct)

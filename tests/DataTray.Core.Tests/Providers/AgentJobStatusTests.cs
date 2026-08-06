@@ -40,4 +40,23 @@ public class AgentJobStatusTests
     [Fact]
     public void LastRun_is_empty_for_a_job_that_never_ran() =>
         Assert.Null(AgentJobStatus.LastRun(0, 0));
+
+    // run_duration is HHMMSS packed into an int, so 3 is three seconds and 125 is a minute and 25 — the
+    // numbers read as decimal but are not.
+    [Theory]
+    [InlineData(3, "3s")]
+    [InlineData(125, "1m 25s")]
+    [InlineData(10203, "1h 02m 03s")]
+    [InlineData(0, "0s")]
+    public void Duration_unpacks_the_hhmmss_int(int packed, string expected) =>
+        Assert.Equal(expected, AgentJobStatus.Duration(packed));
+
+    // sysjobhistory.run_status carries 4 ("in progress"), which last_run_outcome never does — both feed this.
+    [Theory]
+    [InlineData(0, "failed")]
+    [InlineData(1, "succeeded")]
+    [InlineData(4, "in progress")]
+    [InlineData(5, "unknown")]
+    public void OutcomeName_covers_both_columns(int outcome, string expected) =>
+        Assert.Equal(expected, AgentJobStatus.OutcomeName(outcome));
 }
