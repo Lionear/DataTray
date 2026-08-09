@@ -1807,12 +1807,15 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
     <value>Importeren uit een andere client</value>
   </data>
   <data name="ImportConnectionsHint" xml:space="preserve">
-    <value>Connecties gevonden in de andere databaseclients op deze machine. Wachtwoorden worden niet overgenomen — die blijven in de eigen sleutelopslag van die programma's, dus bij de eerste verbinding wordt er één keer om gevraagd.</value>
+    <value>Connecties gevonden in de andere databaseclients op deze machine. Een wachtwoord komt alleen mee waar de client het in platte tekst had staan — hieronder staat per regel welke. De rest bewaart het in een sleutelopslag die DataTray niet opent, en vraagt er bij de eerste verbinding één keer om.</value>
   </data>
   <data name="ImportConnectionsNone" xml:space="preserve">
     <value>Geen connecties van een andere databaseclient gevonden op deze machine.</value>
   </data>
   <data name="ImportConnectionsFound" xml:space="preserve">
     <value>{0} van {1} kunnen worden geïmporteerd</value>
+  </data>
+  <data name="ImportConnectionsWithPassword" xml:space="preserve">
+    <value>met wachtwoord</value>
   </data>
 </root>

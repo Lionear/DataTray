@@ -43,11 +43,33 @@ public class ExternalClientImportTests
         Assert.Equal("6432", found[0].Values["port"]);
         Assert.Equal("orders", found[0].Values["database"]);
         Assert.Equal("reporting", found[0].Values["username"]);
-        Assert.DoesNotContain("password", found[0].Values.Keys);
 
-        // The last section still lands even though no section header follows it.
+        // Plain text in the user's own file, so it comes along — and is flagged, since not every client
+        // gives one up.
+        Assert.Equal("hunter2", found[0].Values["password"]);
+        Assert.True(found[0].HasPassword);
+
+        // The last section still lands even though no section header follows it, and it has no password.
         Assert.Equal("local", found[1].Name);
         Assert.Equal("dev", found[1].Values["database"]);
+        Assert.False(found[1].HasPassword);
+    }
+
+    [Fact]
+    public void APasswordIsDroppedWhenTheProviderHasNoFieldForOne()
+    {
+        const string text = """
+            [notes]
+            host=localhost
+            dbname=app
+            password=hunter2
+            """;
+
+        var found = Assert.Single(ExternalConnectionImport.FromPgService(
+            text, _ => ["host", "database"]));
+
+        Assert.DoesNotContain(found.Values, v => v.Value == "hunter2");
+        Assert.False(found.HasPassword);
     }
 
     [Fact]
@@ -125,7 +147,11 @@ public class ExternalClientImportTests
         Assert.Equal("sql01", found.Values["host"]);
         Assert.Equal("1433", found.Values["port"]);
         Assert.Equal("reporting", found.Values["username"]);
-        Assert.DoesNotContain(found.Values, v => v.Value == "hunter2");
+
+        // A password only appears here when the user declined the editor's credential store; then it is
+        // plain text and comes along.
+        Assert.Equal("hunter2", found.Values["password"]);
+        Assert.True(found.HasPassword);
     }
 
     [Fact]
@@ -134,15 +160,18 @@ public class ExternalClientImportTests
         Assert.Empty(ExternalConnectionImport.FromMssqlSettings("""{ "editor.fontSize": 13 }""", Fields));
     }
 
+    // Compass keeps the user in the URI and the password in a separate encrypted connectionSecrets blob —
+    // which is another application's secret store, so it stays shut. Verified against a real Compass file:
+    // its connectionString carries userinfo without a password.
     [Fact]
-    public void ReadsACompassConnectionAndLeavesItsSecretsAlone()
+    public void ReadsACompassConnectionAndLeavesItsEncryptedSecretsShut()
     {
         const string json = """
             {
               "_id": "db3e7bbf",
               "connectionInfo": {
                 "id": "db3e7bbf",
-                "connectionOptions": { "connectionString": "mongodb://root:hunter2@mongo01:27018/events" },
+                "connectionOptions": { "connectionString": "mongodb://root@mongo01:27018/events" },
                 "favorite": { "name": "Events" }
               },
               "connectionSecrets": "djExZ/lFUKKMN2wSd82Wbm=="
@@ -159,7 +188,8 @@ public class ExternalClientImportTests
         Assert.Equal("27018", found.Values["port"]);
         Assert.Equal("events", found.Values["database"]);
         Assert.Equal("root", found.Values["username"]);
-        Assert.DoesNotContain(found.Values, v => v.Value == "hunter2");
+        Assert.False(found.HasPassword);
+        Assert.DoesNotContain(found.Values, v => v.Value?.Contains("djExZ", StringComparison.Ordinal) == true);
     }
 
     [Fact]

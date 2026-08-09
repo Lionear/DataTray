@@ -8,26 +8,35 @@ namespace DataTray.Core.Connections.Import;
 /// <see cref="SkipReason"/> non-null means it was found but cannot be imported — kept in the list on
 /// purpose, so an import that covers only part of the file says so instead of silently dropping rows.
 /// </summary>
+/// <param name="HasPassword">True when the source file spelled the password out and it is carried in
+/// <see cref="Values"/>. The picker shows this per row, because whether a password came along differs per
+/// client and a silent difference is the kind that bites on first connect.</param>
 public sealed record DiscoveredConnection(
     string Source,
     string Name,
     string? Folder,
     string? ProviderId,
     IReadOnlyDictionary<string, string?> Values,
-    string? SkipReason = null)
+    string? SkipReason = null,
+    bool HasPassword = false)
 {
     public bool CanImport => ProviderId is not null && SkipReason is null;
 }
 
 /// <summary>
-/// Reads saved connections out of DataGrip and DBeaver so they don't have to be retyped (SE-233).
+/// Reads saved connections out of the other database clients on this machine so they don't have to be
+/// retyped (SE-233, SE-237).
 ///
-/// <b>Passwords are never read.</b> DataGrip keeps them in the IDE keychain; DBeaver keeps them in
-/// <c>credentials-config.json</c> under a hardcoded key. Both are another application's secret store,
-/// so an imported connection arrives without a password and the connection dialog asks for it.
+/// <b>The password rule, which decides what each reader may do:</b> a password that the source file
+/// spells out in plain text is carried over — it is already readable to anyone who can read the file, and
+/// skipping it would only make the user retype what we just parsed. A password held in another
+/// application's secret store is <b>not</b>: neither an OS keychain entry (DataGrip, MongoDB Compass) nor
+/// a vendor-encrypted file (DBeaver's <c>credentials-config.json</c>, sealed with a key hardcoded in
+/// DBeaver itself) is opened here. Those connections arrive without a password and the connection dialog
+/// asks once, on first connect.
 ///
-/// Everything is derived from the JDBC URL, which both clients store, so the two readers share one
-/// mapping table instead of each learning every engine's field names.
+/// Whatever does come along travels in <c>Values</c> under the provider's own secret field key, so
+/// <c>ConnectionService.Save</c> puts it in the OS keychain and never in the config file.
 /// </summary>
 public static class ExternalConnectionImport
 {
@@ -60,7 +69,8 @@ public static class ExternalConnectionImport
         ("port", ["port"]),
         ("database", ["database", "db", "catalog"]),
         ("username", ["username", "user", "login"]),
-        ("path", ["path", "file", "filename"])
+        ("path", ["path", "file", "filename"]),
+        ("password", ["password", "pass", "pwd"])
     ];
 
     /// <summary>
@@ -293,14 +303,22 @@ public static class ExternalConnectionImport
             authority = authority[..comma];
         }
 
-        // user:password@host — Mongo and Redis URLs carry credentials inline. The user is kept, the
-        // password deliberately is not (same rule as the two credential stores).
+        // user:password@host — Mongo and Redis URLs may carry credentials inline. Both are taken: an
+        // inline password is plain text in a plain file, which is the case the rule allows.
         if (authority.LastIndexOf('@') is var at and >= 0)
         {
             var userInfo = authority[..at];
             authority = authority[(at + 1)..];
             var passwordSeparator = userInfo.IndexOf(':');
-            Put(values, "username", passwordSeparator >= 0 ? userInfo[..passwordSeparator] : userInfo);
+            if (passwordSeparator >= 0)
+            {
+                Put(values, "username", userInfo[..passwordSeparator]);
+                Put(values, "password", Uri.UnescapeDataString(userInfo[(passwordSeparator + 1)..]));
+            }
+            else
+            {
+                Put(values, "username", userInfo);
+            }
         }
 
         var portSeparator = authority.LastIndexOf(':');
@@ -402,10 +420,20 @@ public static class ExternalConnectionImport
             }
         }
 
-        return values.Count == 0
-            ? new DiscoveredConnection(source, name, folder, null, EmptyValues,
-                $"none of the stored settings fit provider '{providerId}'")
-            : new DiscoveredConnection(source, name, folder, providerId, values);
+        if (values.Count == 0)
+        {
+            return new DiscoveredConnection(source, name, folder, null, EmptyValues,
+                $"none of the stored settings fit provider '{providerId}'");
+        }
+
+        // The password rides along in Values under the provider's own secret field key, so
+        // ConnectionService.Save routes it to the keychain and keeps it out of the config file — the same
+        // path a hand-typed password takes.
+        var hasPassword = canonical.TryGetValue("password", out var password)
+            && !string.IsNullOrEmpty(password)
+            && values.ContainsValue(password);
+
+        return new DiscoveredConnection(source, name, folder, providerId, values, SkipReason: null, hasPassword);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -454,7 +482,8 @@ public static class ExternalConnectionImport
                 continue;
             }
 
-            // libpq's own names: dbname is the database, user is the user. password is deliberately ignored.
+            // libpq's own names: dbname is the database, user is the user. A password here sits in plain
+            // text in the user's own file, so it comes along.
             var key = line[..equals].Trim().ToLowerInvariant();
             var value = line[(equals + 1)..].Trim();
             switch (key)
@@ -463,6 +492,7 @@ public static class ExternalConnectionImport
                 case "port": Put(settings, "port", value); break;
                 case "dbname": Put(settings, "database", value); break;
                 case "user": Put(settings, "username", value); break;
+                case "password": Put(settings, "password", value); break;
             }
         }
 
@@ -539,6 +569,9 @@ public static class ExternalConnectionImport
             Put(settings, "port", port);
             Put(settings, "database", Text(node, "database"));
             Put(settings, "username", Text(node, "user"));
+
+            // Present only when the user declined the editor's credential store, and then it is plain text.
+            Put(settings, "password", Text(node, "password"));
 
             found.Add(MapCanonical("Azure Data Studio", name, null, "sqlserver", settings, fieldKeysOf));
         }

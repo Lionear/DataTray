@@ -40,14 +40,16 @@ public class ExternalConnectionImportTests
         Assert.Equal("/home/rick/app.db", values["path"]);
     }
 
+    // An inline password is plain text in a plain file, which the rule allows — unlike a keychain entry or
+    // a vendor-encrypted blob, neither of which is opened anywhere in this class.
     [Fact]
-    public void InlineCredentialsYieldTheUserButNeverThePassword()
+    public void InlineCredentialsYieldBothTheUserAndThePassword()
     {
-        var (_, values) = ExternalConnectionImport.ParseJdbcUrl("jdbc:postgresql://rick:hunter2@db:5432/app");
+        var (_, values) = ExternalConnectionImport.ParseJdbcUrl("jdbc:postgresql://rick:hun%40ter2@db:5432/app");
 
         Assert.Equal("db", values["host"]);
         Assert.Equal("rick", values["username"]);
-        Assert.DoesNotContain(values, v => v.Value == "hunter2");
+        Assert.Equal("hun@ter2", values["password"]);
     }
 
     [Fact]
