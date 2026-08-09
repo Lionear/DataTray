@@ -1804,15 +1804,18 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
     <value>Select None</value>
   </data>
   <data name="ImportConnectionsTitle" xml:space="preserve">
-    <value>Import from DataGrip / DBeaver</value>
+    <value>Import from another client</value>
   </data>
   <data name="ImportConnectionsHint" xml:space="preserve">
-    <value>Connections found in DataGrip and DBeaver. Passwords are not imported — those stay in each client's own credential store, so you'll be asked once on first connect.</value>
+    <value>Connections found in the other database clients on this machine. A password comes along only where the client stored it in plain text — the rows below say which. The rest keep theirs in a credential store DataTray doesn't open, and ask once on first connect.</value>
   </data>
   <data name="ImportConnectionsNone" xml:space="preserve">
-    <value>No DataGrip or DBeaver connections found on this machine.</value>
+    <value>No connections from another database client found on this machine.</value>
   </data>
   <data name="ImportConnectionsFound" xml:space="preserve">
     <value>{0} of {1} can be imported</value>
+  </data>
+  <data name="ImportConnectionsWithPassword" xml:space="preserve">
+    <value>includes password</value>
   </data>
 </root>

@@ -52,7 +52,15 @@ public partial class ImportConnectionsDialogViewModel : ViewModelBase
         Rows.Clear();
         foreach (var connection in found.OrderBy(c => c.Source, StringComparer.Ordinal).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase))
         {
-            Rows.Add(new ImportConnectionRow(connection, Describe(connection)));
+            // Whether a password came along differs per client, so it is said per row rather than once in
+            // the header — a silent difference is the kind that only shows up on first connect.
+            var detail = Describe(connection);
+            if (connection.HasPassword)
+            {
+                detail = $"{detail} · {Loc["ImportConnectionsWithPassword"]}";
+            }
+
+            Rows.Add(new ImportConnectionRow(connection, detail));
         }
 
         OnPropertyChanged(nameof(HasRows));
