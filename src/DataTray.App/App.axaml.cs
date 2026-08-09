@@ -190,10 +190,24 @@ public partial class App : Application
                 // user actually connects, so the empty shell behind the modal reveals nothing.
                 var masterPassword = services.GetRequiredService<Core.Security.MasterPasswordService>();
                 var loc = services.GetRequiredService<ILocalizer>();
-                if (masterPassword.IsEnabled)
+                // The first-run wizard (SE-239) rides the same handler rather than its own, so it can never
+                // stack a second modal on top of the unlock prompt: unlock first, onboarding only after.
+                mainWindow.Opened += async (_, _) =>
                 {
-                    mainWindow.Opened += async (_, _) => await GateUnlockAsync(mainWindow, masterPassword, desktop, loc);
-                }
+                    if (masterPassword.IsEnabled)
+                    {
+                        await GateUnlockAsync(mainWindow, masterPassword, desktop, loc);
+                        if (!masterPassword.IsUnlocked)
+                        {
+                            return;
+                        }
+                    }
+
+                    if (!settingsStore.Load().OnboardingCompleted)
+                    {
+                        await ShowFirstRunAsync(mainWindow, services, _shutdownCts.Token);
+                    }
+                };
                 services.GetRequiredService<Core.Security.IMasterKeyProvider>().Locked += () =>
                     Avalonia.Threading.Dispatcher.UIThread.Post(
                         () => _ = GateUnlockAsync(mainWindow, masterPassword, desktop, loc));
@@ -248,6 +262,29 @@ public partial class App : Application
         // Left-click the tray icon also restores the window (a common convention on Windows/Linux).
         tray.Clicked += (_, _) => ShowWindow(window);
         return tray;
+    }
+
+    // The first-run wizard (SE-239). Modal over the main window, so the empty shell behind it can't be
+    // clicked into a confusing half-state. Installing an engine hands off to the Plugin Store window — its
+    // capability-consent gate and host-API check are not something onboarding may route around.
+    private static async Task ShowFirstRunAsync(Window owner, IServiceProvider services, CancellationToken ct)
+    {
+        var viewModel = services.GetRequiredService<ViewModels.FirstRunViewModel>();
+        viewModel.RestartRequested = AppRestart.Restart;
+
+        var window = new FirstRunWindow(viewModel);
+        // Owned by the wizard, not the main window: a dialog parented behind an open modal is a window the
+        // user can see and not reach.
+        viewModel.StoreRequested = async () =>
+        {
+            var store = services.GetRequiredService<ViewModels.PluginStoreViewModel>();
+            await new PluginStoreWindow { DataContext = store }.ShowDialog(window);
+        };
+
+        // Scanning for other clients' connections and fetching the store catalog both touch the world, so
+        // they run once the window is up rather than delaying it.
+        window.Opened += async (_, _) => await viewModel.InitializeAsync(ct);
+        await window.ShowDialog(owner);
     }
 
     private bool _unlocking;

@@ -1818,4 +1818,94 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="ImportConnectionsWithPassword" xml:space="preserve">
     <value>met wachtwoord</value>
   </data>
+  <data name="FirstRunTitle" xml:space="preserve">
+    <value>Welkom bij DataTray</value>
+  </data>
+  <data name="FirstRunStepWelcome" xml:space="preserve">
+    <value>Welkom</value>
+  </data>
+  <data name="FirstRunStepEngine" xml:space="preserve">
+    <value>Engine</value>
+  </data>
+  <data name="FirstRunStepConnection" xml:space="preserve">
+    <value>Connectie</value>
+  </data>
+  <data name="FirstRunStepDone" xml:space="preserve">
+    <value>Klaar</value>
+  </data>
+  <data name="FirstRunTagline" xml:space="preserve">
+    <value>Elke database-engine is een plug-in.</value>
+  </data>
+  <data name="FirstRunIntro" xml:space="preserve">
+    <value>Twee stappen: kies een engine, voeg je eerste connectie toe. Alles hier kun je later aanpassen.</value>
+  </data>
+  <data name="FirstRunShownOnce" xml:space="preserve">
+    <value>Wordt één keer getoond, bij de eerste start.</value>
+  </data>
+  <data name="FirstRunStart" xml:space="preserve">
+    <value>Beginnen</value>
+  </data>
+  <data name="FirstRunSkip" xml:space="preserve">
+    <value>Overslaan</value>
+  </data>
+  <data name="FirstRunBack" xml:space="preserve">
+    <value>Terug</value>
+  </data>
+  <data name="FirstRunNext" xml:space="preserve">
+    <value>Volgende</value>
+  </data>
+  <data name="FirstRunOpen" xml:space="preserve">
+    <value>DataTray openen</value>
+  </data>
+  <data name="FirstRunIncluded" xml:space="preserve">
+    <value>MEEGELEVERD</value>
+  </data>
+  <data name="FirstRunIncludedTag" xml:space="preserve">
+    <value>Direct te gebruiken</value>
+  </data>
+  <data name="FirstRunFromStore" xml:space="preserve">
+    <value>UIT DE PLUG-INSTORE</value>
+  </data>
+  <data name="FirstRunInstall" xml:space="preserve">
+    <value>Installeren…</value>
+  </data>
+  <data name="FirstRunRestartNeeded" xml:space="preserve">
+    <value>DataTray laadt plug-ins bij het opstarten, dus moet de app opnieuw starten voordat je de zojuist geïnstalleerde engine kunt gebruiken. Je komt terug bij deze stap.</value>
+  </data>
+  <data name="FirstRunRestartNow" xml:space="preserve">
+    <value>Nu opnieuw starten</value>
+  </data>
+  <data name="FirstRunImportFound" xml:space="preserve">
+    <value>Gebruik je al een andere client? DataTray vond {0} opgeslagen connecties op deze machine.</value>
+  </data>
+  <data name="FirstRunImportThem" xml:space="preserve">
+    <value>Overnemen</value>
+  </data>
+  <data name="FirstRunConnectionIntro" xml:space="preserve">
+    <value>Je eerste {0}-connectie.</value>
+  </data>
+  <data name="FirstRunAiHint" xml:space="preserve">
+    <value>AI-toegang staat uit voor deze connectie. Je zet het later per connectie aan, als je dat wilt.</value>
+  </data>
+  <data name="FirstRunDoneTitle" xml:space="preserve">
+    <value>Je bent klaar</value>
+  </data>
+  <data name="FirstRunDoneCount" xml:space="preserve">
+    <value>{0} connecties klaar voor gebruik.</value>
+  </data>
+  <data name="FirstRunDoneCountOne" xml:space="preserve">
+    <value>Eén connectie klaar voor gebruik.</value>
+  </data>
+  <data name="FirstRunDoneNone" xml:space="preserve">
+    <value>Nog geen connecties — je voegt er altijd nog een toe via het connectiebeheer.</value>
+  </data>
+  <data name="FirstRunDoneTray" xml:space="preserve">
+    <value>DataTray blijft in het systeemvak draaien. Het venster sluiten stopt de app niet — klik op het pictogram om terug te komen, of rechtsklik om af te sluiten.</value>
+  </data>
+  <data name="FirstRunDoneAi" xml:space="preserve">
+    <value>AI-toegang staat overal uit. Een AI-client ziet alleen een connectie die je zelf aanzet, één voor één.</value>
+  </data>
+  <data name="FirstRunDoneStore" xml:space="preserve">
+    <value>Meer engines en gereedschap vind je onder Extra › Plug-instore — diagrammen, back-ups, schemavergelijking.</value>
+  </data>
 </root>

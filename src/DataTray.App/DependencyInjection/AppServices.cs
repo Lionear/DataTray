@@ -313,6 +313,10 @@ public static class AppServices
         services.AddTransient<ConnectionDialogViewModel>();
         services.AddSingleton<Func<ConnectionDialogViewModel>>(sp => sp.GetRequiredService<ConnectionDialogViewModel>);
 
+        // First-run wizard (SE-239): resolved once at startup when onboarding hasn't run. Takes the
+        // connection-form factory above so its third step is a real connection form, not a copy of one.
+        services.AddTransient<FirstRunViewModel>();
+
         // Connection Manager window (master-detail): opened from the sidebar/menu, same factory-delegate
         // pattern as the dialogs. Reuses the connection-form factory above for its detail panel.
         services.AddTransient<ConnectionManagerViewModel>();

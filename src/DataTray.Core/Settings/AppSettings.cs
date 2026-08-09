@@ -109,6 +109,20 @@ public sealed class AppSettings
     /// mutating plugins is last-writer-wins.</summary>
     public bool AllowMultipleInstances { get; set; }
 
+    /// <summary>Whether the first-run wizard has run (SE-239). Set when it finishes <b>or</b> is skipped —
+    /// either way it is never shown again. False on a fresh profile, which is what triggers it.</summary>
+    public bool OnboardingCompleted { get; set; }
+
+    /// <summary>Which step the first-run wizard was on. Only meaningful while
+    /// <see cref="OnboardingCompleted"/> is false: installing an engine from the wizard stages a plugin that
+    /// only loads on the next start, so the wizard restarts the app and resumes here instead of dropping the
+    /// user back at the beginning.</summary>
+    public int OnboardingStep { get; set; }
+
+    /// <summary>The provider the first-run wizard had selected, so a restart-and-resume comes back to the
+    /// engine the user picked — including one that was just installed and is only now loadable.</summary>
+    public string? OnboardingProviderId { get; set; }
+
     /// <summary>Global query timeout in seconds for app-run queries; 0 = no limit. Applied by cancelling the
     /// run's token after the interval (same mechanism as the Stop button). MCP has its own timeout.</summary>
     public int QueryTimeoutSeconds { get; set; }

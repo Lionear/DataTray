@@ -220,17 +220,10 @@ public partial class ConnectionManagerViewModel : ViewModelBase
             return;
         }
 
-        var taken = _connections.List().Select(c => c.Name).ToHashSet(StringComparer.CurrentCultureIgnoreCase);
-        string? lastId = null;
-        foreach (var connection in chosen)
-        {
-            var name = UniqueName(connection.Name, taken);
-            taken.Add(name);
-            lastId = Guid.NewGuid().ToString("N");
-            _connections.Save(lastId, name, connection.ProviderId!, connection.Values, folder: connection.Folder);
-        }
+        // Shared with the first-run wizard (SE-239) so unique-naming and the save shape can't drift apart.
+        var saved = ImportedConnections.SaveAll(_connections, chosen);
 
-        RebuildTree(lastId);
+        RebuildTree(saved.LastOrDefault());
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(FolderSuggestions));
         ConnectionsChanged?.Invoke();
@@ -242,22 +235,6 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         _providers.TryGet(providerId, out var provider)
             ? provider.ConnectionFields.Select(f => f.Key).ToList()
             : null;
-
-    private static string UniqueName(string name, IReadOnlySet<string> taken)
-    {
-        if (!taken.Contains(name))
-        {
-            return name;
-        }
-
-        var suffix = 2;
-        while (taken.Contains($"{name} ({suffix})"))
-        {
-            suffix++;
-        }
-
-        return $"{name} ({suffix})";
-    }
 
     [RelayCommand]
     private void Discard()
