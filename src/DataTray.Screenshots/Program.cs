@@ -166,7 +166,7 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, importconnections, main, mcpsettings, aitree, copytable, erdiagram";
+    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, aitree, copytable, erdiagram";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
@@ -175,6 +175,7 @@ internal static class SceneCatalog
         "store" => Task.FromResult<Window?>(BuildStore(services)),
         "export" => Task.FromResult<Window?>(BuildExport(services)),
         "importconnections" => Task.FromResult<Window?>(BuildImportConnections(services)),
+        "firstrun" => Task.FromResult<Window?>(BuildFirstRun(services, state)),
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
@@ -617,6 +618,50 @@ internal static class SceneCatalog
     {
         var loc = services.GetRequiredService<ILocalizer>();
         return new ExportDialog(loc, rowCount: 30, isSelection: false);
+    }
+
+    // SE-239 first-run wizard. --state welcome|engine|connection|import|done picks the step, since each one
+    // is a different screen and the point of a capture is to look at them. Fed sample import rows so the
+    // shot doesn't depend on what this machine happens to have installed.
+    private static Window BuildFirstRun(IServiceProvider services, string state)
+    {
+        var viewModel = services.GetRequiredService<FirstRunViewModel>();
+        viewModel.Configure(
+        [
+            new DiscoveredConnection("DBeaver", "prod-eu-1", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "db1.internal", ["port"] = "5432", ["database"] = "orders" }),
+            new DiscoveredConnection("DataGrip", "analytics", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "warehouse", ["port"] = "5432", ["database"] = "dwh" }),
+            new DiscoveredConnection("Workbench", "local-mysql", null, "mysql",
+                new Dictionary<string, string?> { ["host"] = "127.0.0.1", ["port"] = "3306" }),
+            new DiscoveredConnection("Compass", "atlas-cluster", null, null,
+                new Dictionary<string, string?>(), "provider 'mongodb' is not installed")
+        ]);
+
+        // Walk the same commands a user would, so a capture can only show a state the wizard can reach.
+        if (state is "engine" or "connection" or "import" or "done")
+        {
+            viewModel.NextCommand.Execute(null);
+        }
+
+        if (state is "connection" or "done")
+        {
+            viewModel.SelectEngineCommand.Execute(viewModel.Engines.FirstOrDefault(e => e.Id == "postgres")
+                                                  ?? viewModel.Engines.FirstOrDefault());
+            viewModel.NextCommand.Execute(null);
+        }
+
+        if (state is "import")
+        {
+            viewModel.StartImportCommand.Execute(null);
+        }
+
+        if (state is "done")
+        {
+            viewModel.NextCommand.Execute(null);
+        }
+
+        return new FirstRunWindow(viewModel);
     }
 
     // SE-233 import picker, fed with sample rows rather than this machine's real DataGrip/DBeaver config
