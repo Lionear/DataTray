@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "er-diagram",
+  "type": "tool",
+  "name": "ER Diagram",
+  "version": "0.1.0",
+  "hostApiVersion": 6,
+  "entryAssembly": "DataTray.Tools.ErDiagram.dll",
+  "localization": "Lang/strings"
+}

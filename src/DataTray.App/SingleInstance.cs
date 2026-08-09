@@ -17,7 +17,14 @@ namespace DataTray.App;
 public static class SingleInstance
 {
     // Per-user so different logged-in users don't collide; a named pipe maps to a user-owned file on Unix.
-    private static string PipeName => $"SqlExplorer.SingleInstance.{Environment.UserName}";
+    //
+    // The name carries the product, and it was missed by the SE-203 rename. Both sides of the probe read
+    // this one property, so the old name still worked — but it was shared with a leftover SQL Explorer
+    // install, and the two apps are no longer the same app: they read different data roots since SE-206.
+    // Under the old name, launching DataTray while SQL Explorer was running made DataTray exit silently
+    // and raise the *other* app's window. Renaming lets both run at once, which is what separate data
+    // roots imply. There is nothing to migrate — the pipe is a live listener, not persisted state.
+    private static string PipeName => $"DataTray.SingleInstance.{Environment.UserName}";
 
     /// <summary>Reads the "allow multiple instances" preference straight from disk — before Avalonia and DI
     /// exist — so <c>Program</c> can decide whether to run the single-instance probe at all (SE-124). A

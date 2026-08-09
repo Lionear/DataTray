@@ -751,56 +751,102 @@ public partial class DocumentView : UserControl
             return;
         }
 
-        grid.Columns.Clear();
-
         var editable = _viewModel?.Editable;
         if (editable is null)
         {
+            grid.Columns.Clear();
             grid.ItemsSource = null;
+            _currentColumnIndex = 0;
+            _currentRow = null;
             return;
         }
 
         var browse = _viewModel!.IsBrowseMode;
         var monitor = _viewModel.IsMonitorMode;
+
+        // Header text and sortability per column, resolved once: the headers double as the "did the shape
+        // change?" fingerprint below.
+        var headers = new string[editable.Columns.Count];
+        var sortables = new bool[editable.Columns.Count];
         for (var i = 0; i < editable.Columns.Count; i++)
         {
             var column = editable.Columns[i];
             var baseName = column.BaseColumn ?? column.Name;
             // Browse sorts on the base column (server-side); monitor sorts any column by its display name
             // (client-side). Both drive the same header-arrow + Tag path below.
-            var sortable = (browse && column.BaseColumn is not null) || monitor;
+            sortables[i] = (browse && column.BaseColumn is not null) || monitor;
 
             // Show the active sort direction with an arrow in the header (the built-in sort glyph is
             // bypassed since we sort server-side).
-            var arrow = sortable && _viewModel.SortColumn == baseName
+            var arrow = sortables[i] && _viewModel.SortColumn == baseName
                 ? _viewModel.SortDescending ? " ▼" : " ▲"
                 : string.Empty;
+            headers[i] = column.Name + arrow;
+        }
 
-            // Resolve the column's action-capability once here (cheap, by name) rather than per cell.
-            var mayHaveActions = _viewModel.ColumnMayHaveCellActions(column.Name);
-            var gridColumn = new DataGridTemplateColumn
+        // A monitor tab lands here every auto-refresh (5s) with the exact same columns. Clearing and
+        // re-adding them is the destructive part — it tears the grid's columns down under whatever the
+        // user is doing (the same hazard OnGridSorting already defers around) and drops the column widths
+        // with it. Unchanged shape → keep the columns and swap only the rows. The sort arrow rides in the
+        // header, so a re-sort still counts as a change and rebuilds.
+        if (!ColumnsUnchanged(grid, editable, headers, sortables))
+        {
+            grid.Columns.Clear();
+            for (var i = 0; i < editable.Columns.Count; i++)
             {
-                Header = column.Name + arrow,
-                IsReadOnly = column.IsReadOnly,
-                CanUserSort = sortable,
-                CellTemplate = BuildCellTemplate(i, mayHaveActions),
-                CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i, column)
-            };
+                var column = editable.Columns[i];
+                // Resolve the column's action-capability once here (cheap, by name) rather than per cell.
+                var mayHaveActions = _viewModel.ColumnMayHaveCellActions(column.Name);
+                var gridColumn = new DataGridTemplateColumn
+                {
+                    Header = headers[i],
+                    IsReadOnly = column.IsReadOnly,
+                    CanUserSort = sortables[i],
+                    CellTemplate = BuildCellTemplate(i, mayHaveActions),
+                    CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i, column)
+                };
 
-            // The Tag carries the base column name the server-side ORDER BY needs.
-            if (sortable)
-            {
-                gridColumn.Tag = baseName;
+                // The Tag carries the base column name the server-side ORDER BY needs.
+                if (sortables[i])
+                {
+                    gridColumn.Tag = column.BaseColumn ?? column.Name;
+                }
+
+                grid.Columns.Add(gridColumn);
             }
-
-            grid.Columns.Add(gridColumn);
         }
 
         grid.ItemsSource = editable.Rows;
 
-        // Fresh result: forget the previously tracked cell.
+        // Fresh rows: forget the previously tracked cell — it points into the snapshot we just replaced,
+        // and the row actions (Kill/Cancel on a monitor row) act on whatever it holds.
         _currentColumnIndex = 0;
         _currentRow = null;
+    }
+
+    // The grid already shows this shape when the count, headers, read-only flags and sortability all line
+    // up. The cell templates bind by index and resolve their action-capability from the column name, both
+    // pinned down by the header (which carries the sort arrow too). Sortability needs its own check: the
+    // same column names can arrive sortable in a browse tab and not sortable in a query one, and a stale
+    // CanUserSort would leave a header clickable that OnGridSorting no longer handles.
+    private static bool ColumnsUnchanged(DataGrid grid, EditableResultSet editable, string[] headers, bool[] sortables)
+    {
+        if (grid.Columns.Count != headers.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < headers.Length; i++)
+        {
+            if (grid.Columns[i].Header as string != headers[i]
+                || grid.Columns[i].IsReadOnly != editable.Columns[i].IsReadOnly
+                || grid.Columns[i].CanUserSort != sortables[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // Per-row template: a cell the provider marks actionable (ICustomCellActionUi — e.g. MSSQL's

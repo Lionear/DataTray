@@ -3,7 +3,7 @@
   "id": "local-containers",
   "type": "extension",
   "name": "Local Containers (Docker)",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "hostApiVersion": 4,
   "entryAssembly": "DataTray.Backends.Docker.dll",
   "capabilities": ["storage", "connections", "panel", "process", "menu", "background", "services", "providers"]

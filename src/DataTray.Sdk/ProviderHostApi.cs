@@ -137,7 +137,15 @@ public static class ProviderHostApi
     //     SELECT that may already be ordered (DataGrip/DBeaver-style result paging); SQL Server overrides it
     //     to append OFFSET/FETCH to an existing ORDER BY. All three purely additive at the type level — the
     //     version bump exists purely to gate them away from a host that predates them.
-    public const int Version = 27;
+    // v28 (2026-08-01): added IDbProvider.SessionDatabaseColumn + BlockingSessionColumn (both default
+    //                   string.Empty = "no such column in my session list") — they name which
+    //                   GetActiveSessionsAsync column holds the session's database and the id of its
+    //                   blocker, driving the Activity Monitor's Database dropdown and "Blocking only"
+    //                   filter. MSSQL declares both ("database"/"blocking_session_id"), Postgres/MySQL
+    //                   only the database one ("datname"/"db"). Purely additive: a provider that declares
+    //                   neither keeps the unfiltered monitor it had. Bumped rather than folded into v27,
+    //                   which shipped in 0.4.0 — same post-release rule as the v27 note above.
+    public const int Version = 28;
 
     /// <summary>Oldest plugin ABI this host still loads. Additive bumps (v11→v22 style) keep this fixed;
     /// only a breaking change raises it. Raised to 23 by the v23 BuildNodeQuery signature change above —

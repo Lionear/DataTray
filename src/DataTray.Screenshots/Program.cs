@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -165,7 +166,7 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, importconnections, main, mcpsettings, aitree, copytable";
+    public static string Names => "hero, query, store, export, importconnections, main, mcpsettings, aitree, copytable, erdiagram";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
@@ -178,6 +179,7 @@ internal static class SceneCatalog
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
+        "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
         _ => Task.FromResult<Window?>(null)
     };
 
@@ -323,6 +325,117 @@ internal static class SceneCatalog
 
     // The hero shot: the main window browsing a synthetic SQLite "shop" database, so the schema tree and
     // an editable result grid are populated — with data that is obviously fake.
+
+    /// <summary>
+    /// The ER diagram (SE-82) in a plugin-owned tab (SE-216). This is the scene that proves the seam end
+    /// to end rather than by reasoning: a real MainWindow, a real DocumentViewModel in
+    /// <c>DocumentMode.Plugin</c>, and the plugin's own control resolved through the same
+    /// <c>IToolDocumentUi</c> path the tool menu uses — including DocumentView's binding to
+    /// <c>PluginView</c>, which is the part a compile cannot check.
+    /// </summary>
+    private static Task<Window?> BuildErDiagramAsync(IServiceProvider services, string sandbox, string state)
+    {
+        var tool = services.GetRequiredService<IToolRegistry>().All.FirstOrDefault(t => t.Id == "er-diagram");
+        if (tool is not IToolDocumentUi documentUi)
+        {
+            Console.Error.WriteLine("The er-diagram plugin isn't in this build's plugins/ folder.");
+            return Task.FromResult<Window?>(null);
+        }
+
+        var dbPath = Path.Combine(sandbox, "demo-shop.db");
+        DemoData.CreateShopDatabase(dbPath);
+
+        var connections = services.GetRequiredService<ConnectionService>();
+        var connection = connections.Save(
+            id: "demo-shop", name: "Demo shop", providerId: "sqlite",
+            values: new Dictionary<string, string?> { ["path"] = dbPath });
+
+        var viewModel = services.GetRequiredService<MainViewModel>();
+        viewModel.SyncConnectionsFromStore();
+        if (viewModel.ConnectionNodes.Count > 0)
+        {
+            viewModel.ConnectionNodes[0].IsExpanded = true;
+        }
+
+        var providers = services.GetRequiredService<IDbProviderRegistry>();
+        var profile = connections.Resolve(connection, database: null);
+
+        var context = new ToolDocumentContext(
+            providers.Get("sqlite"),
+            "sqlite",
+            profile,
+            node: null,
+            services.GetRequiredService<IToolRegistry>().LocalizerFor(tool.Id),
+            setTitle: _ => { },
+            openQueryEditor: _ => { },
+            closeDocument: () => { },
+            // A picker that answers with a fixed path, so the export and save paths can be driven without
+            // a dialog — the point is to prove the files are actually written, not to show a file chooser.
+            pickSaveFile: (name, extensions) => Task.FromResult<string?>(Path.Combine(
+                Path.GetTempPath(),
+                // "exportsvg" picks the last offered extension, which is how the SVG path gets exercised
+                // without a dialog to click through.
+                "er-export." + (state == "exportsvg" ? extensions[^1] : extensions[0]))),
+            pickOpenFile: _ => Task.FromResult<string?>(null));
+
+        var view = documentUi.CreateDocument(context);
+
+        var document = new DocumentViewModel(
+            providers,
+            connections,
+            services.GetRequiredService<ISqlFormatter>(),
+            services.GetRequiredService<IQueryHistoryStore>(),
+            services.GetRequiredService<IQueryLog>(),
+            services.GetRequiredService<ISchemaCache>(),
+            services.GetRequiredService<IServerVersionCache>(),
+            services.GetRequiredService<IAppSettingsStore>(),
+            services.GetRequiredService<ILocalizer>());
+        document.InitPluginDocument(connection, database: null, key: "er-diagram|demo-shop||",
+            title: "ER \u00b7 Demo shop", view, documentUi.Icon);
+        viewModel.Documents.Add(document);
+        viewModel.SelectedDocument = document;
+
+        // The schema read is a real round-trip on a real SQLite file. Settle() pumps the dispatcher while
+        // it waits; awaiting a plain Task.Delay here deadlocks, because the continuation is posted to a
+        // dispatcher that nothing is pumping.
+        Program.Settle(rounds: 60);
+
+        // "drawn" walks the picker the way a user would — tick everything, press Draw — through the real
+        // controls rather than a back door, so the capture proves the flow and not just the painting.
+        // "export" goes one further and presses Save and Export too, which is the only way to find out
+        // whether the files are really written through the seam's new pickers.
+        if (state is "drawn" or "export" or "exportsvg")
+        {
+            // The logical tree, not the visual one: the control has not been laid out yet at this point,
+            // so it has no visual children to walk.
+            foreach (var box in view.GetLogicalDescendants().OfType<CheckBox>())
+            {
+                box.IsChecked = true;
+            }
+
+            Program.Settle(rounds: 10);
+
+            var draw = view.GetLogicalDescendants().OfType<Button>()
+                .FirstOrDefault(b => b.Content as string == "Draw");
+            draw?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+            Program.Settle(rounds: 20);
+        }
+
+        if (state is "export" or "exportsvg")
+        {
+            foreach (var label in new[] { "Save…", "Export…" })
+            {
+                var button = view.GetLogicalDescendants().OfType<Button>()
+                    .FirstOrDefault(b => b.Content as string == label);
+                button?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                Program.Settle(rounds: 20);
+            }
+        }
+
+        return Task.FromResult<Window?>(new MainWindow { DataContext = viewModel });
+    }
+
     private static async Task<Window?> BuildHeroAsync(IServiceProvider services, string sandbox)
     {
         var dbPath = Path.Combine(sandbox, "demo-shop.db");

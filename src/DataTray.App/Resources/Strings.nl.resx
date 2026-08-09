@@ -153,6 +153,15 @@
   <data name="RefreshOff" xml:space="preserve">
     <value>Uit</value>
   </data>
+  <data name="MonitorDatabase" xml:space="preserve">
+    <value>Database</value>
+  </data>
+  <data name="MonitorAllDatabases" xml:space="preserve">
+    <value>(alle)</value>
+  </data>
+  <data name="MonitorBlockingOnly" xml:space="preserve">
+    <value>Alleen blokkerend</value>
+  </data>
   <data name="KillSession" xml:space="preserve">
     <value>Sessie beëindigen</value>
   </data>

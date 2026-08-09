@@ -153,6 +153,15 @@
   <data name="RefreshOff" xml:space="preserve">
     <value>Off</value>
   </data>
+  <data name="MonitorDatabase" xml:space="preserve">
+    <value>Database</value>
+  </data>
+  <data name="MonitorAllDatabases" xml:space="preserve">
+    <value>(all)</value>
+  </data>
+  <data name="MonitorBlockingOnly" xml:space="preserve">
+    <value>Blocking only</value>
+  </data>
   <data name="KillSession" xml:space="preserve">
     <value>Kill session</value>
   </data>

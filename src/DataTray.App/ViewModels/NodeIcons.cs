@@ -31,6 +31,7 @@ public static class NodeIcons
     public static readonly Geometry Function = Icons.SquareFunction;
     public static readonly Geometry Trigger = Icons.Zap;
     public static readonly Geometry User = Icons.User;
+    public static readonly Geometry AgentJob = Icons.Clock;
 
     // --- Toolbar action glyphs (Connection Manager). ---
     public static readonly Geometry Plus = Icons.Plus;
@@ -43,6 +44,10 @@ public static class NodeIcons
     public static readonly Geometry TabQuery = Icons.FileCode;
     public static readonly Geometry TabBrowse = Icons.Table;
     public static readonly Geometry TabMonitor = Icons.Clock;
+
+    /// <summary>Fallback for a plugin-owned tab that supplies no icon of its own (SE-216). The puzzle
+    /// piece is already the product's mark for "this came from a plugin".</summary>
+    public static readonly Geometry TabPlugin = Icons.Puzzle;
 
     // --- Tool-window glyphs (status-bar / stripe toggles). ---
     public static readonly Geometry ToolOutput = Icons.Terminal;
@@ -88,6 +93,8 @@ public static class NodeIcons
         DbNodeKind.Function => Function,
         DbNodeKind.Trigger => Trigger,
         DbNodeKind.Object => Object,
+        DbNodeKind.AgentJob => AgentJob,
+        DbNodeKind.AgentJobFolder => Folder,
         _ => Connection
     };
 }

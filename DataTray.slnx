@@ -27,6 +27,7 @@
     <Project Path="src/DataTray.Screenshots/DataTray.Screenshots.csproj" />
     <Project Path="src/DataTray.Sdk/DataTray.Sdk.csproj" />
     <Project Path="plugins/Tools.CopyTable/DataTray.Tools.CopyTable.csproj" />
+    <Project Path="plugins/Tools.ErDiagram/DataTray.Tools.ErDiagram.csproj" />
     <Project Path="plugins/Tools.GenerateScripts/DataTray.Tools.GenerateScripts.csproj" />
     <Project Path="plugins/Tools.SchemaDiff/DataTray.Tools.SchemaDiff.csproj" />
   </Folder>
@@ -35,6 +36,7 @@
     <Project Path="tests/DataTray.Backends.Docker.Tests/DataTray.Backends.Docker.Tests.csproj" />
     <Project Path="tests/DataTray.Core.Tests/DataTray.Core.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.CopyTable.Tests/DataTray.Tools.CopyTable.Tests.csproj" />
+    <Project Path="tests/DataTray.Tools.ErDiagram.Tests/DataTray.Tools.ErDiagram.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.GenerateScripts.Tests/DataTray.Tools.GenerateScripts.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.SchemaDiff.Tests/DataTray.Tools.SchemaDiff.Tests.csproj" />
   </Folder>

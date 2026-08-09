@@ -3,7 +3,7 @@
   "id": "sqlite",
   "type": "provider",
   "name": "SQLite",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "hostApiVersion": 27,
   "entryAssembly": "DataTray.Providers.Sqlite.dll"
 }

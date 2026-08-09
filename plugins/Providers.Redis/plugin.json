@@ -3,7 +3,7 @@
   "id": "redis",
   "type": "provider",
   "name": "Redis",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "hostApiVersion": 27,
   "entryAssembly": "DataTray.Providers.Redis.dll"
 }
