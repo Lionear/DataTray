@@ -6,6 +6,7 @@ using DataTray.Core.Plugins;
 using DataTray.Core.Providers;
 using DataTray.Core.Settings;
 using DataTray.Core.Store;
+using DataTray.Infrastructure.Secrets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -105,7 +106,12 @@ public partial class FirstRunViewModel : ViewModelBase
         _storeCatalog = storeCatalog;
         _newConnectionDialog = newConnectionDialog;
         Loc = localizer;
-        Import = new ImportConnectionsDialogViewModel(localizer);
+        Import = new ImportConnectionsDialogViewModel(localizer)
+        {
+            // SE-238: onboarding gets the same opt-in password fetch the Connection Manager's picker has.
+            FetchPasswordsRequested = found => ExternalConnectionImport.WithStoredPasswords(
+                found, ForeignSecretLookups.ForThisPlatform(), FieldKeysOf)
+        };
 
         LoadInstalledEngines();
 

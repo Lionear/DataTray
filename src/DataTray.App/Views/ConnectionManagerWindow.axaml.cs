@@ -72,7 +72,12 @@ public partial class ConnectionManagerWindow : Window
             return [];
         }
 
-        var dialogViewModel = new ImportConnectionsDialogViewModel(loc);
+        var dialogViewModel = new ImportConnectionsDialogViewModel(loc)
+        {
+            // SE-238: the picker offers to ask the OS for the passwords the other clients keep there. The VM
+            // owns the providers, so the fetch is routed back through it rather than reached for here.
+            FetchPasswordsRequested = ViewModel.FetchStoredPasswords
+        };
         dialogViewModel.Configure(found);
 
         var dialog = new ImportConnectionsDialog { DataContext = dialogViewModel };
