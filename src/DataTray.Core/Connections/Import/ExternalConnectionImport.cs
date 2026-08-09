@@ -83,14 +83,46 @@ public static class ExternalConnectionImport
         return found;
     }
 
-    /// <summary>DataGrip/IntelliJ <c>options/dataSources.xml</c> across every installed JetBrains IDE.</summary>
+    /// <summary>
+    /// Every <c>dataSources.xml</c> a JetBrains IDE might have written. DataGrip normally stores its
+    /// data sources <b>per project</b>, in <c>&lt;project&gt;/.idea/dataSources.xml</c> — the IDE-wide
+    /// <c>options/dataSources.xml</c> is usually absent — so the recent-projects list of every installed
+    /// IDE is walked as well. Without that the DataGrip half finds nothing on a typical machine.
+    /// </summary>
     public static IReadOnlyList<string> DataGripFiles() =>
         JetBrainsRoots()
             .SelectMany(SubDirectories)
-            .Select(dir => Path.Combine(dir, "options", "dataSources.xml"))
+            .Select(dir => Path.Combine(dir, "options"))
+            .SelectMany(options => new[] { Path.Combine(options, "dataSources.xml") }
+                .Concat(RecentProjects(Path.Combine(options, "recentProjects.xml"))
+                    .Select(project => Path.Combine(project, ".idea", "dataSources.xml"))))
             .Where(File.Exists)
             .Distinct(StringComparer.Ordinal)
             .ToList();
+
+    // Project paths out of an IDE's recentProjects.xml. Paths are stored with JetBrains' $USER_HOME$ macro.
+    private static IEnumerable<string> RecentProjects(string recentProjectsFile)
+    {
+        if (!File.Exists(recentProjectsFile))
+        {
+            return [];
+        }
+
+        try
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return XDocument.Load(recentProjectsFile)
+                .Descendants("entry")
+                .Select(entry => (string?)entry.Attribute("key"))
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key!.Replace("$USER_HOME$", home, StringComparison.Ordinal))
+                .ToList();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+            return [];
+        }
+    }
 
     /// <summary>DBeaver <c>data-sources.json</c> across every workspace and project under DBeaverData.</summary>
     public static IReadOnlyList<string> DBeaverFiles() =>
@@ -395,9 +427,15 @@ public static class ExternalConnectionImport
     {
         try
         {
+            // AttributesToSkip defaults to Hidden|System, and DBeaver's config lives in a dot-directory
+            // (workspace6/<project>/.dbeaver) — which is hidden on Unix, so the default skips it entirely.
             return Directory.Exists(root)
-                ? Directory.EnumerateFiles(root, pattern,
-                    new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true })
+                ? Directory.EnumerateFiles(root, pattern, new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    AttributesToSkip = FileAttributes.None
+                })
                 : [];
         }
         catch (IOException)
