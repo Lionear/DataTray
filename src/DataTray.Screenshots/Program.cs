@@ -15,6 +15,7 @@ using DataTray.App.DependencyInjection;
 using DataTray.App.ViewModels;
 using DataTray.App.Views;
 using DataTray.Core.Connections;
+using DataTray.Core.Connections.Import;
 using DataTray.Core.Mcp;
 using DataTray.Sdk.Formatting;
 using DataTray.Core.History;
@@ -39,6 +40,7 @@ namespace DataTray.Screenshots;
 //   dotnet run --project src/DataTray.Screenshots -- --scene hero --out docs/images/hero.png [--size 1280x820]
 // Scenes: hero (main window browsing a synthetic demo DB), query (SQL editor with a query + results),
 // store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window),
+// importconnections (the DataGrip/DBeaver import picker),
 // copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
@@ -163,7 +165,7 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, main, mcpsettings, aitree, copytable";
+    public static string Names => "hero, query, store, export, importconnections, main, mcpsettings, aitree, copytable";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
@@ -171,6 +173,7 @@ internal static class SceneCatalog
         "query" => BuildQueryAsync(services, sandbox, state),
         "store" => Task.FromResult<Window?>(BuildStore(services)),
         "export" => Task.FromResult<Window?>(BuildExport(services)),
+        "importconnections" => Task.FromResult<Window?>(BuildImportConnections(services)),
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
@@ -501,6 +504,30 @@ internal static class SceneCatalog
     {
         var loc = services.GetRequiredService<ILocalizer>();
         return new ExportDialog(loc, rowCount: 30, isSelection: false);
+    }
+
+    // SE-233 import picker, fed with sample rows rather than this machine's real DataGrip/DBeaver config
+    // so the shot is identical everywhere — including the two "found but can't import" states.
+    private static Window BuildImportConnections(IServiceProvider services)
+    {
+        var viewModel = new ImportConnectionsDialogViewModel(services.GetRequiredService<ILocalizer>());
+        viewModel.Configure(
+        [
+            new DiscoveredConnection("DataGrip", "orders@prod", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "prod-db", ["port"] = "5432", ["database"] = "orders" }),
+            new DiscoveredConnection("DataGrip", "legacy reporting", null, "sqlserver",
+                new Dictionary<string, string?> { ["host"] = "sql01", ["port"] = "1433", ["database"] = "Sales" }),
+            new DiscoveredConnection("DBeaver", "Local Postgres", "Development", "postgres",
+                new Dictionary<string, string?> { ["host"] = "127.0.0.1", ["port"] = "5433", ["database"] = "app" }),
+            new DiscoveredConnection("DBeaver", "Notes", null, "sqlite",
+                new Dictionary<string, string?> { ["path"] = "/home/demo/notes.db" }),
+            new DiscoveredConnection("DBeaver", "warehouse", "Analytics", null,
+                new Dictionary<string, string?>(), "unsupported engine 'informix'"),
+            new DiscoveredConnection("DataGrip", "session cache", null, null,
+                new Dictionary<string, string?>(), "provider 'redis' is not installed")
+        ]);
+
+        return new ImportConnectionsDialog { DataContext = viewModel };
     }
 }
 

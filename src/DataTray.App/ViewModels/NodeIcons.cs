@@ -37,6 +37,7 @@ public static class NodeIcons
     public static readonly Geometry FolderPlus = Icons.FolderPlus;
     public static readonly Geometry Duplicate = Icons.Copy;
     public static readonly Geometry Trash = Icons.Trash2;
+    public static readonly Geometry ImportConnections = Icons.Download;
 
     // --- Document tab-strip glyphs. ---
     public static readonly Geometry TabQuery = Icons.FileCode;

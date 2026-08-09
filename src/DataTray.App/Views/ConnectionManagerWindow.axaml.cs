@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using DataTray.App.ViewModels;
+using DataTray.Core.Connections.Import;
 
 namespace DataTray.App.Views;
 
@@ -41,6 +42,7 @@ public partial class ConnectionManagerWindow : Window
             if (DataContext is ConnectionManagerViewModel vm)
             {
                 vm.ConfirmRequested = ShowConfirmAsync;
+                vm.ImportExternalRequested = ShowImportAsync;
             }
         };
     }
@@ -60,6 +62,21 @@ public partial class ConnectionManagerWindow : Window
         {
             input.Value = files[0].TryGetLocalPath() ?? files[0].Path.ToString();
         }
+    }
+
+    // The DataGrip/DBeaver import picker (SE-233): the VM has already scanned, this only asks which rows.
+    private async Task<IReadOnlyList<DiscoveredConnection>> ShowImportAsync(IReadOnlyList<DiscoveredConnection> found)
+    {
+        if (ViewModel?.Loc is not { } loc)
+        {
+            return [];
+        }
+
+        var dialogViewModel = new ImportConnectionsDialogViewModel(loc);
+        dialogViewModel.Configure(found);
+
+        var dialog = new ImportConnectionsDialog { DataContext = dialogViewModel };
+        return await dialog.ShowDialog<bool>(this) ? dialogViewModel.Selected : [];
     }
 
     private async Task<bool> ShowConfirmAsync(string title, string message)

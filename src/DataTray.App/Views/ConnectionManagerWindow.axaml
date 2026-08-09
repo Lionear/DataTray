@@ -42,7 +42,7 @@
       <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- Toolbar: filter + add/duplicate/delete -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="8,8,8,6" >
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="8,8,8,6" >
           <TextBox Grid.Column="0" Text="{Binding Filter}"
                    PlaceholderText="{Binding Loc[FilterConnections]}" />
           <Button Grid.Column="1" Classes="Subtle" Margin="4,0,0,0" Padding="7,5"
@@ -70,6 +70,14 @@
                   ToolTip.Tip="{Binding Loc[Delete]}"
                   Command="{Binding DeleteConnectionCommand}">
             <Path Width="14" Height="14" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Trash}"
+                  Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.4"
+                  StrokeJoin="Round" StrokeLineCap="Round" />
+          </Button>
+          <!-- Import from DataGrip/DBeaver (SE-233). -->
+          <Button Grid.Column="5" Classes="Subtle" Padding="7,5"
+                  ToolTip.Tip="{Binding Loc[ImportConnectionsTitle]}"
+                  Command="{Binding ImportExternalCommand}">
+            <Path Width="14" Height="14" Stretch="Uniform" Data="{x:Static vm:NodeIcons.ImportConnections}"
                   Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.4"
                   StrokeJoin="Round" StrokeLineCap="Round" />
           </Button>
