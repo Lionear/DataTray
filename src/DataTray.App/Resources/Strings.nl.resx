@@ -1804,13 +1804,13 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
     <value>Niets selecteren</value>
   </data>
   <data name="ImportConnectionsTitle" xml:space="preserve">
-    <value>Importeren uit DataGrip / DBeaver</value>
+    <value>Importeren uit een andere client</value>
   </data>
   <data name="ImportConnectionsHint" xml:space="preserve">
-    <value>Connecties gevonden in DataGrip en DBeaver. Wachtwoorden worden niet overgenomen — die blijven in de eigen sleutelopslag van die programma's, dus bij de eerste verbinding wordt er één keer om gevraagd.</value>
+    <value>Connecties gevonden in de andere databaseclients op deze machine. Wachtwoorden worden niet overgenomen — die blijven in de eigen sleutelopslag van die programma's, dus bij de eerste verbinding wordt er één keer om gevraagd.</value>
   </data>
   <data name="ImportConnectionsNone" xml:space="preserve">
-    <value>Geen connecties van DataGrip of DBeaver gevonden op deze machine.</value>
+    <value>Geen connecties van een andere databaseclient gevonden op deze machine.</value>
   </data>
   <data name="ImportConnectionsFound" xml:space="preserve">
     <value>{0} van {1} kunnen worden geïmporteerd</value>
