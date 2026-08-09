@@ -3,6 +3,7 @@ using DataTray.Core.Connections;
 using DataTray.Core.Connections.Import;
 using DataTray.Core.Localization;
 using DataTray.Core.Providers;
+using DataTray.Infrastructure.Secrets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -228,6 +229,11 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         OnPropertyChanged(nameof(FolderSuggestions));
         ConnectionsChanged?.Invoke();
     }
+
+    /// <summary>Ask the OS for the passwords the other clients keep in its credential store (SE-238). Opt-in:
+    /// only ever called from the import picker's explicit button.</summary>
+    public IReadOnlyList<DiscoveredConnection> FetchStoredPasswords(IReadOnlyList<DiscoveredConnection> found) =>
+        ExternalConnectionImport.WithStoredPasswords(found, ForeignSecretLookups.ForThisPlatform(), FieldKeysOf);
 
     // The provider's declared field keys, or null when its plugin isn't installed — the importer uses the
     // same answer for "can we import this engine?" and "which key does it want the host under?".

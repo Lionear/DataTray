@@ -47,6 +47,46 @@ public partial class ImportConnectionsDialogViewModel : ViewModelBase
 
     public string Summary => Loc.Get("ImportConnectionsFound", Rows.Count(r => r.CanImport), Rows.Count);
 
+    /// <summary>
+    /// Fetches the passwords that live in the OS credential store instead of the client's own file, and
+    /// returns the same rows with those folded in (SE-238). Set by the owner, which knows the providers;
+    /// null leaves the offer hidden.
+    /// </summary>
+    public Func<IReadOnlyList<DiscoveredConnection>, IReadOnlyList<DiscoveredConnection>>? FetchPasswordsRequested { get; set; }
+
+    /// <summary>Whether any row has a password worth asking the OS for — the offer stays hidden otherwise
+    /// rather than being a button that does nothing.</summary>
+    public bool CanFetchPasswords =>
+        FetchPasswordsRequested is not null && Rows.Any(r => r.Connection.HasFetchableSecret);
+
+    /// <summary>How many rows this could still fetch a password for.</summary>
+    public string FetchPasswordsLabel =>
+        Loc.Get("ImportFetchPasswords", Rows.Count(r => r.Connection.HasFetchableSecret));
+
+    /// <summary>
+    /// Ask the OS for the passwords it holds. Opt-in and explicit: nothing here runs until the user presses
+    /// it, and the OS decides whether to hand anything over — it may prompt, and it may refuse.
+    /// </summary>
+    [RelayCommand]
+    private void FetchPasswords()
+    {
+        if (FetchPasswordsRequested is not { } fetch)
+        {
+            return;
+        }
+
+        // Keep what the user had ticked: re-Configure rebuilds every row, and silently re-selecting
+        // everything would undo their choices.
+        var deselected = Rows.Where(r => !r.IsSelected).Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
+
+        Configure(fetch(Rows.Select(r => r.Connection).ToList()));
+
+        foreach (var row in Rows.Where(r => deselected.Contains(r.Name)))
+        {
+            row.IsSelected = false;
+        }
+    }
+
     public void Configure(IReadOnlyList<DiscoveredConnection> found)
     {
         Rows.Clear();
@@ -66,6 +106,8 @@ public partial class ImportConnectionsDialogViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasRows));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(Summary));
+        OnPropertyChanged(nameof(CanFetchPasswords));
+        OnPropertyChanged(nameof(FetchPasswordsLabel));
     }
 
     /// <summary>The ticked, importable rows — what the caller should save.</summary>

@@ -1908,4 +1908,10 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="FirstRunDoneStore" xml:space="preserve">
     <value>Meer engines en gereedschap vind je onder Extra › Plug-instore — diagrammen, back-ups, schemavergelijking.</value>
   </data>
+  <data name="ImportFetchPasswords" xml:space="preserve">
+    <value>Ook {0} wachtwoorden uit de systeemsleutelhanger halen…</value>
+  </data>
+  <data name="ImportFetchPasswordsHint" xml:space="preserve">
+    <value>DataGrip bewaart deze in de sleutelhanger van je besturingssysteem, niet in zijn eigen bestanden. Je systeem bepaalt of het ze afgeeft en kan er eerst om vragen. Wat terugkomt gaat rechtstreeks naar DataTray's eigen sleutelhanger.</value>
+  </data>
 </root>

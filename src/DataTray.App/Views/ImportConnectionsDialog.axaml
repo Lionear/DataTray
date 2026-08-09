@@ -4,7 +4,7 @@
         Title="{Binding Loc[ImportConnectionsTitle]}"
         Width="560" Height="480" MinWidth="440" MinHeight="320"
         WindowStartupLocation="CenterOwner">
-  <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto" >
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto,Auto" >
 
     <TextBlock Grid.Row="0" Text="{Binding Loc[ImportConnectionsHint]}" TextWrapping="Wrap"
                FontSize="11.5" Foreground="{DynamicResource SETextFaintBrush}" Margin="0,0,0,10" />
@@ -45,7 +45,18 @@
                  Foreground="{DynamicResource SETextFaintBrush}" />
     </Grid>
 
-    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+    <!-- SE-238: the passwords those clients keep in the OS credential store. A button, not a tick box, and
+         not on by default — pressing it is the consent, and the OS may still prompt or refuse. Hidden
+         entirely when no row has anything to fetch. -->
+    <StackPanel Grid.Row="3" Spacing="3" Margin="0,10,0,0" IsVisible="{Binding CanFetchPasswords}">
+      <Button Classes="Subtle" HorizontalAlignment="Left"
+              Foreground="{DynamicResource SEAccentBrush}"
+              Content="{Binding FetchPasswordsLabel}" Command="{Binding FetchPasswordsCommand}" />
+      <TextBlock Text="{Binding Loc[ImportFetchPasswordsHint]}" TextWrapping="Wrap" FontSize="11"
+                 Foreground="{DynamicResource SETextFaintBrush}" />
+    </StackPanel>
+
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
       <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[Cancel]}" Click="OnCancel" Margin="0,0,8,0" />
       <Button Grid.Column="2" Classes="Accent" Content="{Binding Loc[Import]}" Click="OnImport"
               IsDefault="True" IsEnabled="{Binding HasRows}" />

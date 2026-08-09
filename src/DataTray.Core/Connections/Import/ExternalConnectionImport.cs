@@ -18,9 +18,15 @@ public sealed record DiscoveredConnection(
     string? ProviderId,
     IReadOnlyDictionary<string, string?> Values,
     string? SkipReason = null,
-    bool HasPassword = false)
+    bool HasPassword = false,
+    string? SecretRef = null)
 {
     public bool CanImport => ProviderId is not null && SkipReason is null;
+
+    /// <summary>True when this connection's password is in the OS credential store and could be fetched —
+    /// the source handed over a handle for it (<see cref="SecretRef"/>) and none came in the file itself.
+    /// Drives the "fetch passwords too" offer (SE-238).</summary>
+    public bool HasFetchableSecret => SecretRef is not null && !HasPassword && CanImport;
 }
 
 /// <summary>
@@ -99,6 +105,89 @@ public static class ExternalConnectionImport
                 found.AddRange(Read(file, parse));
             }
         }
+    }
+
+    /// <summary>
+    /// The service name <paramref name="source"/> filed <paramref name="secretRef"/>'s password under in the
+    /// OS credential store, or null when that client doesn't use one (SE-238).
+    /// </summary>
+    /// <remarks>
+    /// DataGrip: JetBrains' PasswordSafe writes one entry per data-source, keyed on the very
+    /// <c>uuid</c> that <c>dataSources.xml</c> already gives us. Verified on Fedora 44 + KWallet against a
+    /// real DataGrip profile: three of four data-sources had a matching entry and the fourth — the one with
+    /// no saved password — had none. The em dash and the spaces around it are part of the name.
+    /// macOS and Windows use the same string as the keychain service / Credential Manager target; that
+    /// follows the same PasswordSafe convention but has not been observed on those platforms.
+    /// </remarks>
+    public static string? SecretServiceName(string source, string secretRef) => source switch
+    {
+        "DataGrip" => $"IntelliJ Platform DB — {secretRef}",
+        _ => null
+    };
+
+    /// <summary>
+    /// Fetch the passwords that live in the OS credential store rather than in the client's own file, and
+    /// fold them into the rows they belong to (SE-238). Separate from <see cref="Discover"/> on purpose:
+    /// discovery only reads config files, and nothing touches a credential store until the user asks for it.
+    /// </summary>
+    /// <remarks>
+    /// Every failure is an ordinary outcome — store locked, user declined, no entry — and leaves the row
+    /// exactly as discovery produced it: importable, without a password, saying so.
+    /// </remarks>
+    public static IReadOnlyList<DiscoveredConnection> WithStoredPasswords(
+        IReadOnlyList<DiscoveredConnection> found,
+        IForeignSecretLookup lookup,
+        Func<string, IReadOnlyList<string>?> fieldKeysOf)
+    {
+        var enriched = new List<DiscoveredConnection>(found.Count);
+
+        foreach (var connection in found)
+        {
+            enriched.Add(connection.HasFetchableSecret
+                         && SecretServiceName(connection.Source, connection.SecretRef!) is { } service
+                         && Find(service) is { Length: > 0 } password
+                ? WithPassword(connection, password, fieldKeysOf)
+                : connection);
+        }
+
+        return enriched;
+
+        string? Find(string service)
+        {
+            try
+            {
+                return lookup.Find(service);
+            }
+            catch (Exception)
+            {
+                // A backend that throws (no secret service running, a broken CLI) must not take the whole
+                // import down with it — the rest of the rows are still perfectly importable.
+                return null;
+            }
+        }
+    }
+
+    // Put a fetched password under the provider's own secret field key, so ConnectionService.Save routes it
+    // to DataTray's keychain and never to the config file — the same path a hand-typed password takes.
+    private static DiscoveredConnection WithPassword(
+        DiscoveredConnection connection,
+        string password,
+        Func<string, IReadOnlyList<string>?> fieldKeysOf)
+    {
+        if (fieldKeysOf(connection.ProviderId!) is not { } fieldKeys)
+        {
+            return connection;
+        }
+
+        var aliases = FieldAliases.First(a => a.Concept == "password").Keys;
+        if (aliases.FirstOrDefault(alias => fieldKeys.Contains(alias, StringComparer.OrdinalIgnoreCase)) is not { } key)
+        {
+            // The provider declares no password field at all (a file-backed engine, say). Nothing to carry.
+            return connection;
+        }
+
+        var values = new Dictionary<string, string?>(connection.Values) { [key] = password };
+        return connection with { Values = values, HasPassword = true };
     }
 
     /// <summary>libpq's connection-service file.</summary>
@@ -188,9 +277,16 @@ public static class ExternalConnectionImport
             var url = source.Element("jdbc-url")?.Value;
             var user = source.Element("user-name")?.Value;
 
-            found.Add(string.IsNullOrWhiteSpace(url)
-                ? new DiscoveredConnection("DataGrip", name, null, null, EmptyValues, "no JDBC URL stored")
-                : Map("DataGrip", name, null, url, user, fieldKeysOf));
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                found.Add(new DiscoveredConnection("DataGrip", name, null, null, EmptyValues, "no JDBC URL stored"));
+                continue;
+            }
+
+            // The data-source's uuid is also the handle to its password in the OS credential store — see
+            // DataGripSecretService. Recorded here, resolved later and only if asked (SE-238).
+            var uuid = (string?)source.Attribute("uuid");
+            found.Add(Map("DataGrip", name, null, url, user, fieldKeysOf) with { SecretRef = uuid });
         }
 
         return found;

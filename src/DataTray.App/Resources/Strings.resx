@@ -1908,4 +1908,10 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="FirstRunDoneStore" xml:space="preserve">
     <value>More engines and tools are under Tools › Plugin Store — diagrams, backups, schema compare.</value>
   </data>
+  <data name="ImportFetchPasswords" xml:space="preserve">
+    <value>Also fetch {0} passwords from the system credential store…</value>
+  </data>
+  <data name="ImportFetchPasswordsHint" xml:space="preserve">
+    <value>DataGrip keeps these in the keychain your operating system manages, not in its own files. Your system decides whether to hand them over, and may ask you first. Anything that comes back goes straight into DataTray's own keychain.</value>
+  </data>
 </root>

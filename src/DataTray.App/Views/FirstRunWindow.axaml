@@ -263,15 +263,25 @@
           </ListBox.ItemTemplate>
         </ListBox>
 
-        <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" Margin="0,8,0,0">
-          <Button Grid.Column="0" Classes="Subtle" Content="{Binding Loc[SelectAll]}"
-                  Command="{Binding SelectAllCommand}" Margin="0,0,6,0" />
-          <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[SelectNone]}"
-                  Command="{Binding SelectNoneCommand}" />
-          <TextBlock Grid.Column="2" Text="{Binding Summary}" VerticalAlignment="Center"
-                     HorizontalAlignment="Right" FontSize="11"
-                     Foreground="{DynamicResource SETextFaintBrush}" />
-        </Grid>
+        <StackPanel Grid.Row="2" Spacing="8" Margin="0,8,0,0">
+          <Grid ColumnDefinitions="Auto,Auto,*">
+            <Button Grid.Column="0" Classes="Subtle" Content="{Binding Loc[SelectAll]}"
+                    Command="{Binding SelectAllCommand}" Margin="0,0,6,0" />
+            <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[SelectNone]}"
+                    Command="{Binding SelectNoneCommand}" />
+            <TextBlock Grid.Column="2" Text="{Binding Summary}" VerticalAlignment="Center"
+                       HorizontalAlignment="Right" FontSize="11"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </Grid>
+          <!-- SE-238, same opt-in as the Connection Manager's picker. -->
+          <StackPanel Spacing="3" IsVisible="{Binding CanFetchPasswords}">
+            <Button Classes="Subtle" HorizontalAlignment="Left"
+                    Foreground="{DynamicResource SEAccentBrush}"
+                    Content="{Binding FetchPasswordsLabel}" Command="{Binding FetchPasswordsCommand}" />
+            <TextBlock Text="{Binding Loc[ImportFetchPasswordsHint]}" TextWrapping="Wrap" FontSize="11"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </StackPanel>
+        </StackPanel>
       </Grid>
       </Panel>
 
