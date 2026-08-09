@@ -1,0 +1,54 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DataTray.App.Views.ImportConnectionsDialog"
+        Title="{Binding Loc[ImportConnectionsTitle]}"
+        Width="560" Height="480" MinWidth="440" MinHeight="320"
+        WindowStartupLocation="CenterOwner">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto" >
+
+    <TextBlock Grid.Row="0" Text="{Binding Loc[ImportConnectionsHint]}" TextWrapping="Wrap"
+               FontSize="11.5" Foreground="{DynamicResource SETextFaintBrush}" Margin="0,0,0,10" />
+
+    <TextBlock Grid.Row="1" IsVisible="{Binding IsEmpty}"
+               HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"
+               Foreground="{DynamicResource SETextFaintBrush}"
+               Text="{Binding Loc[ImportConnectionsNone]}" />
+
+    <ListBox Grid.Row="1" IsVisible="{Binding HasRows}" ItemsSource="{Binding Rows}"
+             Background="Transparent" BorderThickness="1"
+             BorderBrush="{DynamicResource SEHairlineBrush}">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanImport}"
+                      VerticalAlignment="Center" Margin="0,0,6,0" />
+            <StackPanel Grid.Column="1" Spacing="1">
+              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                         IsEnabled="{Binding CanImport}" />
+              <TextBlock Text="{Binding Detail}" FontSize="11" TextTrimming="CharacterEllipsis"
+                         Foreground="{DynamicResource SETextFaintBrush}" />
+            </StackPanel>
+            <TextBlock Grid.Column="2" Text="{Binding Source}" VerticalAlignment="Center" FontSize="11"
+                       Foreground="{DynamicResource SETextFaintBrush}" Margin="8,0,0,0" />
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" Margin="0,8,0,0" IsVisible="{Binding HasRows}">
+      <Button Grid.Column="0" Classes="Subtle" Content="{Binding Loc[SelectAll]}"
+              Command="{Binding SelectAllCommand}" Margin="0,0,6,0" />
+      <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[SelectNone]}"
+              Command="{Binding SelectNoneCommand}" />
+      <TextBlock Grid.Column="2" Text="{Binding Summary}" VerticalAlignment="Center"
+                 HorizontalAlignment="Right" FontSize="11"
+                 Foreground="{DynamicResource SETextFaintBrush}" />
+    </Grid>
+
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+      <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[Cancel]}" Click="OnCancel" Margin="0,0,8,0" />
+      <Button Grid.Column="2" Classes="Accent" Content="{Binding Loc[Import]}" Click="OnImport"
+              IsDefault="True" IsEnabled="{Binding HasRows}" />
+    </Grid>
+  </Grid>
+</Window>

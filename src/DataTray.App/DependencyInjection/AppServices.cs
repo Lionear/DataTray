@@ -19,10 +19,12 @@ using DataTray.Core.Shortcuts;
 using DataTray.Core.Store;
 using DataTray.Core.Tools;
 using DataTray.Core.Update;
+using DataTray.Core.Viewers;
 using DataTray.Sdk.Shortcuts;
 using DataTray.Sdk.Localization;
 using DataTray.Sdk.Tools;
 using DataTray.Sdk.Extensibility;
+using DataTray.Sdk.Viewers;
 using DataTray.Infrastructure.Extensibility;
 using DataTray.Infrastructure.Persistence;
 using DataTray.Infrastructure.Secrets;
@@ -114,6 +116,32 @@ public static class AppServices
 
         services.AddSingleton<IToolRegistry>(new ToolRegistry(tools, toolLocalizers));
 
+        // Viewer plugins (type: "viewer") contribute alternative renderings of a result set (SE-75). Same
+        // shape as tools: one assembly may ship several, and each gets its plugin's localizer.
+        var viewerResults = new ViewerPluginLoader(localizer).Load(enabled);
+        var viewers = new List<IViewerPlugin>();
+        var viewerLocalizers = new Dictionary<string, IPluginLocalizer>();
+        foreach (var result in viewerResults)
+        {
+            if (result.Succeeded)
+            {
+                viewers.AddRange(result.Viewers);
+                if (result.Localizer is { } viewerLocalizer)
+                {
+                    foreach (var viewer in result.Viewers)
+                    {
+                        viewerLocalizers[viewer.Id] = viewerLocalizer;
+                    }
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"[plugin] skipped viewer '{result.PluginDirectory}': {result.Error}");
+            }
+        }
+
+        services.AddSingleton<IViewerRegistry>(new ViewerRegistry(viewers, viewerLocalizers));
+
         // MCP plugins (type: "mcp") contribute tools; the host — not any plugin — owns the server. Gather
         // the tools from every enabled MCP plugin so the host server can serve them.
         var mcpToolResults = new McpPluginLoader().Load(enabled);
@@ -192,6 +220,7 @@ public static class AppServices
         var loadOutcomes = providerResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error))
             .Concat(toolResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
             .Concat(mcpToolResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
+            .Concat(viewerResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
             .Concat(subsystemResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
             .ToList();
         services.AddSingleton(new PluginCatalogService(stateStore, discovered, loadOutcomes));

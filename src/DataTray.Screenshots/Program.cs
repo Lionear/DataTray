@@ -16,6 +16,7 @@ using DataTray.App.DependencyInjection;
 using DataTray.App.ViewModels;
 using DataTray.App.Views;
 using DataTray.Core.Connections;
+using DataTray.Core.Connections.Import;
 using DataTray.Core.Mcp;
 using DataTray.Sdk.Formatting;
 using DataTray.Core.History;
@@ -40,6 +41,7 @@ namespace DataTray.Screenshots;
 //   dotnet run --project src/DataTray.Screenshots -- --scene hero --out docs/images/hero.png [--size 1280x820]
 // Scenes: hero (main window browsing a synthetic demo DB), query (SQL editor with a query + results),
 // store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window),
+// importconnections (the DataGrip/DBeaver import picker),
 // copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
@@ -164,14 +166,15 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, main, mcpsettings, aitree, copytable, erdiagram";
+    public static string Names => "hero, query, store, export, importconnections, main, mcpsettings, aitree, copytable, erdiagram";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
         "hero" => BuildHeroAsync(services, sandbox),
-        "query" => BuildQueryAsync(services, sandbox),
+        "query" => BuildQueryAsync(services, sandbox, state),
         "store" => Task.FromResult<Window?>(BuildStore(services)),
         "export" => Task.FromResult<Window?>(BuildExport(services)),
+        "importconnections" => Task.FromResult<Window?>(BuildImportConnections(services)),
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
@@ -465,7 +468,8 @@ internal static class SceneCatalog
             services.GetRequiredService<ISchemaCache>(),
             services.GetRequiredService<IServerVersionCache>(),
             services.GetRequiredService<IAppSettingsStore>(),
-            services.GetRequiredService<ILocalizer>());
+            services.GetRequiredService<ILocalizer>(),
+            services.GetRequiredService<DataTray.Core.Viewers.IViewerRegistry>());
         document.InitBrowse(connection, database: null, schema: null, table: "customers");
         viewModel.Documents.Add(document);
         viewModel.SelectedDocument = document;
@@ -531,7 +535,12 @@ internal static class SceneCatalog
 
     // The query editor: a SQL query typed into the editor with its result set loaded below — the same
     // synthetic "shop" database as the hero, driven through the real query path (InitQuery → Sql → Run).
-    private static async Task<Window?> BuildQueryAsync(IServiceProvider services, string sandbox)
+    /// <summary>
+    /// The SQL editor with a query and its results. <paramref name="state"/> picks which result view is
+    /// showing: the default grid, or a viewer plugin by its id (<c>json-tree</c>, <c>image</c>) — the
+    /// switcher and the viewers it mounts are otherwise unreachable without a display (SE-75).
+    /// </summary>
+    private static async Task<Window?> BuildQueryAsync(IServiceProvider services, string sandbox, string state)
     {
         var dbPath = Path.Combine(sandbox, "demo-shop.db");
         DemoData.CreateShopDatabase(dbPath);
@@ -559,7 +568,8 @@ internal static class SceneCatalog
             services.GetRequiredService<ISchemaCache>(),
             services.GetRequiredService<IServerVersionCache>(),
             services.GetRequiredService<IAppSettingsStore>(),
-            services.GetRequiredService<ILocalizer>());
+            services.GetRequiredService<ILocalizer>(),
+            services.GetRequiredService<DataTray.Core.Viewers.IViewerRegistry>());
 
         document.InitQuery(connection, database: null);
         // Set before the window is shown: DocumentView.OnDataContextChanged pushes VM.Sql into the editor
@@ -584,6 +594,19 @@ internal static class SceneCatalog
         await document.RunCommand.ExecuteAsync(null);
         Program.Settle(rounds: 20);
 
+        // No explicit row selection: picking a viewer with nothing selected is exactly the case that used
+        // to land on an empty "select a row" state, so the scene renders it the way a user meets it.
+        if (document.AvailableViews.FirstOrDefault(v => v.Id == state) is { } view)
+        {
+            document.SelectedView = view;
+            Program.Settle(rounds: 10);
+        }
+        else if (state is not ("input" or "grid"))
+        {
+            Console.Error.WriteLine(
+                $"No view '{state}' on this result set. Available: {string.Join(", ", document.AvailableViews.Select(v => v.Id))}");
+        }
+
         return new MainWindow(
             services.GetRequiredService<IAppSettingsStore>(),
             services.GetRequiredService<KeymapService>()) { DataContext = viewModel };
@@ -594,6 +617,30 @@ internal static class SceneCatalog
     {
         var loc = services.GetRequiredService<ILocalizer>();
         return new ExportDialog(loc, rowCount: 30, isSelection: false);
+    }
+
+    // SE-233 import picker, fed with sample rows rather than this machine's real DataGrip/DBeaver config
+    // so the shot is identical everywhere — including the two "found but can't import" states.
+    private static Window BuildImportConnections(IServiceProvider services)
+    {
+        var viewModel = new ImportConnectionsDialogViewModel(services.GetRequiredService<ILocalizer>());
+        viewModel.Configure(
+        [
+            new DiscoveredConnection("DataGrip", "orders@prod", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "prod-db", ["port"] = "5432", ["database"] = "orders" }),
+            new DiscoveredConnection("DataGrip", "legacy reporting", null, "sqlserver",
+                new Dictionary<string, string?> { ["host"] = "sql01", ["port"] = "1433", ["database"] = "Sales" }),
+            new DiscoveredConnection("DBeaver", "Local Postgres", "Development", "postgres",
+                new Dictionary<string, string?> { ["host"] = "127.0.0.1", ["port"] = "5433", ["database"] = "app" }),
+            new DiscoveredConnection("DBeaver", "Notes", null, "sqlite",
+                new Dictionary<string, string?> { ["path"] = "/home/demo/notes.db" }),
+            new DiscoveredConnection("DBeaver", "warehouse", "Analytics", null,
+                new Dictionary<string, string?>(), "unsupported engine 'informix'"),
+            new DiscoveredConnection("DataGrip", "session cache", null, null,
+                new Dictionary<string, string?>(), "provider 'redis' is not installed")
+        ]);
+
+        return new ImportConnectionsDialog { DataContext = viewModel };
     }
 }
 

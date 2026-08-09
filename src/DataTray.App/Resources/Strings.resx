@@ -1263,6 +1263,15 @@
   <data name="StoreCategoryExtensions" xml:space="preserve">
     <value>Extensions</value>
   </data>
+  <data name="StoreCategoryViewers" xml:space="preserve">
+    <value>Viewers</value>
+  </data>
+  <data name="ViewLabel" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="ViewGrid" xml:space="preserve">
+    <value>Grid</value>
+  </data>
   <data name="StoreCategoryOther" xml:space="preserve">
     <value>Other</value>
   </data>
@@ -1790,5 +1799,20 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   </data>
   <data name="SaveCloseDontSave" xml:space="preserve">
     <value>Don't save</value>
+  </data>
+  <data name="SelectNone" xml:space="preserve">
+    <value>Select None</value>
+  </data>
+  <data name="ImportConnectionsTitle" xml:space="preserve">
+    <value>Import from DataGrip / DBeaver</value>
+  </data>
+  <data name="ImportConnectionsHint" xml:space="preserve">
+    <value>Connections found in DataGrip and DBeaver. Passwords are not imported — those stay in each client's own credential store, so you'll be asked once on first connect.</value>
+  </data>
+  <data name="ImportConnectionsNone" xml:space="preserve">
+    <value>No DataGrip or DBeaver connections found on this machine.</value>
+  </data>
+  <data name="ImportConnectionsFound" xml:space="preserve">
+    <value>{0} of {1} can be imported</value>
   </data>
 </root>

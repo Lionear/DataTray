@@ -57,6 +57,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly Func<PluginStoreViewModel> _pluginStoreFactory;
     private readonly Core.Plugins.PluginCatalogService _pluginCatalog;
     private readonly IToolRegistry _tools;
+    private readonly Core.Viewers.IViewerRegistry _viewers;
     private readonly Func<ToolDialogViewModel> _toolDialogFactory;
     private readonly Func<RoutineParametersDialogViewModel> _routineParamsDialogFactory;
     private readonly IAppSettingsStore _settingsStore;
@@ -115,6 +116,7 @@ public partial class MainViewModel : ViewModelBase
         Func<ImportCsvDialogViewModel> importCsvDialogFactory,
         Func<SettingsViewModel> settingsDialogFactory,
         IToolRegistry tools,
+        Core.Viewers.IViewerRegistry viewers,
         Func<ToolDialogViewModel> toolDialogFactory,
         Func<RoutineParametersDialogViewModel> routineParamsDialogFactory,
         Func<PluginStoreViewModel> pluginStoreFactory,
@@ -143,6 +145,7 @@ public partial class MainViewModel : ViewModelBase
         _importCsvDialogFactory = importCsvDialogFactory;
         _settingsDialogFactory = settingsDialogFactory;
         _tools = tools;
+        _viewers = viewers;
         _toolDialogFactory = toolDialogFactory;
         _routineParamsDialogFactory = routineParamsDialogFactory;
         _pluginStoreFactory = pluginStoreFactory;
@@ -2876,7 +2879,7 @@ public partial class MainViewModel : ViewModelBase
 
     private DocumentViewModel NewDocument()
     {
-        var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _queryLog, _schemaCache, _serverVersions, _settingsStore, Loc);
+        var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _queryLog, _schemaCache, _serverVersions, _settingsStore, Loc, _viewers);
         // Surface every execution outcome (row counts, cancellations, failures) in the shared Output panel.
         document.Reported += (level, message) => ReportOutput(level, document.Connection?.Name, message);
         // A query auto-connects outside the tree's connect flow, so reflect that on the connection's status dot.

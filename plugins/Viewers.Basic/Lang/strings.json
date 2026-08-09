@@ -1,0 +1,10 @@
+{
+  "JsonViewerTitle": "JSON",
+  "ImageViewerTitle": "Image",
+  "NoRowSelected": "Select a row to see it as JSON.",
+  "NoImageColumn": "This result set has no binary column.",
+  "NotAnImage": "Not a recognised image format",
+  "EmptyCell": "NULL — no bytes in this cell",
+  "RowOf": "Row {0} of {1}",
+  "Bytes": "{0} bytes"
+}
