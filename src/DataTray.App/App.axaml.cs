@@ -27,7 +27,16 @@ public partial class App : Application
     // short-circuits after the base call.
     public static bool ScreenshotMode { get; set; }
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+
+        // What macOS puts next to the Apple logo, and in "About …", "Hide …" and "Quit …". Avalonia
+        // builds that menu itself and reads Application.Name for it — not the bundle's CFBundleName,
+        // which is why a correct Info.plist still left it saying "Avalonia Application" (the property's
+        // default when unset). No other platform shows this string.
+        Name = "DataTray";
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {
