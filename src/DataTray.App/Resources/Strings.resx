@@ -1614,6 +1614,24 @@
   <data name="FormatCasingPreserve" xml:space="preserve">
     <value>Preserve</value>
   </data>
+  <data name="HtmlTableStyleLabel" xml:space="preserve">
+    <value>HTML table style</value>
+  </data>
+  <data name="HtmlTableStyleHint" xml:space="preserve">
+    <value>Applies to "Copy as HTML" and the HTML export. A styled table right-aligns numbers and spells NULL out; the plain one leaves every choice to whatever you paste into.</value>
+  </data>
+  <data name="HtmlTableStylePlain" xml:space="preserve">
+    <value>Plain</value>
+  </data>
+  <data name="HtmlTableStyleHairlines" xml:space="preserve">
+    <value>Hairlines</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFill" xml:space="preserve">
+    <value>Filled header</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFillZebra" xml:space="preserve">
+    <value>Filled header + striped rows</value>
+  </data>
   <data name="PluginUpdatesBadge" xml:space="preserve">
     <value>Updates</value>
   </data>

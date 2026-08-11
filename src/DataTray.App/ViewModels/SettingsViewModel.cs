@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using Avalonia.Media;
 using DataTray.App.Theming;
+using DataTray.Core.Export;
 using DataTray.Core.Localization;
 using DataTray.Core.Providers;
 using DataTray.Core.Settings;
@@ -311,6 +312,30 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _formatIndentSize;
+
+    // ── Copy as HTML (SE-244) ────────────────────────────────────────────────────────────────────────
+    public sealed record HtmlTableStyleOption(HtmlTableStyle Style, string Label);
+
+    public IReadOnlyList<HtmlTableStyleOption> HtmlTableStyles { get; }
+
+    [ObservableProperty]
+    private HtmlTableStyle _htmlTableStyle;
+
+    /// <summary>Two-way bridge between the table-style dropdown and <see cref="HtmlTableStyle"/>.</summary>
+    public HtmlTableStyleOption? SelectedHtmlTableStyleOption
+    {
+        get => HtmlTableStyles.FirstOrDefault(o => o.Style == HtmlTableStyle) ?? HtmlTableStyles.FirstOrDefault();
+        set
+        {
+            if (value is not null)
+            {
+                HtmlTableStyle = value.Style;
+            }
+        }
+    }
+
+    partial void OnHtmlTableStyleChanged(HtmlTableStyle value) =>
+        OnPropertyChanged(nameof(SelectedHtmlTableStyleOption));
 
     // ── Proactive plugin updates (SE-138) ────────────────────────────────────────────────────────────
     public sealed record PluginUpdatePolicyOption(PluginUpdatePolicy Policy, string Label);
@@ -748,6 +773,14 @@ public partial class SettingsViewModel : ViewModelBase
             new(KeywordCasing.Preserve, localizer["FormatCasingPreserve"]),
         ];
 
+        HtmlTableStyles =
+        [
+            new(HtmlTableStyle.Plain, localizer["HtmlTableStylePlain"]),
+            new(HtmlTableStyle.Hairlines, localizer["HtmlTableStyleHairlines"]),
+            new(HtmlTableStyle.HeaderFill, localizer["HtmlTableStyleHeaderFill"]),
+            new(HtmlTableStyle.HeaderFillZebra, localizer["HtmlTableStyleHeaderFillZebra"]),
+        ];
+
         PluginUpdatePolicies =
         [
             new(PluginUpdatePolicy.Off, localizer["PluginUpdatePolicyOff"]),
@@ -766,7 +799,7 @@ public partial class SettingsViewModel : ViewModelBase
             new SettingsCategory("Editor", localizer["SettingsEditor"], NodeIcons.SettingsEditor,
                 "font lettergrootte size word wrap terugloop format opmaak keyword casing indent inspringen"),
             new SettingsCategory("Query", localizer["SettingsQuery"], NodeIcons.SettingsQuery,
-                "timeout page pagina rows rijen results resultaten browse confirm bevestig paging pagineren next prev volgende vorige"),
+                "timeout page pagina rows rijen results resultaten browse confirm bevestig paging pagineren next prev volgende vorige copy kopieer html tabel table opmaak style stijl kleur colour export"),
             new SettingsCategory("QueryLog", localizer["SettingsQueryLog"], NodeIcons.SettingsQuery,
                 "query log audit logging"),
             new SettingsCategory("Keyboard", localizer["SettingsKeyboard"], NodeIcons.SettingsKeyboard,
@@ -947,6 +980,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorWordWrap = settings.EditorWordWrap;
         FormatKeywordCasing = settings.FormatKeywordCasing;
         FormatIndentSize = settings.FormatIndentSize;
+        HtmlTableStyle = settings.HtmlTableStyle;
         PluginUpdatePolicy = settings.PluginUpdatePolicy;
         ConfirmBeforeSave = settings.ConfirmBeforeSave;
         QueryTimeoutSeconds = settings.QueryTimeoutSeconds;
@@ -1112,6 +1146,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorWordWrap = defaults.EditorWordWrap;
         FormatKeywordCasing = defaults.FormatKeywordCasing;
         FormatIndentSize = defaults.FormatIndentSize;
+        HtmlTableStyle = defaults.HtmlTableStyle;
         PluginUpdatePolicy = defaults.PluginUpdatePolicy;
         ConfirmBeforeSave = defaults.ConfirmBeforeSave;
         QueryTimeoutSeconds = defaults.QueryTimeoutSeconds;
@@ -1179,6 +1214,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.EditorWordWrap = EditorWordWrap;
         settings.FormatKeywordCasing = FormatKeywordCasing;
         settings.FormatIndentSize = FormatIndentSize;
+        settings.HtmlTableStyle = HtmlTableStyle;
         settings.PluginUpdatePolicy = PluginUpdatePolicy;
         settings.ConfirmBeforeSave = ConfirmBeforeSave;
         settings.QueryTimeoutSeconds = QueryTimeoutSeconds;

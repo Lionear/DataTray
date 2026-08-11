@@ -492,7 +492,7 @@ public partial class DocumentViewModel : ViewModelBase
             ExportFormat.Json => ResultExporter.ToJson(editable.Columns, raw),
             ExportFormat.Sql => ResultExporter.ToSqlInserts(editable.Columns, raw, _providers.Get(Connection.ProviderId).Dialect, Connection.ProviderId, ExportTableName(editable)),
             ExportFormat.Markdown => ResultExporter.ToMarkdown(editable.Columns, raw),
-            ExportFormat.Html => ResultExporter.ToHtml(editable.Columns, raw),
+            ExportFormat.Html => ResultExporter.ToHtml(editable.Columns, raw, _settingsStore.Load().HtmlTableStyle),
             _ => string.Empty
         };
     }
