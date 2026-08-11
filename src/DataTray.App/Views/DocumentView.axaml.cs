@@ -474,7 +474,13 @@ public partial class DocumentView : UserControl
         var text = _viewModel.BuildExportText(format, selected.Count > 0 ? selected : null);
         if (text.Length > 0)
         {
-            await CopyFeedback.CopyAsync(this, text, _viewModel.Loc["CopiedToClipboard"]);
+            // The HTML copy goes on the clipboard as HTML too, so pasting into mail or a document gives a
+            // table instead of the markup. The markup stays the plain-text form for text-only targets.
+            await CopyFeedback.CopyAsync(
+                this,
+                text,
+                _viewModel.Loc["CopiedToClipboard"],
+                format == ExportFormat.Html ? text : null);
         }
     }
 
