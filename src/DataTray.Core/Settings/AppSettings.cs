@@ -1,3 +1,4 @@
+using DataTray.Core.Export;
 using DataTray.Core.Update;
 using DataTray.Sdk.Formatting;
 
@@ -140,6 +141,11 @@ public sealed class AppSettings
     /// <summary>Rows per page when <see cref="PageQueryResults"/> is on. Default 200, matching
     /// <see cref="BrowsePageSize"/>.</summary>
     public int QueryPageSize { get; set; } = 200;
+
+    /// <summary>How "Copy as HTML" and the HTML file export dress the table (SE-244). Default
+    /// <see cref="Export.HtmlTableStyle.HeaderFill"/> — a table pasted into mail or a document is expected to
+    /// arrive with its grid; <see cref="Export.HtmlTableStyle.Plain"/> is the unstyled table it used to be.</summary>
+    public HtmlTableStyle HtmlTableStyle { get; set; } = HtmlTableStyle.HeaderFill;
 
     // ── Master password (optional app-level encryption of connection secrets) ────────────────────────
     // All three below are NON-secret: they enable the feature and let the app verify a typed password.

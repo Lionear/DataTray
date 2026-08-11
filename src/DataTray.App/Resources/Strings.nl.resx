@@ -1614,6 +1614,24 @@
   <data name="FormatCasingPreserve" xml:space="preserve">
     <value>Behouden</value>
   </data>
+  <data name="HtmlTableStyleLabel" xml:space="preserve">
+    <value>Opmaak HTML-tabel</value>
+  </data>
+  <data name="HtmlTableStyleHint" xml:space="preserve">
+    <value>Geldt voor "Copy as HTML" en de HTML-export. Een opgemaakte tabel zet getallen rechts en schrijft NULL uit; de kale laat elke keuze over aan waar je in plakt.</value>
+  </data>
+  <data name="HtmlTableStylePlain" xml:space="preserve">
+    <value>Kaal</value>
+  </data>
+  <data name="HtmlTableStyleHairlines" xml:space="preserve">
+    <value>Haarlijnen</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFill" xml:space="preserve">
+    <value>Gevulde kop</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFillZebra" xml:space="preserve">
+    <value>Gevulde kop + streeprijen</value>
+  </data>
   <data name="PluginUpdatesBadge" xml:space="preserve">
     <value>Updates</value>
   </data>

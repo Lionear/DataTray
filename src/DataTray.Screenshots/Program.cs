@@ -41,7 +41,7 @@ namespace DataTray.Screenshots;
 //   dotnet run --project src/DataTray.Screenshots -- --scene hero --out docs/images/hero.png [--size 1280x820]
 // Scenes: hero (main window browsing a synthetic demo DB), query (SQL editor with a query + results),
 // store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window),
-// importconnections (the DataGrip/DBeaver import picker),
+// importconnections (the DataGrip/DBeaver import picker), querysettings (the Query settings pane),
 // copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
@@ -178,6 +178,7 @@ internal static class SceneCatalog
         "firstrun" => Task.FromResult<Window?>(BuildFirstRun(services, state)),
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
+        "querysettings" => Task.FromResult(BuildQuerySettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
         "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
@@ -277,6 +278,16 @@ internal static class SceneCatalog
 
     // The MCP settings pane with connection-creation turned on (SE-155), so the enable warning, the
     // allowed-hosts editor and the folder field are all visible.
+    // The Query settings pane, home of the HTML table style (SE-244). Its dropdown labels come from the
+    // resx, and a missing key renders as the key itself rather than failing a build — so this is rendered
+    // rather than assumed.
+    private static Window? BuildQuerySettings(IServiceProvider services)
+    {
+        var viewModel = services.GetRequiredService<SettingsViewModel>();
+        viewModel.SelectCategoryByKey("Query");
+        return new SettingsWindow { DataContext = viewModel };
+    }
+
     private static Window? BuildMcpSettings(IServiceProvider services)
     {
         var viewModel = services.GetRequiredService<SettingsViewModel>();
