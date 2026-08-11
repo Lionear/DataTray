@@ -36,16 +36,16 @@
   </Window.Resources>
 
   <Window.Styles>
-    <!-- Steps 1 and 4 carry the brand (SE-209: the brand lives where the data isn't). #2563EB is the brand
-         primary, deliberately not the app accent #3574F0 the working steps use. -->
+    <!-- Steps 1 and 4 carry the brand (SE-209: the brand lives where the data isn't). SEBrandBrush is the
+         brand primary, deliberately not the app accent the working steps use. -->
     <Style Selector="Button.Brand">
-      <Setter Property="Background" Value="#2563EB" />
-      <Setter Property="BorderBrush" Value="#2563EB" />
+      <Setter Property="Background" Value="{DynamicResource SEBrandBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEBrandBrush}" />
       <Setter Property="Foreground" Value="#FFFFFF" />
       <Setter Property="Padding" Value="16,6" />
     </Style>
     <Style Selector="Button.Brand:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#3B7BF5" />
+      <Setter Property="Background" Value="{DynamicResource SEBrandHoverBrush}" />
       <Setter Property="TextElement.Foreground" Value="#FFFFFF" />
     </Style>
 
@@ -68,7 +68,7 @@
       <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
     </Style>
     <Style Selector="Button.Tile.Store">
-      <Setter Property="BorderBrush" Value="#0E8DA1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEExtensibilityTextBrush}" />
     </Style>
 
     <Style Selector="TextBlock.GroupLabel">
@@ -155,7 +155,8 @@
           </ItemsControl>
 
           <StackPanel Spacing="9" Margin="0,8,0,0" IsVisible="{Binding HasStoreEngines}">
-            <TextBlock Classes="GroupLabel" Foreground="#0E8DA1" Text="{Binding Loc[FirstRunFromStore]}" />
+            <TextBlock Classes="GroupLabel" Foreground="{DynamicResource SEExtensibilityTextBrush}"
+                       Text="{Binding Loc[FirstRunFromStore]}" />
             <ItemsControl ItemsSource="{Binding StoreEngines}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -169,7 +170,7 @@
                     <StackPanel Spacing="3">
                       <TextBlock Text="{Binding DisplayName}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding $parent[Window].DataContext.Loc[FirstRunInstall]}"
-                                 FontSize="10.5" Foreground="#0E8DA1" />
+                                 FontSize="10.5" Foreground="{DynamicResource SEExtensibilityTextBrush}" />
                     </StackPanel>
                   </Button>
                 </DataTemplate>
@@ -180,7 +181,8 @@
           <!-- A staged install only loads on the next start, so say so and offer the restart rather than
                walking into step 3 with a provider that isn't there. -->
           <Border IsVisible="{Binding RestartNeeded}" CornerRadius="5" Padding="11,9" Margin="0,4,0,0"
-                  Background="#2206B6D4" BorderBrush="#5506B6D4" BorderThickness="1">
+                  Background="{DynamicResource SEExtensibilityWashBrush}"
+                  BorderBrush="{DynamicResource SEExtensibilityWashBorderBrush}" BorderThickness="1">
             <StackPanel Spacing="8">
               <TextBlock Text="{Binding Loc[FirstRunRestartNeeded]}" TextWrapping="Wrap" FontSize="12" />
               <Button Classes="Accent" HorizontalAlignment="Left"
@@ -226,7 +228,7 @@
         </ScrollViewer>
 
         <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,12,0,0">
-          <Ellipse Grid.Column="0" Width="7" Height="7" Fill="#7C3AED"
+          <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SEAiBrush}"
                    VerticalAlignment="Top" Margin="0,5,8,0" />
           <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunAiHint]}" FontSize="11.5" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextSecondaryBrush}" />
@@ -307,12 +309,12 @@
             <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneTray]}" FontSize="12.5" TextWrapping="Wrap" />
           </Grid>
           <Grid ColumnDefinitions="Auto,*">
-            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="#7C3AED"
+            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SEAiBrush}"
                      VerticalAlignment="Top" Margin="0,6,9,0" />
             <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneAi]}" FontSize="12.5" TextWrapping="Wrap" />
           </Grid>
           <Grid ColumnDefinitions="Auto,*">
-            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="#0E8DA1"
+            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SEExtensibilityTextBrush}"
                      VerticalAlignment="Top" Margin="0,6,9,0" />
             <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneStore]}" FontSize="12.5" TextWrapping="Wrap" />
           </Grid>
