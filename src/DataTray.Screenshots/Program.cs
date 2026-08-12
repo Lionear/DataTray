@@ -166,7 +166,7 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, aitree, copytable, erdiagram";
+    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, aitree, copytable, erdiagram";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
