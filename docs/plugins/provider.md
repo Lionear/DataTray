@@ -195,7 +195,7 @@ reminder that the `CreateObjectSpec` → DDL mapping is genuinely per-engine.
 
 ### Host API versioning
 
-`ProviderHostApi.Version` (currently `28`) is the contract version. Every
+`ProviderHostApi.Version` (currently `29`) is the contract version. Every
 plugin declares the version it was built against in its manifest
 (`hostApiVersion`); the loader accepts any version in `[MinimumSupported,
 Version]` — additive bumps (new default-interface members, enum values, DTOs)

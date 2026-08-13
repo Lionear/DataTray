@@ -1932,4 +1932,25 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="ImportFetchPasswordsHint" xml:space="preserve">
     <value>DataGrip bewaart deze in de sleutelhanger van je besturingssysteem, niet in zijn eigen bestanden. Je systeem bepaalt of het ze afgeeft en kan er eerst om vragen. Wat terugkomt gaat rechtstreeks naar DataTray's eigen sleutelhanger.</value>
   </data>
+  <data name="NewIndex" xml:space="preserve">
+    <value>Nieuwe index…</value>
+  </data>
+  <data name="IndexUnique" xml:space="preserve">
+    <value>Uniek</value>
+  </data>
+  <data name="IndexUniqueHint" xml:space="preserve">
+    <value>De index staat geen dubbele waarden toe in zijn sleutelkolommen. Aanmaken mislukt als de tabel er al heeft.</value>
+  </data>
+  <data name="IndexColumn" xml:space="preserve">
+    <value>Kolom</value>
+  </data>
+  <data name="IndexDescending" xml:space="preserve">
+    <value>Afl.</value>
+  </data>
+  <data name="IndexDescendingHint" xml:space="preserve">
+    <value>Sla deze kolom aflopend op. Van belang voor query's die zo sorteren of bereiken scannen; oplopend is de standaard.</value>
+  </data>
+  <data name="AddIndexColumn" xml:space="preserve">
+    <value>+ Kolom toevoegen</value>
+  </data>
 </root>

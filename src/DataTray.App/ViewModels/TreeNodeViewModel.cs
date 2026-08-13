@@ -260,6 +260,11 @@ public partial class TreeNodeViewModel : ViewModelBase
     public bool CanCreateTable => _provider is not null && NodeKind is { } kind
         && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Table && c.ParentNode == kind);
 
+    /// <summary>"New Index…" on the node the provider says indexes belong under — the table's Indexes
+    /// folder for every engine that declares it.</summary>
+    public bool CanCreateIndex => _provider is not null && NodeKind is { } kind
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Index && c.ParentNode == kind);
+
     // DROP/ALTER menu visibility (host-only, no SDK — see Core/Ddl/AlterStatementBuilder): reuses the
     // same CreateCapabilities the provider already declares, since every engine here can drop exactly
     // what it can create. Gated on the node itself BEING that kind (unlike CanCreate*, which gates on

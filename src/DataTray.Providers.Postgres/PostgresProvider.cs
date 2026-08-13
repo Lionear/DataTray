@@ -935,7 +935,8 @@ public sealed class PostgresProvider : IDbProvider
     [
         new(DbObjectKind.Database, null),
         new(DbObjectKind.Schema, DbNodeKind.SchemaFolder),
-        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+        new(DbObjectKind.Table, DbNodeKind.TableFolder),
+        new(DbObjectKind.Index, DbNodeKind.IndexFolder)
     ];
 
     public IReadOnlyList<string> ColumnTypes { get; } =
@@ -948,6 +949,7 @@ public sealed class PostgresProvider : IDbProvider
             DbObjectKind.Database => $"CREATE DATABASE {Dialect.QuoteIdentifier(spec.Name)}",
             DbObjectKind.Schema => $"CREATE SCHEMA {Dialect.QuoteIdentifier(spec.Name)}",
             DbObjectKind.Table => BuildCreateTable(spec),
+            DbObjectKind.Index => IndexSql.Build(Dialect, spec, qualifyWithSchema: true),
             _ => throw new NotSupportedException($"Postgres cannot create a {spec.Kind}.")
         };
 
