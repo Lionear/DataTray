@@ -14,6 +14,10 @@
          ExcludeAssets=runtime — the host owns Avalonia and ToolLoadContext shares it, so the plugin must
          not ship its own copy (same pattern as Providers.MsSql's Route B view). -->
     <PackageReference Include="Avalonia" Version="12.0.5" ExcludeAssets="runtime" />
+    <!-- The Activity Monitor's five grids. Compile-time only, same as Avalonia above: the host already
+         ships this package and its Fluent theme (App.axaml), and ProviderLoadContext shares every
+         assembly whose name starts with "Avalonia", so the plugin's DataGrid is the host's DataGrid. -->
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.1" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +26,12 @@
          to a satellite assembly; LogicalName fixes the resource name the host's PluginLocalizer expects. -->
     <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
     <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Activity Monitor's rate arithmetic is provider-agnostic maths over samples and is tested
+         directly, the same way the ER diagram's layout engine is. -->
+    <InternalsVisibleTo Include="DataTray.Tools.MsSqlAdmin.Tests" />
   </ItemGroup>
 
   <ItemGroup>

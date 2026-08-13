@@ -38,6 +38,7 @@
     <Project Path="tests/DataTray.Tools.CopyTable.Tests/DataTray.Tools.CopyTable.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.ErDiagram.Tests/DataTray.Tools.ErDiagram.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.GenerateScripts.Tests/DataTray.Tools.GenerateScripts.Tests.csproj" />
+    <Project Path="tests/DataTray.Tools.MsSqlAdmin.Tests/DataTray.Tools.MsSqlAdmin.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.SchemaDiff.Tests/DataTray.Tools.SchemaDiff.Tests.csproj" />
   </Folder>
 </Solution>
