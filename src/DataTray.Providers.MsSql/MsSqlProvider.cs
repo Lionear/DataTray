@@ -13,8 +13,10 @@ namespace DataTray.Providers.MsSql;
 
 public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNodeInfoUi, ICustomCellActionUi, ICustomSecurityUi
 {
-    // Route B, fourth capability: make the Activity Monitor's blocking_session_id cell actionable when it
-    // points at a real blocker (> 0) — click opens the blocking session's details with a Kill button.
+    // Route B, fourth capability: make a blocking_session_id cell actionable when it points at a real
+    // blocker (> 0) — click opens the blocking session's details with a Kill button. It rides on the column
+    // name, so it fires wherever that column is selected (a query tab over sys.dm_exec_requests), not only
+    // where it was first useful.
     // Column-level pre-filter (keeps the grid's per-cell/scroll path free of provider calls on every other
     // column): only blocking_session_id is ever actionable.
     public bool ColumnMayHaveCellActions(string columnName) => columnName == "blocking_session_id";
@@ -1469,50 +1471,10 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         return names;
     }
 
-    // Activity Monitor. LEFT JOIN dm_exec_requests + OUTER APPLY dm_exec_sql_text so idle user sessions
-    // (no active request) still show a row; is_user_process = 1 hides the engine's own background sessions.
-    // SQL Server's KILL is always hard, so SupportsCancelQuery stays false and no Cancel action appears.
-    public bool SupportsActivityMonitor => true;
-
-    public string SessionIdColumn => "session_id";
-
-    public string SessionDatabaseColumn => "database";
-
-    public string BlockingSessionColumn => "blocking_session_id";
-
-    public async Task<ActiveSessionSnapshot> GetActiveSessionsAsync(ConnectionProfile profile, CancellationToken ct)
-    {
-        const string sql = """
-            SELECT s.session_id, s.login_name, s.host_name, DB_NAME(r.database_id) AS [database],
-                   s.status, r.command, r.blocking_session_id, r.cpu_time, r.total_elapsed_time, t.text AS query
-            FROM sys.dm_exec_sessions s
-            LEFT JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
-            OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
-            WHERE s.is_user_process = 1
-            ORDER BY s.session_id
-            """;
-
-        var stopwatch = Stopwatch.StartNew();
-        await using var connection = await OpenAsync(profile, ct);
-
-        string? currentId;
-        await using (var spid = new SqlCommand("SELECT @@SPID", connection))
-        {
-            currentId = (await spid.ExecuteScalarAsync(ct))?.ToString();
-        }
-
-        await using var command = new SqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        var result = await ReadResultAsync(reader, stopwatch, ct);
-        return new ActiveSessionSnapshot(result, currentId);
-    }
-
-    public async Task KillSessionAsync(ConnectionProfile profile, string sessionId, CancellationToken ct)
-    {
-        // session_id is a smallint; parse it so it can only ever be an integer in the KILL text.
-        var id = int.Parse(sessionId, CultureInfo.InvariantCulture);
-        await using var connection = await OpenAsync(profile, ct);
-        await using var command = new SqlCommand($"KILL {id}", connection);
-        await command.ExecuteNonQueryAsync(ct);
-    }
+    // No SupportsActivityMonitor here, deliberately: SQL Server's Activity Monitor is the mssql-admin
+    // plugin's own tab (SE-248), which is SSMS's — the Overview graphs, the Processes grid with all fifteen
+    // of its columns, Resource Waits, Data File I/O and the two expensive-query grids. The host's generic
+    // one-grid monitor was this provider's ten-column session list, so leaving it declared would put two
+    // menu entries called "Activity Monitor" on the same node. Postgres and MySQL still declare it and are
+    // untouched.
 }
