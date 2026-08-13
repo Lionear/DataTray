@@ -76,12 +76,13 @@ public static class ToolHostApi
     //                  it was asked to act on, and guessing from the index name is wrong the moment two
     //                  tables share one. Additive: an optional constructor parameter defaulting to empty,
     //                  and a tool that ignores it is unaffected. MinimumSupported stays 1.
-    // v8 (2026-08-13): IToolPlugin.IsActivityMonitor (SE-251) — a tool may declare that it is the
-    //                  connection's Activity Monitor, so the host's existing "Activity Monitor…" item on a
-    //                  connection root opens it and the tool is left out of the node's Tools submenu.
-    //                  SE-248 moved SQL Server's monitor into a plugin and, with it, one level deeper in
-    //                  the menu; a feature changing owner should not change place. Additive default false.
-    public const int Version = 8;
+    //   also in v7 (2026-08-13): IToolPlugin.IsActivityMonitor (SE-251) — a tool may declare that it is the
+    //                  connection's Activity Monitor, so the host's existing "Activity Monitor…" item opens
+    //                  it and the tool is left out of the node's Tools submenu. SE-248 moved SQL Server's
+    //                  monitor into a plugin and, with it, one level deeper in the menu; a feature changing
+    //                  owner should not change place. Folded into 7 rather than given an 8 because 7 has
+    //                  not shipped — v0.7.0 (2026-07-30) carries tool API 5. Additive default false.
+    public const int Version = 7;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
     /// extensibility seams, v4 the services + providers capabilities), so older tools keep loading on a newer

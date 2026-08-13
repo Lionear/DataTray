@@ -166,7 +166,7 @@ Same Avalonia/ALC rule as Route B: reference Avalonia with
 ### Tool manifest
 
 Identical to a provider's, but `type` is `"tool"` and `hostApiVersion` tracks the
-**tool** contract (`ToolHostApi.Version`, currently `8`), which versions
+**tool** contract (`ToolHostApi.Version`, currently `7`), which versions
 separately from the provider contract:
 
 ```json
