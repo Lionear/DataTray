@@ -69,6 +69,11 @@ jobs:
       - name: Test (Tools.ErDiagram)
         run: dotnet test tests/DataTray.Tools.ErDiagram.Tests/DataTray.Tools.ErDiagram.Tests.csproj -c Release
 
+      # SQL Server admin plugin: the pure logic behind its tools — the Activity Monitor's rate arithmetic
+      # (cumulative DMV counters differenced into per-second figures) and the index statements. No database.
+      - name: Test (Tools.MsSqlAdmin)
+        run: dotnet test tests/DataTray.Tools.MsSqlAdmin.Tests/DataTray.Tools.MsSqlAdmin.Tests.csproj -c Release
+
       # The steps above name their projects one by one, which is how DataTray.Tools.SchemaDiff.Tests
       # managed to sit outside CI from the day it was added: adding a test project doesn't fail anything,
       # it just quietly runs nowhere. This fails the build instead of letting the next one slip through.
