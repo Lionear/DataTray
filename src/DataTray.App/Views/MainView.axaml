@@ -416,9 +416,11 @@
                 <Separator IsVisible="{Binding SelectedNode.CanShowProperties, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[Properties]}" Command="{Binding ShowPropertiesCommand}"
                           IsVisible="{Binding SelectedNode.CanShowProperties, FallbackValue=False}" />
-                <Separator IsVisible="{Binding SelectedNode.CanShowActivityMonitor, FallbackValue=False}" />
+                <!-- Gated on the view-model, not the node: the monitor may come from the provider
+                     (Postgres/MySQL) or from a tool plugin (SQL Server), and only the VM sees the tools. -->
+                <Separator IsVisible="{Binding CanShowActivityMonitor, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[ActivityMonitor]}" Command="{Binding ActivityMonitorCommand}"
-                          IsVisible="{Binding SelectedNode.CanShowActivityMonitor, FallbackValue=False}" />
+                          IsVisible="{Binding CanShowActivityMonitor, FallbackValue=False}" />
               </ContextMenu>
             </TreeView.ContextMenu>
             <TreeView.ItemTemplate>

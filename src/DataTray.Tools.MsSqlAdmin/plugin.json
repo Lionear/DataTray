@@ -3,8 +3,8 @@
   "id": "mssql-admin",
   "type": "tool",
   "name": "SQL Server Admin Dialogs",
-  "version": "0.3.0",
-  "hostApiVersion": 7,
+  "version": "0.4.0",
+  "hostApiVersion": 8,
   "entryAssembly": "DataTray.Tools.MsSqlAdmin.dll",
   "localization": "Lang/strings"
 }

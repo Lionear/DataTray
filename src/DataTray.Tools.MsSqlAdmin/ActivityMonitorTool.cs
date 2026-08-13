@@ -16,7 +16,9 @@ namespace DataTray.Tools.MsSqlAdmin;
 /// <para>It replaces the host's generic Activity Monitor for SQL Server (<c>MsSqlProvider</c> no longer
 /// declares <c>SupportsActivityMonitor</c>): that one grid is this tab's Processes section with eight fewer
 /// columns, and two entries called "Activity Monitor" on the same node would be a puzzle rather than a
-/// choice. Postgres and MySQL keep the host's monitor exactly as it was.</para>
+/// choice. Postgres and MySQL keep the host's monitor exactly as it was — and behind the same menu item,
+/// since <see cref="IsActivityMonitor"/> keeps this one where the built-in monitor has always been rather
+/// than under the node's Tools submenu, where a tool would otherwise land.</para>
 /// </remarks>
 public sealed class ActivityMonitorTool : IToolPlugin, IToolDocumentUi
 {
@@ -41,6 +43,11 @@ public sealed class ActivityMonitorTool : IToolPlugin, IToolDocumentUi
 
     /// <summary>Empty: a document tool collects nothing. The tab is the interface.</summary>
     public IReadOnlyList<ToolField> Fields { get; } = [];
+
+    /// <summary>This tool is SQL Server's Activity Monitor, so the host's own "Activity Monitor…" item on a
+    /// connection root opens it and it stays out of the Tools submenu (SE-251). It replaces a feature that
+    /// was already there; only its implementation moved into this plugin, not its place in the menu.</summary>
+    public bool IsActivityMonitor => true;
 
     /// <summary>Never called — an <see cref="IToolDocumentUi"/> tool acts by opening its tab.</summary>
     public Task ExecuteAsync(

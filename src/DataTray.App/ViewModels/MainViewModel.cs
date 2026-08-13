@@ -983,15 +983,35 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasApplicableTools => ApplicableTools.Count > 0;
 
+    /// <summary>The tool that supplies this node's Activity Monitor, when one claims it (SE-251). Kept out
+    /// of <see cref="ApplicableTools"/> so it appears once, on the host's own menu item, where the
+    /// built-in monitor has always been.</summary>
+    private IToolPlugin? _activityMonitorTool;
+
+    /// <summary>Whether the tree's "Activity Monitor…" item is shown: the provider has a built-in monitor
+    /// (Postgres/MySQL) or a tool supplies one (SQL Server). Lives here rather than on the node because
+    /// only this view-model can see the tool registry.</summary>
+    public bool CanShowActivityMonitor =>
+        SelectedNode?.CanShowActivityMonitor == true || _activityMonitorTool is not null;
+
     // A tool applies to a connection node or a schema-object node; recompute whenever selection changes.
     private void RefreshApplicableTools(TreeNodeViewModel? node)
     {
         ApplicableTools.Clear();
+        _activityMonitorTool = null;
 
         if (node is not null && (node.IsConnectionNode || node.NodeKind is not null) && node.Connection is { } connection)
         {
             foreach (var tool in _tools.Applicable(connection.ProviderId, node.NodeKind))
             {
+                // A tool that IS the Activity Monitor is reached from the host's own menu item instead, so
+                // it must not also show up under Tools — one feature, one entry.
+                if (tool.IsActivityMonitor)
+                {
+                    _activityMonitorTool ??= tool;
+                    continue;
+                }
+
                 var captured = tool;
                 var title = _tools.LocalizerFor(tool.Id).Resolve(tool.TitleKey, tool.Title);
                 var leaf = new ToolMenuNode(title, new RelayCommand(() => RunToolCommand.Execute(captured)));
@@ -1011,6 +1031,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(HasApplicableTools));
+        OnPropertyChanged(nameof(CanShowActivityMonitor));
     }
 
     private static ToolMenuNode AddTo(ObservableCollection<ToolMenuNode> collection, ToolMenuNode node)
@@ -2394,6 +2415,14 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ActivityMonitor()
     {
+        // An engine whose monitor comes from a plugin (SQL Server, SE-248) opens that tool's tab from this
+        // same item: the feature changed owner, not place.
+        if (_activityMonitorTool is { } tool)
+        {
+            RunToolCommand.Execute(tool);
+            return;
+        }
+
         if (SelectedNode is not { CanShowActivityMonitor: true } node || node.Connection is not { } connection)
         {
             return;

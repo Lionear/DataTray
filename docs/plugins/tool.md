@@ -38,6 +38,7 @@ public interface IToolPlugin
 | `Target` | A `ToolTarget` that decides which tree nodes offer the tool (see below). |
 | `Fields` | The Route A input declarations; the host renders a generic dialog from them, exactly like the connection form. Empty when the tool uses a Route B custom view. |
 | `IsDestructive` | When true the host shows a destructive-action confirmation before running. |
+| `IsActivityMonitor` | Declares this tool *is* the connection's Activity Monitor (an engine-specific replacement for the host's built-in one). The host's own "Activity Monitor…" item on a connection root opens it, and it is left out of the node's `Tools` submenu — a tool that **replaces** a feature keeps that feature's place, unlike one that adds a feature. |
 | `PreviewAsync` | Optional: when a `File` field changes, return a short summary of the chosen file (e.g. read a backup header) shown under that field before Execute runs. |
 | `ExecuteAsync` | Runs the tool. `inputs` holds the collected field values keyed by `ToolField.Key`; report progress lines through `progress`. |
 
@@ -165,7 +166,7 @@ Same Avalonia/ALC rule as Route B: reference Avalonia with
 ### Tool manifest
 
 Identical to a provider's, but `type` is `"tool"` and `hostApiVersion` tracks the
-**tool** contract (`ToolHostApi.Version`, currently `7`), which versions
+**tool** contract (`ToolHostApi.Version`, currently `8`), which versions
 separately from the provider contract:
 
 ```json
