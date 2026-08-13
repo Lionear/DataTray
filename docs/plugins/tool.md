@@ -63,12 +63,27 @@ public sealed record ToolExecutionContext(
     DbNodeRef? Node,             // the node the tool launched on; null at the connection root
     IDbProvider Provider,        // walk schema / run queries through the same interface the host uses
     string ProviderId,
-    IToolHost Host);             // host-only services: file pickers + GetPluginSetting(key)
+    IToolHost Host,              // host-only services: file pickers + GetPluginSetting(key)
+    IReadOnlyList<DbNodeRef>? NodePath = null);  // root → Node, inclusive (v7)
 ```
 
 The `Provider` handed over is the live provider for that connection, so a generic
 ("universal") tool can introspect the schema, run queries and recreate objects
 through the same `IDbProvider` the host uses — no driver dependency of its own.
+
+`NodePath` is the ancestry from the connection root down to `Node`, inclusive —
+the same list a provider receives for introspection. A name alone does not
+identify every node: an index is named within its table, and an "Indexes" folder
+is called that under every table in the database. Ask for an ancestor by kind
+rather than walking the list:
+
+```csharp
+var table = context.Ancestor(DbNodeKind.Table);   // null when there is none
+var schema = context.Ancestor(DbNodeKind.Schema);
+```
+
+It is empty on a host older than tool API 7, so a tool that needs it should say
+what is missing rather than guess.
 
 ### The `ToolField` form (Route A)
 
@@ -150,7 +165,7 @@ Same Avalonia/ALC rule as Route B: reference Avalonia with
 ### Tool manifest
 
 Identical to a provider's, but `type` is `"tool"` and `hostApiVersion` tracks the
-**tool** contract (`ToolHostApi.Version`, currently `1`), which versions
+**tool** contract (`ToolHostApi.Version`, currently `7`), which versions
 separately from the provider contract:
 
 ```json

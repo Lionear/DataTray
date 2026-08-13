@@ -58,5 +58,25 @@
   "activity.kill.question": "Sessie {0} beëindigen, aangemeld als {1} vanaf {2}?",
   "activity.kill.warning": "De openstaande transactie van de sessie wordt teruggedraaid en dat werk is weg. Een lange transactie terugdraaien kan langer duren dan hem uitvoeren duurde.",
   "activity.kill.confirm": "Beëindigen",
-  "activity.kill.cancel": "Annuleren"
+  "activity.kill.cancel": "Annuleren",
+
+  "index.rebuildAll.title": "Alles opnieuw opbouwen",
+  "index.rebuildAll.description": "Bouwt elke index op deze tabel opnieuw op (ALTER INDEX ALL … REBUILD): de index wordt opnieuw aangemaakt, wat fragmentatie opruimt en de statistieken ververst. Offline tenzij de editie online opbouwen ondersteunt, dus de tabel is vergrendeld zolang het duurt.",
+  "index.reorganizeAll.title": "Alles reorganiseren",
+  "index.reorganizeAll.description": "Reorganiseert elke index op deze tabel (ALTER INDEX ALL … REORGANIZE): defragmenteert het bladniveau ter plekke. Altijd online en afbreekbaar, maar doet minder dan opnieuw opbouwen en werkt de statistieken niet bij.",
+  "index.disableAll.title": "Alles uitschakelen",
+  "index.disableAll.description": "Schakelt elke index op deze tabel uit. Een uitgeschakelde index wordt niet bijgehouden en is onbruikbaar tot hij opnieuw is opgebouwd — en een geclusterde index uitschakelen haalt de gegevens van de tabel mee offline, waarna de tabel niet meer te bevragen is.",
+  "index.rebuild.title": "Opnieuw opbouwen",
+  "index.rebuild.description": "Bouwt deze index opnieuw op: hij wordt opnieuw aangemaakt, wat fragmentatie opruimt en de statistieken ververst. Offline tenzij de editie online opbouwen ondersteunt, dus de tabel is vergrendeld zolang het duurt.",
+  "index.reorganize.title": "Reorganiseren",
+  "index.reorganize.description": "Reorganiseert deze index: defragmenteert het bladniveau ter plekke. Altijd online en afbreekbaar, maar doet minder dan opnieuw opbouwen en werkt de statistieken niet bij.",
+  "index.disable.title": "Uitschakelen",
+  "index.disable.description": "Schakelt deze index uit. Hij wordt niet meer bijgehouden of gebruikt, en alleen opnieuw opbouwen brengt hem terug. Een geclusterde index uitschakelen haalt de gegevens van de tabel mee offline.",
+  "index.drop.title": "Verwijderen…",
+  "index.drop.description": "Verwijdert deze index. De definitie is weg; opnieuw aanmaken betekent hem opnieuw schrijven, en op een grote tabel is dat een lange bouw.",
+  "index.progress.running": "Uitvoeren: {0}",
+  "index.progress.complete": "Klaar: {0}.",
+  "index.error.noTable": "Deze actie heeft de tabel van de index nodig en de host gaf die niet mee. Een host ouder dan tool-API 7 kan dat niet.",
+  "index.error.noIndex": "Selecteer eerst een index.",
+  "index.error.constraint": "{0} hoort bij een primaire sleutel of een unique-constraint en kan niet als index verwijderd worden. Verwijder de constraint (ALTER TABLE … DROP CONSTRAINT); die neemt deze index mee."
 }
