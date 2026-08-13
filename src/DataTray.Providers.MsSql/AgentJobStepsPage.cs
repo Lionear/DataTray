@@ -36,6 +36,18 @@ internal sealed class AgentJobStepsPage : IJobPage
     /// <summary>Name a step parks under for the middle of a swap; never visible outside the transaction.</summary>
     private const string SwapPlaceholder = "__datatray_swap__";
 
+    /// <summary>The subsystem whose command is generated rather than typed (SE-236).</summary>
+    private const string SsisSubsystem = "SSIS";
+
+    /// <summary>
+    /// The empty proxy. Outside SSIS this is the job owner and rarely worth a second thought; for SSIS it is
+    /// the Agent service account, which usually has no rights on SSISDB or on the file share — so naming it
+    /// is what makes the permission error afterwards legible.
+    /// </summary>
+    private const string DefaultProxy = "(default)";
+
+    private const string ServiceAccountProxy = "(SQL Server Agent Service Account)";
+
     private readonly NodeInfoContext _context;
     private readonly string _job;
     private readonly Action<string> _report;
@@ -65,14 +77,33 @@ internal sealed class AgentJobStepsPage : IJobPage
     private Control _successStepRow = null!;
     private Control _failStepRow = null!;
 
+    // The command region swaps between the text box above and the SSIS editor; only one is ever mounted.
+    private readonly ContentControl _commandHost = new();
+    private readonly Control _commandBox;
+    private readonly SsisStepEditor _ssis;
+
+    private readonly TextBlock _fallbackNotice = new()
+    {
+        TextWrapping = TextWrapping.Wrap,
+        IsVisible = false,
+        Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xA3, 0x3E))
+    };
+
     private List<Step> _steps = [];
+    private List<string> _subsystems = [];
+    private Dictionary<string, List<string>> _proxies = [];
     private bool _loading;
+
+    /// <summary>True while the SSIS editor owns the command, so Save builds it instead of reading the box.</summary>
+    private bool _ssisActive;
 
     public AgentJobStepsPage(NodeInfoContext context, Action<string> report)
     {
         _context = context;
         _job = context.Node.Name;
         _report = report;
+        _ssis = new SsisStepEditor(context);
+        _commandBox = FormBits.Labelled("Command", _command);
         Control = Build();
         _ = ReloadAsync(select: 0);
     }
@@ -89,6 +120,7 @@ internal sealed class AgentJobStepsPage : IJobPage
     private Control Build()
     {
         _table.SelectionChanged += ShowSelected;
+        _subsystem.SelectionChanged += (_, _) => OnSubsystemChanged();
         _onSuccess.ItemsSource = Actions.Select(a => a.Label).ToList();
         _onFail.ItemsSource = Actions.Select(a => a.Label).ToList();
         _onSuccess.SelectionChanged += (_, _) => SyncVisibility();
@@ -118,7 +150,8 @@ internal sealed class AgentJobStepsPage : IJobPage
             _heading,
             FormBits.Pair(FormBits.Labelled("Step name", _name), FormBits.Labelled("Type", _subsystem)),
             FormBits.Pair(FormBits.Labelled("Run as", _proxy), FormBits.Labelled("Database", _database)),
-            FormBits.Labelled("Command", _command),
+            _fallbackNotice,
+            _commandHost,
             FormBits.Labelled("Output file", _outputFile),
             FormBits.Section("On completion"),
             FormBits.Pair(FormBits.Labelled("On success", _onSuccess), _successStepRow),
@@ -126,8 +159,58 @@ internal sealed class AgentJobStepsPage : IJobPage
             FormBits.Pair(FormBits.Labelled("Retry attempts", _retries),
                 FormBits.Labelled("Retry interval (min)", _retryInterval)));
 
+        _commandHost.Content = _commandBox;
         SyncVisibility();
         return page;
+    }
+
+    /// <summary>
+    /// The Type dropdown decides the editor. For T-SQL, CmdExec and PowerShell the command genuinely is text;
+    /// for SSIS it is a generated dtexec argument string, and the fields build it instead of asking for it.
+    /// </summary>
+    private void OnSubsystemChanged()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        ShowCommandEditor(_command.Text ?? string.Empty);
+        SyncProxies();
+    }
+
+    /// <summary>
+    /// Mounts the SSIS editor when the subsystem is SSIS and the command can be read back, and the text box
+    /// otherwise. A command the editor does not model keeps the text box with the original untouched —
+    /// dropping an option on save would change what the step does without anyone touching that field.
+    /// </summary>
+    private void ShowCommandEditor(string command)
+    {
+        var isSsis = (_subsystem.SelectedItem as string) == SsisSubsystem;
+        _ssisActive = isSsis && _ssis.Load(command);
+
+        _commandHost.Content = _ssisActive ? _ssis.Control : _commandBox;
+
+        var refusal = isSsis && !_ssisActive ? SsisStepEditor.RefusalReason(command) : null;
+        _fallbackNotice.Text = refusal ?? string.Empty;
+        _fallbackNotice.IsVisible = refusal is not null;
+    }
+
+    /// <summary>
+    /// Offers only the proxies granted the selected subsystem. A proxy is granted per subsystem in
+    /// <c>sysproxysubsystem</c>; one without the grant is refused on save with error 14262, so listing it is
+    /// an invitation to write a step that cannot run.
+    /// </summary>
+    private void SyncProxies()
+    {
+        var subsystem = _subsystem.SelectedItem as string ?? "TSQL";
+        var chosen = _proxy.SelectedItem as string;
+        var empty = subsystem == SsisSubsystem ? ServiceAccountProxy : DefaultProxy;
+        var granted = _proxies.TryGetValue(subsystem, out var names) ? names : [];
+
+        _proxy.ItemsSource = new[] { empty }.Concat(granted).ToList();
+        // Keep the step's own proxy selected where the new subsystem also allows it.
+        _proxy.SelectedItem = chosen is not null && granted.Contains(chosen) ? chosen : empty;
     }
 
     private async Task GuardAsync(Button button, Func<Task> action)
@@ -157,8 +240,7 @@ internal sealed class AgentJobStepsPage : IJobPage
 
             var subsystems = await ScalarListAsync(connection,
                 "SELECT subsystem FROM msdb.dbo.syssubsystems ORDER BY subsystem");
-            var proxies = await ScalarListAsync(connection,
-                "SELECT name FROM msdb.dbo.sysproxies WHERE enabled = 1 ORDER BY name");
+            var proxies = await SsisCatalog.ProxiesBySubsystemAsync(connection);
 
             await using var command = new SqlCommand(
                 """
@@ -193,9 +275,10 @@ internal sealed class AgentJobStepsPage : IJobPage
             Dispatcher.UIThread.Post(() =>
             {
                 _steps = steps;
-                // "(default)" is the empty proxy — the step runs as the job owner, which is the usual case.
-                _proxy.ItemsSource = new[] { "(default)" }.Concat(proxies).ToList();
+                _proxies = proxies;
+                _subsystems = subsystems;
                 _subsystem.ItemsSource = subsystems;
+                SyncProxies();
             });
 
             _table.Fill(steps.Select(Row).ToList(), "This job has no steps.");
@@ -248,9 +331,13 @@ internal sealed class AgentJobStepsPage : IJobPage
         _heading.Text = $"Step {step.Id} — {step.Name}";
         _name.Text = step.Name;
         _subsystem.SelectedItem = step.Subsystem;
-        _proxy.SelectedItem = string.IsNullOrEmpty(step.Proxy) ? "(default)" : step.Proxy;
+        SyncProxies();
+        _proxy.SelectedItem = string.IsNullOrEmpty(step.Proxy)
+            ? (step.Subsystem == SsisSubsystem ? ServiceAccountProxy : DefaultProxy)
+            : step.Proxy;
         _database.Text = step.Database;
         _command.Text = step.Command;
+        ShowCommandEditor(step.Command);
         _outputFile.Text = step.OutputFile;
         _retries.Value = step.Retries;
         _retryInterval.Value = step.RetryInterval;
@@ -269,10 +356,11 @@ internal sealed class AgentJobStepsPage : IJobPage
         _table.SelectedIndex = -1;
         _heading.Text = "New step";
         _name.Text = $"Step {_steps.Count + 1}";
-        _subsystem.SelectedItem = "TSQL";
-        _proxy.SelectedItem = "(default)";
+        _subsystem.SelectedItem = _subsystems.Contains("TSQL") ? "TSQL" : _subsystems.FirstOrDefault();
+        SyncProxies();
         _database.Text = "master";
         _command.Text = "";
+        ShowCommandEditor(string.Empty);
         _outputFile.Text = "";
         _retries.Value = 0;
         _retryInterval.Value = 0;
@@ -315,10 +403,12 @@ internal sealed class AgentJobStepsPage : IJobPage
         var index = _table.SelectedIndex;
         var isNew = index < 0;
         var proxy = _proxy.SelectedItem as string;
+        // With the SSIS editor mounted the command is built from its fields; the text box is not the source.
+        var command = _ssisActive ? _ssis.Command : _command.Text ?? string.Empty;
         var settings =
             $"@step_name = N'{Escape(_name.Text)}'" +
             $", @subsystem = N'{Escape(_subsystem.SelectedItem as string ?? "TSQL")}'" +
-            $", @command = N'{Escape(_command.Text ?? string.Empty)}'" +
+            $", @command = N'{Escape(command)}'" +
             $", @database_name = N'{Escape(_database.Text ?? string.Empty)}'" +
             $", @output_file_name = N'{Escape(_outputFile.Text ?? string.Empty)}'" +
             $", @retry_attempts = {(int)(_retries.Value ?? 0)}" +
@@ -327,7 +417,9 @@ internal sealed class AgentJobStepsPage : IJobPage
             $", @on_success_step_id = {(Action(_onSuccess) == 4 ? (int)(_onSuccessStep.Value ?? 1) : 0)}" +
             $", @on_fail_action = {Action(_onFail)}" +
             $", @on_fail_step_id = {(Action(_onFail) == 4 ? (int)(_onFailStep.Value ?? 1) : 0)}" +
-            (proxy is null or "(default)" ? "" : $", @proxy_name = N'{Escape(proxy)}'");
+            (proxy is null or DefaultProxy or ServiceAccountProxy
+                ? ""
+                : $", @proxy_name = N'{Escape(proxy)}'");
 
         var sql = isNew
             ? $"EXEC msdb.dbo.sp_add_jobstep @job_name = N'{Escape(_job)}', {settings}"
