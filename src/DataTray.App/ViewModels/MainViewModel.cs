@@ -1041,7 +1041,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var dialog = _toolDialogFactory();
-        dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId);
+        dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId, node.NodePath);
         // Let a tool hand generated SQL to a query tab on the launched connection/database (SchemaDiff).
         dialog.OpenQueryRequested = sql => OpenQueryWithContent(connection, node.DatabaseName, sql);
         // ...or on a picked secondary connection/database, for a tool that scripts to the destination (Copy Table).

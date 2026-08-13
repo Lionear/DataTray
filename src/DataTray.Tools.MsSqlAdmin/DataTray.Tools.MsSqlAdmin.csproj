@@ -29,8 +29,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The Activity Monitor's rate arithmetic is provider-agnostic maths over samples and is tested
-         directly, the same way the ER diagram's layout engine is. -->
+    <!-- The rate arithmetic and the index statements are provider-agnostic maths and string work,
+         tested directly the same way the ER diagram's layout engine is. -->
     <InternalsVisibleTo Include="DataTray.Tools.MsSqlAdmin.Tests" />
   </ItemGroup>
 

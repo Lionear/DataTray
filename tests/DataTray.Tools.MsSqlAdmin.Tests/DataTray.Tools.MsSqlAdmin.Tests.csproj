@@ -16,8 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The Activity Monitor's rate arithmetic and its blocking-chain and wait-category rules are pure
-         functions over samples, so they are tested without a server or the host. -->
+    <!-- The pure logic behind this plugin's tools: the Activity Monitor's rate arithmetic, its
+         blocking-chain and wait-category rules, and the index statements. No server, no host. -->
     <ProjectReference Include="..\..\src\DataTray.Tools.MsSqlAdmin\DataTray.Tools.MsSqlAdmin.csproj" />
   </ItemGroup>
 
