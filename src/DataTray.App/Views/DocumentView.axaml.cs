@@ -46,6 +46,14 @@ public partial class DocumentView : UserControl
         if (_sqlEditor is not null)
         {
             _sqlEditor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("TSQL");
+
+            // AvaloniaEdit turns anything that looks like a mail address or a URL into a hyperlink, which
+            // recolours it — so 'click@codesnippets.com' inside a string literal came out link-blue while
+            // '333@sss' stayed string-coloured. This is SQL, not prose: nothing here is clickable, so the
+            // syntax highlighting alone decides the colour.
+            _sqlEditor.Options.EnableEmailHyperlinks = false;
+            _sqlEditor.Options.EnableHyperlinks = false;
+
             ApplyEditorSyntaxTheme();
             ActualThemeVariantChanged += (_, _) => ApplyEditorSyntaxTheme();
             _sqlEditor.TextChanged += OnEditorTextChanged;
