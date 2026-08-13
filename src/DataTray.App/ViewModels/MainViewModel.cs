@@ -1788,10 +1788,56 @@ public partial class MainViewModel : ViewModelBase
         await CreateObjectAsync(node, DbObjectKind.Table, node.SchemaName, node.DatabaseName);
     }
 
+    // "New Index…" on a table's Indexes folder. Unlike the three above, the dialog needs to know what it
+    // can index, so the table's columns are read first and offered as the picker's list — typing a column
+    // name that does not exist is a failure the database reports seconds later, and there is no reason to
+    // let it get that far.
+    [RelayCommand]
+    private async Task NewIndexAsync()
+    {
+        if (SelectedNode is not { CanCreateIndex: true } node || node.TableName is not { } table)
+        {
+            return;
+        }
+
+        await CreateObjectAsync(node, DbObjectKind.Index, node.SchemaName, node.DatabaseName,
+            table, await LoadTableColumnsAsync(node));
+    }
+
+    // The table's column names, for the New Index picker. Best-effort: the dialog's column box is editable,
+    // so a provider that cannot list them (or a permission error) costs the suggestions, not the feature.
+    private async Task<IReadOnlyList<string>> LoadTableColumnsAsync(TreeNodeViewModel node)
+    {
+        try
+        {
+            var provider = _providers.Get(node.Connection.ProviderId);
+            var profile = _connections.Resolve(node.Connection, node.DatabaseName);
+            // The Indexes folder's own path with its last step swapped for the Columns folder beside it:
+            // providers dispatch on the last node's kind and read the table from the ancestry above it.
+            var path = node.NodePath
+                .Take(node.NodePath.Count - 1)
+                .Append(new DbNodeRef(DbNodeKind.ColumnFolder, "Columns"))
+                .ToList();
+
+            var columns = await provider.GetChildNodesAsync(profile, path, CancellationToken.None);
+            return [.. columns.Select(c => c.Name)];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     // Shared DDL Create flow: open the dialog pre-configured for `kind`, run the (possibly user-edited)
     // SQL it returns via ExecuteDdlAsync, then refresh `node` so the new object appears in the tree —
     // `node` is always the one the "New …" menu item appeared on, i.e. already the right parent to reload.
-    private async Task CreateObjectAsync(TreeNodeViewModel node, DbObjectKind kind, string? parentSchema, string? database)
+    private async Task CreateObjectAsync(
+        TreeNodeViewModel node,
+        DbObjectKind kind,
+        string? parentSchema,
+        string? database,
+        string? table = null,
+        IReadOnlyList<string>? tableColumns = null)
     {
         if (CreateObjectDialogRequested is null)
         {
@@ -1800,7 +1846,7 @@ public partial class MainViewModel : ViewModelBase
 
         var provider = _providers.Get(node.Connection.ProviderId);
         var dialog = _createDialogFactory();
-        dialog.Configure(provider, kind, parentSchema);
+        dialog.Configure(provider, kind, parentSchema, table, tableColumns);
 
         var sql = await CreateObjectDialogRequested(dialog);
         if (string.IsNullOrWhiteSpace(sql))

@@ -145,7 +145,13 @@ public static class ProviderHostApi
     //                   only the database one ("datname"/"db"). Purely additive: a provider that declares
     //                   neither keeps the unfiltered monitor it had. Bumped rather than folded into v27,
     //                   which shipped in 0.4.0 — same post-release rule as the v27 note above.
-    public const int Version = 28;
+    // v29 (2026-08-13): DDL Create learns indexes (SE-250) — DbObjectKind.Index, NewIndexColumnSpec, and
+    //                   three optional members on CreateObjectSpec (Table, IndexColumns, Unique) naming the
+    //                   table the index is created on and its key columns in order. Until now DataTray could
+    //                   create databases, schemas, tables and columns but had no path to a CREATE INDEX at
+    //                   all. Purely additive: the new spec members carry defaults, and a provider that omits
+    //                   the CreateCapability keeps the menu item hidden and is never handed the new kind.
+    public const int Version = 29;
 
     /// <summary>Oldest plugin ABI this host still loads. Additive bumps (v11→v22 style) keep this fixed;
     /// only a breaking change raises it. Raised to 23 by the v23 BuildNodeQuery signature change above —

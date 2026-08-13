@@ -1378,7 +1378,8 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     [
         new(DbObjectKind.Database, DbNodeKind.DatabaseFolder),
         new(DbObjectKind.Schema, DbNodeKind.SchemaFolder),
-        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+        new(DbObjectKind.Table, DbNodeKind.TableFolder),
+        new(DbObjectKind.Index, DbNodeKind.IndexFolder)
     ];
 
     public IReadOnlyList<string> ColumnTypes { get; } =
@@ -1392,11 +1393,18 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             // Must be the only statement in its batch — ExecuteDdlAsync runs one statement, no "GO".
             DbObjectKind.Schema => $"CREATE SCHEMA {Dialect.QuoteIdentifier(spec.Name)}",
             DbObjectKind.Table => BuildCreateTable(spec),
+            DbObjectKind.Index => BuildCreateIndex(spec),
             _ => throw new NotSupportedException($"SQL Server cannot create a {spec.Kind}.")
         };
 
         return new SqlStatement(sql, []);
     }
+
+    // CREATE INDEX is the same shape in every engine here; what differs is the qualification (SQL Server
+    // and Postgres take schema.table, MySQL has no schema layer, SQLite neither) — so each provider builds
+    // its own rather than the host guessing a name it cannot quote.
+    private string BuildCreateIndex(CreateObjectSpec spec) =>
+        IndexSql.Build(Dialect, spec, qualifyWithSchema: true);
 
     private string BuildCreateTable(CreateObjectSpec spec)
     {

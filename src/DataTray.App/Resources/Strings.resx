@@ -1932,4 +1932,25 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="ImportFetchPasswordsHint" xml:space="preserve">
     <value>DataGrip keeps these in the keychain your operating system manages, not in its own files. Your system decides whether to hand them over, and may ask you first. Anything that comes back goes straight into DataTray's own keychain.</value>
   </data>
+  <data name="NewIndex" xml:space="preserve">
+    <value>New Index…</value>
+  </data>
+  <data name="IndexUnique" xml:space="preserve">
+    <value>Unique</value>
+  </data>
+  <data name="IndexUniqueHint" xml:space="preserve">
+    <value>The index rejects duplicate values in its key columns. Creating it fails if the table already holds any.</value>
+  </data>
+  <data name="IndexColumn" xml:space="preserve">
+    <value>Column</value>
+  </data>
+  <data name="IndexDescending" xml:space="preserve">
+    <value>Desc</value>
+  </data>
+  <data name="IndexDescendingHint" xml:space="preserve">
+    <value>Store this column in descending order. Matters for queries that sort or range-scan that way; ascending is the default.</value>
+  </data>
+  <data name="AddIndexColumn" xml:space="preserve">
+    <value>+ Add column</value>
+  </data>
 </root>

@@ -146,12 +146,21 @@ public sealed class SqliteProvider : IDbProvider
     // SQLite has no server/database layer, so only table creation applies — right under the
     // Tables folder, same spot "New Table" already targets for browsing.
     public IReadOnlyList<CreateCapability> CreateCapabilities { get; } =
-        [new(DbObjectKind.Table, DbNodeKind.TableFolder)];
+    [
+        new(DbObjectKind.Table, DbNodeKind.TableFolder),
+        new(DbObjectKind.Index, DbNodeKind.IndexFolder)
+    ];
 
     public IReadOnlyList<string> ColumnTypes { get; } = ["INTEGER", "TEXT", "REAL", "BLOB", "NUMERIC"];
 
     public SqlStatement BuildCreateStatement(CreateObjectSpec spec)
     {
+        if (spec.Kind == DbObjectKind.Index)
+        {
+            // One database per connection and no schema layer, so the table is named on its own.
+            return new SqlStatement(IndexSql.Build(Dialect, spec, qualifyWithSchema: false), []);
+        }
+
         if (spec.Kind != DbObjectKind.Table)
         {
             throw new NotSupportedException($"SQLite cannot create a {spec.Kind}.");
