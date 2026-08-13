@@ -9,7 +9,7 @@ this file reproduces the attribution those licences require.
 Plugins installed from the Plugin Store are not listed here: they ship their own dependency
 closure and carry their own notices.
 
-## Packages (79)
+## Packages (80)
 
 | Package | Version | Licence |
 |---|---|---|
@@ -92,6 +92,7 @@ closure and carry their own notices.
 | [System.Security.Cryptography.Pkcs](https://dot.net/) | 9.0.4 | MIT |
 | [System.Security.Cryptography.ProtectedData](https://dot.net/) | 9.0.4 | MIT |
 | Tmds.DBus.Protocol | 0.92.0 | MIT |
+| [Velopack](https://github.com/velopack/velopack) | 1.2.0 | MIT |
 
 ## Bundled assets (1)
 

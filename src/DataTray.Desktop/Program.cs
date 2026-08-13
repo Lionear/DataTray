@@ -9,6 +9,14 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Above everything, including the migration below (SE-245). Velopack relaunches this exe during
+        // install, update and uninstall with --veloapp-* arguments and kills it if it has not exited
+        // again within 15-30 seconds; whatever sits above this call therefore runs on every one of
+        // those, and the migration below copies the entire app-data root. On an ordinary launch Run()
+        // returns and the rest of this method proceeds untouched — it never reads or creates the app
+        // data root itself, so the SE-206 ordering below still holds.
+        Velopack.VelopackApp.Build().Run();
+
         // FIRST, before anything touches the app data root (SE-206). The rename moved that root from
         // Lionear/SqlExplorer to Lionear/DataTray, and the migration only copies when the new root does
         // not exist yet — so anything that creates it first makes the migration a silent no-op and the
