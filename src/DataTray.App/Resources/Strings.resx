@@ -1509,32 +1509,17 @@
   <data name="UpdateBannerUpdateNow" xml:space="preserve">
     <value>Update now</value>
   </data>
-  <data name="UpdateBannerOpenFolder" xml:space="preserve">
-    <value>Open folder</value>
-  </data>
   <data name="UpdateBannerCancel" xml:space="preserve">
     <value>Cancel</value>
   </data>
   <data name="UpdateBannerRetry" xml:space="preserve">
     <value>Retry</value>
   </data>
-  <data name="UpdateBannerRefetched" xml:space="preserve">
-    <value>Newer build {0} downloaded — install and restart now?</value>
-  </data>
-  <data name="UpdateBannerUpToDate" xml:space="preserve">
-    <value>You're already on the latest build.</value>
-  </data>
   <data name="UpdateDialogTitle" xml:space="preserve">
     <value>Update available</value>
   </data>
   <data name="UpdateDialogVersion" xml:space="preserve">
     <value>Version {0}</value>
-  </data>
-  <data name="UpdateDialogPublished" xml:space="preserve">
-    <value>Published {0}</value>
-  </data>
-  <data name="UpdateDialogCommit" xml:space="preserve">
-    <value>Commit {0}</value>
   </data>
   <data name="UpdateDialogDownload" xml:space="preserve">
     <value>Download</value>
@@ -1545,17 +1530,8 @@
   <data name="UpdateDialogInstalling" xml:space="preserve">
     <value>Installing…</value>
   </data>
-  <data name="UpdateDialogGuided" xml:space="preserve">
-    <value>Downloaded — drag DataTray to Applications, then reopen it.</value>
-  </data>
-  <data name="UpdateRollback" xml:space="preserve">
-    <value>Roll back to the previous version</value>
-  </data>
   <data name="UpdateDialogDownloading" xml:space="preserve">
     <value>Downloading…</value>
-  </data>
-  <data name="UpdateDialogDownloaded" xml:space="preserve">
-    <value>Downloaded — opening the folder.</value>
   </data>
   <data name="UpdateDialogDownloadFailed" xml:space="preserve">
     <value>The download failed.</value>
@@ -1728,6 +1704,27 @@
   <data name="UpdateIntervalManual" xml:space="preserve">
     <value>Only on startup</value>
   </data>
+  <data name="UpdateUnmanagedInstall" xml:space="preserve">
+    <value>This copy is not managed by the updater, so it cannot replace itself. Download a new build from the releases page.</value>
+  </data>
+  <data name="UpdateLegacyInstallNotice" xml:space="preserve">
+    <value>An older DataTray installation is still on this PC. Its Start-menu shortcut launches the previous version against the same data.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemove" xml:space="preserve">
+    <value>Remove old installation</value>
+  </data>
+  <data name="UpdateLegacyInstallKeep" xml:space="preserve">
+    <value>Keep both</value>
+  </data>
+  <data name="UpdateLegacyInstallTitle" xml:space="preserve">
+    <value>Remove the old installation?</value>
+  </data>
+  <data name="UpdateLegacyInstallMessage" xml:space="preserve">
+    <value>This runs the previous installer's uninstaller. It removes the old program files and its Start-menu shortcut. Your connections, settings and installed plugins are stored separately and are not touched.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemoving" xml:space="preserve">
+    <value>Removing the previous DataTray installation.</value>
+  </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Check for updates</value>
   </data>
@@ -1753,9 +1750,6 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   </data>
   <data name="UpdateChannelDowngradeAccepted" xml:space="preserve">
     <value>{0} is queued — close Settings to download and install it.</value>
-  </data>
-  <data name="UpdateChannelDowngradeNoAsset" xml:space="preserve">
-    <value>{0} has no download for this platform; the channel is switched but nothing can be installed here.</value>
   </data>
   <data name="UpdateCheckChecking" xml:space="preserve">
     <value>Checking…</value>

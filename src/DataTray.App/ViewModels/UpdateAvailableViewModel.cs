@@ -4,34 +4,29 @@ using DataTray.Core.Update;
 namespace DataTray.App.ViewModels;
 
 /// <summary>
-/// Backs the changelog dialog for an available update (SE-137 / SE-151): the new build's version, date,
-/// commit and release notes. Downloading and installing moved to the banner itself (<see cref="AppUpdateViewModel"/>),
+/// Backs the changelog dialog for an available update (SE-137 / SE-151): the new build's version and
+/// release notes. Downloading and installing live in the banner itself (<see cref="AppUpdateViewModel"/>),
 /// so this dialog is notes-only — one source of truth for download status.
+/// <para>
+/// The publish date and commit lines are gone with SE-245: those came from our own update manifest,
+/// and a Velopack feed carries neither. Version and notes are what it does carry, and they were the
+/// two the dialog was actually for.
+/// </para>
 /// </summary>
 public sealed class UpdateAvailableViewModel : ViewModelBase
 {
-    private readonly UpdateManifest _manifest;
+    private readonly OfferedBuild _build;
 
-    public UpdateAvailableViewModel(UpdateManifest manifest, ILocalizer localizer)
+    public UpdateAvailableViewModel(OfferedBuild build, ILocalizer localizer)
     {
-        _manifest = manifest;
+        _build = build;
         Loc = localizer;
     }
 
     public ILocalizer Loc { get; }
 
-    public string VersionLine => Loc.Get("UpdateDialogVersion", _manifest.Version);
-
-    public string? PublishedLine =>
-        string.IsNullOrWhiteSpace(_manifest.PublishedAt) ? null : Loc.Get("UpdateDialogPublished", _manifest.PublishedAt);
-
-    public string? CommitLine =>
-        string.IsNullOrWhiteSpace(_manifest.Commit) ? null : Loc.Get("UpdateDialogCommit", _manifest.Commit);
-
-    public bool HasPublished => PublishedLine is not null;
-
-    public bool HasCommit => CommitLine is not null;
+    public string VersionLine => Loc.Get("UpdateDialogVersion", _build.Version);
 
     /// <summary>Raw markdown notes; the view renders them via <c>MiniMarkdown</c>.</summary>
-    public string Notes => _manifest.Notes ?? string.Empty;
+    public string Notes => _build.NotesMarkdown ?? string.Empty;
 }
