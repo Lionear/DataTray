@@ -870,7 +870,11 @@ public partial class MainView : UserControl
             _nodeActionItems.Add(item);
         }
 
-        NodeActionsAnchor.IsVisible = _nodeActionItems.Count > 0;
+        // The anchor stays hidden: it marks where to splice, it is not a divider. Everything above it is
+        // connection- or object-scoped, so on the nodes that have node actions (an Indexes folder, an
+        // Agent job) all of it is hidden and showing the separator put a rule at the very top of the
+        // menu with nothing above it to divide. Sibling visibility can't decide this either — on the
+        // first open the static items' IsVisible bindings have not been applied yet when Opening fires.
     }
 
     private DataTray.Sdk.Extensibility.ManagedConnectionInfo? SelectedConnectionInfo()

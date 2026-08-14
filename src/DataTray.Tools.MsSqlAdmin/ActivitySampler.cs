@@ -9,11 +9,11 @@ namespace DataTray.Tools.MsSqlAdmin;
 /// STATE that any of these DMVs already requires.
 /// </summary>
 /// <remarks>
-/// <para>All seven statements go over as <b>one script</b> (<see cref="IDbProvider.ExecuteScriptAsync"/>,
-/// which returns one result set per SELECT, in order) rather than as seven calls. The provider opens a
-/// connection per call, and seven connections every ten seconds is a cost the server pays for nothing —
+/// <para>All eight statements go over as <b>one script</b> (<see cref="IDbProvider.ExecuteScriptAsync"/>,
+/// which returns one result set per SELECT, in order) rather than as eight calls. The provider opens a
+/// connection per call, and eight connections every ten seconds is a cost the server pays for nothing —
 /// the samples are also then consistent with each other, taken at one instant rather than smeared across
-/// seven round trips.</para>
+/// eight round trips.</para>
 /// <para>ponytail: one script means one failure — an instance missing any single DMV (Azure SQL Database
 /// has no scheduler ring buffer and no <c>sys.master_files</c> in the shape used here) fails the whole
 /// refresh rather than one section. Split the script per section if Azure SQL support is wanted; against
@@ -29,10 +29,10 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
     public async Task<ActivitySample> ReadAsync(int refreshSeconds, CancellationToken ct)
     {
         var results = await provider.ExecuteScriptAsync(profile, Script(RecentWindowSeconds(refreshSeconds)), ct);
-        if (results.Count < 7)
+        if (results.Count < 8)
         {
             throw new InvalidOperationException(
-                $"The Activity Monitor expected 7 result sets from its DMV script and received {results.Count}.");
+                $"The Activity Monitor expected 8 result sets from its DMV script and received {results.Count}.");
         }
 
         var processes = ReadProcesses(results[0]);
@@ -43,7 +43,8 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
             ReadFiles(results[2]),
             ReadQueries(results[3]),
             ReadActiveQueries(results[4]),
-            ReadCounters(results[5], results[6]));
+            ReadCounters(results[5], results[6]),
+            results[7].Rows.Count > 0 ? Text(results[7].Rows[0][0]) : string.Empty);
     }
 
     private static IReadOnlyList<ProcessRow> ReadProcesses(QueryResult result)
@@ -171,11 +172,11 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         : Convert.ToInt32(value, CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// The seven SELECTs behind one refresh, in the order <see cref="ReadAsync"/> unpacks them. Kept as one
+    /// The eight SELECTs behind one refresh, in the order <see cref="ReadAsync"/> unpacks them. Kept as one
     /// literal so the column order a reader sees and the indexes the reader uses sit on the same screen.
     /// </summary>
     private static string Script(int recentWindowSeconds) => $"""
-        -- DataTray Activity Monitor. This marker is what result set 4 filters on: all seven statements go
+        -- DataTray Activity Monitor. This marker is what result set 4 filters on: all eight statements go
         -- over as one batch and therefore share one sql_handle and one cached text, so a single NOT LIKE
         -- keeps the monitor's own queries out of its Recent Expensive Queries grid — which would otherwise
         -- report, every ten seconds, that the most expensive thing on this server is the monitor.
@@ -218,31 +219,54 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
 
         -- 4. Recent expensive queries: statements executed inside the window, dearest first. plan_count is
         --    every cached plan for the same query_hash, which is what makes plan-cache bloat visible.
+        --    dm_exec_query_stats has one row per *plan*, so one statement can appear several times over:
+        --    the same batch compiled against three databases, a recompile under different SET options, a
+        --    serial and a parallel plan side by side. Those rows are summed into one per statement here.
+        --    Two reasons: the grid would otherwise show the same query several times with its cost split
+        --    across the rows, and query_key — which the client uses to difference two samples — has to be
+        --    unique or the refresh dies on a duplicate dictionary key. The GROUP BY is therefore exactly
+        --    the three columns query_key is built from, which is what makes it unique by construction.
         WITH plans AS (
             SELECT query_hash, COUNT(*) AS plan_count
             FROM sys.dm_exec_query_stats
-            GROUP BY query_hash)
+            GROUP BY query_hash),
+        recent AS (
+            SELECT qs.sql_handle,
+                   qs.statement_start_offset,
+                   qs.statement_end_offset,
+                   -- Every plan of one statement carries the same query_hash (they are the same parse
+                   -- tree); MAX only picks the one value out of the group.
+                   MAX(qs.query_hash) AS query_hash,
+                   SUM(qs.execution_count) AS execution_count,
+                   SUM(qs.total_worker_time) AS total_worker_time,
+                   SUM(qs.total_physical_reads) AS total_physical_reads,
+                   SUM(qs.total_logical_writes) AS total_logical_writes,
+                   SUM(qs.total_logical_reads) AS total_logical_reads,
+                   SUM(qs.total_elapsed_time) AS total_elapsed_time
+            FROM sys.dm_exec_query_stats AS qs
+            WHERE qs.last_execution_time > DATEADD(second, -{recentWindowSeconds}, GETDATE())
+            GROUP BY qs.sql_handle, qs.statement_start_offset, qs.statement_end_offset)
         SELECT TOP (50)
-               CONVERT(varchar(140), qs.sql_handle, 2) + '-'
-                   + CONVERT(varchar(12), qs.statement_start_offset) AS query_key,
-               SUBSTRING(st.text, (qs.statement_start_offset / 2) + 1,
-                   ((CASE qs.statement_end_offset
+               CONVERT(varchar(140), r.sql_handle, 2) + '-'
+                   + CONVERT(varchar(12), r.statement_start_offset) + '-'
+                   + CONVERT(varchar(12), r.statement_end_offset) AS query_key,
+               SUBSTRING(st.text, (r.statement_start_offset / 2) + 1,
+                   ((CASE r.statement_end_offset
                          WHEN -1 THEN DATALENGTH(st.text)
-                         ELSE qs.statement_end_offset END - qs.statement_start_offset) / 2) + 1) AS statement_text,
+                         ELSE r.statement_end_offset END - r.statement_start_offset) / 2) + 1) AS statement_text,
                ISNULL(DB_NAME(st.dbid), '') AS database_name,
-               qs.execution_count,
-               qs.total_worker_time,
-               qs.total_physical_reads,
-               qs.total_logical_writes,
-               qs.total_logical_reads,
-               qs.total_elapsed_time,
+               r.execution_count,
+               r.total_worker_time,
+               r.total_physical_reads,
+               r.total_logical_writes,
+               r.total_logical_reads,
+               r.total_elapsed_time,
                ISNULL(p.plan_count, 1) AS plan_count
-        FROM sys.dm_exec_query_stats AS qs
-        CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS st
-        LEFT JOIN plans AS p ON p.query_hash = qs.query_hash
-        WHERE qs.last_execution_time > DATEADD(second, -{recentWindowSeconds}, GETDATE())
-          AND st.text NOT LIKE '%DataTray Activity Monitor%'
-        ORDER BY qs.total_worker_time DESC;
+        FROM recent AS r
+        CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) AS st
+        LEFT JOIN plans AS p ON p.query_hash = r.query_hash
+        WHERE st.text NOT LIKE '%DataTray Activity Monitor%'
+        ORDER BY r.total_worker_time DESC;
 
         -- 5. Active expensive queries: what is executing right now, this connection excluded.
         SELECT r.session_id,
@@ -287,5 +311,11 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         SELECT ISNULL(wait_type, '') AS wait_type
         FROM sys.dm_os_waiting_tasks
         WHERE session_id IS NOT NULL;
+
+        -- 8. Build and host, for the line beside the toolbar. @@VERSION rather than SERVERPROPERTY plus
+        --    sys.dm_os_host_info because it names the host in the same breath as the build and exists on
+        --    every version — host_info only arrived in 2017, and a missing view here would fail the whole
+        --    refresh (see the remarks on this class), not just this one line.
+        SELECT @@VERSION AS server_version;
         """;
 }

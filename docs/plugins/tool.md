@@ -124,6 +124,25 @@ returned `Control` is an Avalonia type shared across the ALC boundary, add an
 Avalonia reference to the plugin `.csproj` with `ExcludeAssets="runtime"` (share
 the host's copy) — see [Referencing Avalonia for a Route B view](capabilities.md#referencing-avalonia-for-a-route-b-view).
 
+Route B is also how a tool with **no** inputs shows something. The dialog body is
+either the generated fields or your view; a tool that declares neither renders as
+a title over an empty body. If the action is the whole input, the view is where
+the confirmation goes — what the action is about to do, and to what.
+
+To describe that object, the context carries the same ancestry `ExecuteAsync`
+gets (host API 8):
+
+```csharp
+context.NodePath                      // connection root → launch node, inclusive
+context.Ancestor(DbNodeKind.Table)    // "which table is this index on?"
+context.QueryAsync(sql, ct)           // read-only, on the tool's own connection
+```
+
+`Node` alone does not identify every node — an index is named within its table
+and an "Indexes" folder is named nothing at all. Both members default to
+empty/null, so on an older host a view that reads them should say what is
+missing rather than guess.
+
 ### A tab instead of a dialog — `IToolDocumentUi` (host API 6)
 
 A tool that implements `IToolDocumentUi` opens as a **tab in the main window**
