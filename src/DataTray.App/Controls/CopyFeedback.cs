@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -23,8 +24,9 @@ public static class CopyFeedback
     private static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(150);
 
     /// <summary>Copy <paramref name="text"/> to the clipboard, then show the <paramref name="message"/> toast
-    /// in <paramref name="anchor"/>'s window. No-op if there's no top-level (e.g. during teardown).</summary>
-    public static async Task CopyAsync(Visual? anchor, string text, string message)
+    /// in <paramref name="anchor"/>'s window. No-op if there's no top-level (e.g. during teardown). Pass
+    /// <paramref name="html"/> to also offer the copy as real HTML to rich-text targets.</summary>
+    public static async Task CopyAsync(Visual? anchor, string text, string message, string? html = null)
     {
         if (anchor is null)
         {
@@ -33,7 +35,21 @@ public static class CopyFeedback
 
         if (TopLevel.GetTopLevel(anchor)?.Clipboard is { } clipboard)
         {
-            await clipboard.SetTextAsync(text);
+            if (html is null)
+            {
+                await clipboard.SetTextAsync(text);
+            }
+            else
+            {
+                // Both formats on a single item: Windows and X11 keep only one item for everything but files,
+                // and each paste target then takes the format it understands — HTML in Outlook, text in an editor.
+                var item = new DataTransferItem();
+                item.SetText(text);
+                item.Set(HtmlClipboard.Format, HtmlClipboard.ToPayload(html));
+                var transfer = new DataTransfer();
+                transfer.Add(item);
+                await clipboard.SetDataAsync(transfer);
+            }
         }
 
         Show(anchor, message);

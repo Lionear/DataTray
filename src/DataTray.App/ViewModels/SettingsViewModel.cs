@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using Avalonia.Media;
 using DataTray.App.Theming;
+using DataTray.Core.Export;
 using DataTray.Core.Localization;
 using DataTray.Core.Providers;
 using DataTray.Core.Settings;
@@ -47,7 +48,6 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IStoreCatalog _catalog;
     private readonly System.Net.Http.HttpClient _http;
     private readonly AppUpdateViewModel _update;
-    private readonly Core.Update.IUpdateApplier _updateApplier;
 
     // Idle auto-lock options (minutes; 0 = Never), index-matched to the Security-page dropdown.
     private static readonly int[] LockMinuteOptions = [0, 15, 30, 60];
@@ -220,7 +220,11 @@ public partial class SettingsViewModel : ViewModelBase
             return;
         }
 
-        if (offer.IsSameBuild)
+        // Reached, but with nothing newer. Since SE-245 this no longer means "that channel runs exactly
+        // your build": the updater answers a check with a build or with nothing, and never names the
+        // version it decided against, so "identical" and "older" collapse into one case here. The message
+        // says what is actually known. Unreachable is still separate — that arrives as a null offer.
+        if (offer.HasNothingNewer)
         {
             UpdateCheckStatus = Loc.Get("UpdateChannelSameBuild", channel.ToString());
             return;
@@ -242,10 +246,10 @@ public partial class SettingsViewModel : ViewModelBase
 
         if (await ConfirmChannelDowngrade(offer))
         {
+            // No "nothing to install for your platform" branch any more: a Velopack feed is per RID, so
+            // reaching a downgrade at all means there is a package this install can take.
             _acceptedDowngrade = offer;
-            UpdateCheckStatus = offer.CanInstall
-                ? Loc.Get("UpdateChannelDowngradeAccepted", offer.Version)
-                : Loc.Get("UpdateChannelDowngradeNoAsset", offer.Version);
+            UpdateCheckStatus = Loc.Get("UpdateChannelDowngradeAccepted", offer.Version);
             return;
         }
 
@@ -312,6 +316,30 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private int _formatIndentSize;
 
+    // ── Copy as HTML (SE-244) ────────────────────────────────────────────────────────────────────────
+    public sealed record HtmlTableStyleOption(HtmlTableStyle Style, string Label);
+
+    public IReadOnlyList<HtmlTableStyleOption> HtmlTableStyles { get; }
+
+    [ObservableProperty]
+    private HtmlTableStyle _htmlTableStyle;
+
+    /// <summary>Two-way bridge between the table-style dropdown and <see cref="HtmlTableStyle"/>.</summary>
+    public HtmlTableStyleOption? SelectedHtmlTableStyleOption
+    {
+        get => HtmlTableStyles.FirstOrDefault(o => o.Style == HtmlTableStyle) ?? HtmlTableStyles.FirstOrDefault();
+        set
+        {
+            if (value is not null)
+            {
+                HtmlTableStyle = value.Style;
+            }
+        }
+    }
+
+    partial void OnHtmlTableStyleChanged(HtmlTableStyle value) =>
+        OnPropertyChanged(nameof(SelectedHtmlTableStyleOption));
+
     // ── Proactive plugin updates (SE-138) ────────────────────────────────────────────────────────────
     public sealed record PluginUpdatePolicyOption(PluginUpdatePolicy Policy, string Label);
 
@@ -345,28 +373,12 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isCheckingUpdate;
 
-    /// <summary>True when a previous build is staged to roll back to (Linux AppImage only, Fase 2).</summary>
-    public bool CanRollback => _updateApplier.CanRollback;
-
-    /// <summary>Set by the view: carries out the rollback result (relaunch + exit) on the desktop lifetime.</summary>
-    public Func<Core.Update.ApplyResult, System.Threading.Tasks.Task>? RollbackRequested { get; set; }
-
-    /// <summary>Roll back to the previous app version from the Updates pane.</summary>
-    [RelayCommand]
-    private async System.Threading.Tasks.Task RollBackUpdate()
-    {
-        var result = _updateApplier.Rollback();
-        if (result.Action == Core.Update.ApplyAction.Failed)
-        {
-            UpdateCheckStatus = result.Message;
-            return;
-        }
-
-        if (RollbackRequested is not null)
-        {
-            await RollbackRequested(result);
-        }
-    }
+    /// <summary>
+    /// True when this install cannot replace itself — a build directory, an unpacked archive or
+    /// `dotnet run`. The Updates pane then points at the download page instead of offering a check
+    /// that could never lead to an install.
+    /// </summary>
+    public bool IsUnmanagedInstall => _update.Support != Core.Update.UpdateSupport.Supported;
 
     /// <summary>The shared updater VM — Settings binds its "What's new" button to the same banner state, so a
     /// manual check here lights the main-window banner too.</summary>
@@ -700,7 +712,6 @@ public partial class SettingsViewModel : ViewModelBase
         IStoreCatalog catalog,
         System.Net.Http.HttpClient http,
         AppUpdateViewModel appUpdate,
-        Core.Update.IUpdateApplier updateApplier,
         ILocalizer localizer)
     {
         _store = store;
@@ -715,7 +726,6 @@ public partial class SettingsViewModel : ViewModelBase
         _catalog = catalog;
         _http = http;
         _update = appUpdate;
-        _updateApplier = updateApplier;
         Loc = localizer;
 
         UpdateChannels =
@@ -748,6 +758,14 @@ public partial class SettingsViewModel : ViewModelBase
             new(KeywordCasing.Preserve, localizer["FormatCasingPreserve"]),
         ];
 
+        HtmlTableStyles =
+        [
+            new(HtmlTableStyle.Plain, localizer["HtmlTableStylePlain"]),
+            new(HtmlTableStyle.Hairlines, localizer["HtmlTableStyleHairlines"]),
+            new(HtmlTableStyle.HeaderFill, localizer["HtmlTableStyleHeaderFill"]),
+            new(HtmlTableStyle.HeaderFillZebra, localizer["HtmlTableStyleHeaderFillZebra"]),
+        ];
+
         PluginUpdatePolicies =
         [
             new(PluginUpdatePolicy.Off, localizer["PluginUpdatePolicyOff"]),
@@ -766,7 +784,7 @@ public partial class SettingsViewModel : ViewModelBase
             new SettingsCategory("Editor", localizer["SettingsEditor"], NodeIcons.SettingsEditor,
                 "font lettergrootte size word wrap terugloop format opmaak keyword casing indent inspringen"),
             new SettingsCategory("Query", localizer["SettingsQuery"], NodeIcons.SettingsQuery,
-                "timeout page pagina rows rijen results resultaten browse confirm bevestig paging pagineren next prev volgende vorige"),
+                "timeout page pagina rows rijen results resultaten browse confirm bevestig paging pagineren next prev volgende vorige copy kopieer html tabel table opmaak style stijl kleur colour export"),
             new SettingsCategory("QueryLog", localizer["SettingsQueryLog"], NodeIcons.SettingsQuery,
                 "query log audit logging"),
             new SettingsCategory("Keyboard", localizer["SettingsKeyboard"], NodeIcons.SettingsKeyboard,
@@ -947,6 +965,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorWordWrap = settings.EditorWordWrap;
         FormatKeywordCasing = settings.FormatKeywordCasing;
         FormatIndentSize = settings.FormatIndentSize;
+        HtmlTableStyle = settings.HtmlTableStyle;
         PluginUpdatePolicy = settings.PluginUpdatePolicy;
         ConfirmBeforeSave = settings.ConfirmBeforeSave;
         QueryTimeoutSeconds = settings.QueryTimeoutSeconds;
@@ -1112,6 +1131,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorWordWrap = defaults.EditorWordWrap;
         FormatKeywordCasing = defaults.FormatKeywordCasing;
         FormatIndentSize = defaults.FormatIndentSize;
+        HtmlTableStyle = defaults.HtmlTableStyle;
         PluginUpdatePolicy = defaults.PluginUpdatePolicy;
         ConfirmBeforeSave = defaults.ConfirmBeforeSave;
         QueryTimeoutSeconds = defaults.QueryTimeoutSeconds;
@@ -1179,6 +1199,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.EditorWordWrap = EditorWordWrap;
         settings.FormatKeywordCasing = FormatKeywordCasing;
         settings.FormatIndentSize = FormatIndentSize;
+        settings.HtmlTableStyle = HtmlTableStyle;
         settings.PluginUpdatePolicy = PluginUpdatePolicy;
         settings.ConfirmBeforeSave = ConfirmBeforeSave;
         settings.QueryTimeoutSeconds = QueryTimeoutSeconds;

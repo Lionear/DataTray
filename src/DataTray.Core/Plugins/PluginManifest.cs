@@ -78,8 +78,12 @@ public sealed record PluginManifest
         /// may do.</summary>
         public const string Extension = "extension";
 
+        /// <summary>Contributes an alternative, read-only rendering of a result set — JSON tree, image,
+        /// later chart or map (see <c>IViewerPlugin</c>). Loaded by <c>ViewerPluginLoader</c>.</summary>
+        public const string Viewer = "viewer";
+
         /// <summary>Whether <paramref name="type"/> is a plugin type this host knows how to load.</summary>
         public static bool IsKnown(string? type) =>
-            type is Provider or Tool or Mcp or Extension;
+            type is Provider or Tool or Mcp or Extension or Viewer;
     }
 }

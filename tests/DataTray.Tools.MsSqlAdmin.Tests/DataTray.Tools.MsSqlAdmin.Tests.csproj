@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The pure logic behind this plugin's tools: the Activity Monitor's rate arithmetic, its
+         blocking-chain and wait-category rules, and the index statements. No server, no host. -->
+    <ProjectReference Include="..\..\src\DataTray.Tools.MsSqlAdmin\DataTray.Tools.MsSqlAdmin.csproj" />
+  </ItemGroup>
+
+</Project>

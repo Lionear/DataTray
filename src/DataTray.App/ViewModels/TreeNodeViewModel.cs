@@ -241,7 +241,7 @@ public partial class TreeNodeViewModel : ViewModelBase
     public bool CanShowActivityMonitor => IsConnectionNode && _provider is { SupportsActivityMonitor: true };
 
     public bool IsCopyable => IsTableOrView || IsColumn
-        || NodeKind is DbNodeKind.Index or DbNodeKind.Sequence or DbNodeKind.Object;
+        || NodeKind is DbNodeKind.Index or DbNodeKind.Sequence or DbNodeKind.Object or DbNodeKind.AgentJob;
 
     public bool IsPlaceholder { get; }
 
@@ -259,6 +259,11 @@ public partial class TreeNodeViewModel : ViewModelBase
 
     public bool CanCreateTable => _provider is not null && NodeKind is { } kind
         && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Table && c.ParentNode == kind);
+
+    /// <summary>"New Index…" on the node the provider says indexes belong under — the table's Indexes
+    /// folder for every engine that declares it.</summary>
+    public bool CanCreateIndex => _provider is not null && NodeKind is { } kind
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Index && c.ParentNode == kind);
 
     // DROP/ALTER menu visibility (host-only, no SDK — see Core/Ddl/AlterStatementBuilder): reuses the
     // same CreateCapabilities the provider already declares, since every engine here can drop exactly
@@ -309,7 +314,8 @@ public partial class TreeNodeViewModel : ViewModelBase
     public bool CanRefresh => _load is not null && HasChildren && NodeKind is
         DbNodeKind.Database or DbNodeKind.Schema or DbNodeKind.SchemaFolder or DbNodeKind.DatabaseFolder
         or DbNodeKind.TableFolder or DbNodeKind.ViewFolder or DbNodeKind.SequenceFolder or DbNodeKind.ColumnFolder
-        or DbNodeKind.IndexFolder or DbNodeKind.ForeignKeyFolder or DbNodeKind.Group;
+        or DbNodeKind.IndexFolder or DbNodeKind.ForeignKeyFolder or DbNodeKind.Group
+        or DbNodeKind.AgentJobFolder;
 
     /// <summary>Owning schema, if this node sits under one (null for schema-less engines like SQLite).</summary>
     public string? SchemaName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Schema)?.Name;

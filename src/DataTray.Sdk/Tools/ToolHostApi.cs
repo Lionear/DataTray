@@ -56,7 +56,33 @@ public static class ToolHostApi
     //                  the view can drive the run from its own buttons) and ToolProgress.Detail (the short
     //                  right-aligned note per step). All additive defaults; a view that ignores them keeps the
     //                  host-rendered chrome. Folded into the still-unreleased v5.
-    public const int Version = 5;
+    // v6 (2026-07-31): tool documents (SE-216). IToolDocumentUi + IToolDocumentContext in DataTray.Sdk.Ui:
+    //                  a tool that implements it opens as a tab in the main window instead of a dialog, and
+    //                  owns the whole tab's content. Needed because the ER diagram (SE-82) is read alongside
+    //                  the queries it explains — a dialog that must be dismissed to type a query is the wrong
+    //                  container. Purely additive (a new optional interface, discovered with an is-check); no
+    //                  existing tool is affected. A new number rather than a fold-in because v5 shipped —
+    //                  copy-table 0.3.0 declares 5 — and folding post-release surface into a released number
+    //                  is the SE-166 crash trap. MinimumSupported stays 1.
+    //   also in v6 (2026-07-31): IToolDocumentContext gains PickSaveFileAsync/PickOpenFileAsync, mirroring
+    //                  IToolUiContext's. A document that can be saved, opened or exported (SE-225/SE-226)
+    //                  needs a file picker as much as a dialog does; the first cut of the seam simply
+    //                  lacked it. Folded into 6 rather than given a 7 because 6 has not shipped — the
+    //                  SE-166 trap is folding into a *released* number, not an unreleased one.
+    // v7 (2026-08-13): ToolExecutionContext gains NodePath — the ancestry from the connection root down to
+    //                  the launch node, the same list providers already receive. Needed by the index tools
+    //                  (SE-249): an index is named within its table and an "Indexes" folder is named
+    //                  nothing at all, so a tool that only knows a kind and a name cannot tell which table
+    //                  it was asked to act on, and guessing from the index name is wrong the moment two
+    //                  tables share one. Additive: an optional constructor parameter defaulting to empty,
+    //                  and a tool that ignores it is unaffected. MinimumSupported stays 1.
+    //   also in v7 (2026-08-13): IToolPlugin.IsActivityMonitor (SE-251) — a tool may declare that it is the
+    //                  connection's Activity Monitor, so the host's existing "Activity Monitor…" item opens
+    //                  it and the tool is left out of the node's Tools submenu. SE-248 moved SQL Server's
+    //                  monitor into a plugin and, with it, one level deeper in the menu; a feature changing
+    //                  owner should not change place. Folded into 7 rather than given an 8 because 7 has
+    //                  not shipped — v0.7.0 (2026-07-30) carries tool API 5. Additive default false.
+    public const int Version = 7;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
     /// extensibility seams, v4 the services + providers capabilities), so older tools keep loading on a newer

@@ -143,16 +143,21 @@
           </StackPanel>
         </Border>
 
-        <!-- Guided / hand-off (green) — macOS drag or a download-only asset -->
-        <Border IsVisible="{Binding Update.IsGuided}" Background="#1F4FB06A"
-                BorderBrush="#594FB06A" BorderThickness="0,0,0,1" Padding="12,7">
+        <!-- The guided / hand-off banner is gone with SE-245: it existed for the macOS DMG drag and for
+             assets this platform could not apply in place, and the updater now applies every platform
+             itself. -->
+
+        <!-- Leftover pre-Velopack Windows install (amber). Independent of the update flow above, so it
+             is its own visibility rather than a banner state: both can be showing. -->
+        <Border IsVisible="{Binding Update.HasLegacyInstall}" Background="#1FE0A63C"
+                BorderBrush="#59E0A63C" BorderThickness="0,0,0,1" Padding="12,7">
           <StackPanel Orientation="Horizontal" Spacing="12">
-            <TextBlock Text="{Binding Update.StatusMessage}" Foreground="#4FB06A"
+            <TextBlock Text="{Binding Loc[UpdateLegacyInstallNotice]}" Foreground="#E0A63C"
                        FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
-            <Button Classes="Subtle" Content="{Binding Loc[UpdateBannerOpenFolder]}"
-                    Command="{Binding Update.OpenFolderCommand}" />
-            <Button Classes="Subtle" Content="{Binding Loc[UpdateBannerLater]}"
-                    Command="{Binding Update.LaterCommand}" />
+            <Button Classes="Subtle" Content="{Binding Loc[UpdateLegacyInstallRemove]}"
+                    Command="{Binding Update.RemoveLegacyInstallCommand}" />
+            <Button Classes="Subtle" Content="{Binding Loc[UpdateLegacyInstallKeep]}"
+                    Command="{Binding Update.DismissLegacyInstallCommand}" />
           </StackPanel>
         </Border>
 
@@ -357,6 +362,8 @@
                           IsVisible="{Binding SelectedNode.CanCreateSchema, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[NewTable]}" Command="{Binding NewTableCommand}"
                           IsVisible="{Binding SelectedNode.CanCreateTable, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[NewIndex]}" Command="{Binding NewIndexCommand}"
+                          IsVisible="{Binding SelectedNode.CanCreateIndex, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[NewUser]}" Command="{Binding NewUserCommand}"
                           IsVisible="{Binding SelectedNode.CanManageUsers, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[DeleteUser]}" Command="{Binding DeleteUserCommand}"
@@ -414,9 +421,11 @@
                 <Separator IsVisible="{Binding SelectedNode.CanShowProperties, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[Properties]}" Command="{Binding ShowPropertiesCommand}"
                           IsVisible="{Binding SelectedNode.CanShowProperties, FallbackValue=False}" />
-                <Separator IsVisible="{Binding SelectedNode.CanShowActivityMonitor, FallbackValue=False}" />
+                <!-- Gated on the view-model, not the node: the monitor may come from the provider
+                     (Postgres/MySQL) or from a tool plugin (SQL Server), and only the VM sees the tools. -->
+                <Separator IsVisible="{Binding CanShowActivityMonitor, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[ActivityMonitor]}" Command="{Binding ActivityMonitorCommand}"
-                          IsVisible="{Binding SelectedNode.CanShowActivityMonitor, FallbackValue=False}" />
+                          IsVisible="{Binding CanShowActivityMonitor, FallbackValue=False}" />
               </ContextMenu>
             </TreeView.ContextMenu>
             <TreeView.ItemTemplate>

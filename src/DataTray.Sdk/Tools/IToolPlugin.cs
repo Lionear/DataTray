@@ -59,6 +59,22 @@ public interface IToolPlugin
     bool IsDestructive => false;
 
     /// <summary>
+    /// True when this tool <b>is</b> the connection's Activity Monitor — an engine-specific replacement for
+    /// the host's own built-in one (SQL Server's, which is SSMS-shaped and lives in the mssql-admin plugin).
+    /// The host's existing "Activity Monitor…" item on a connection root then opens this tool instead of its
+    /// built-in monitor, and the tool is left out of the node's Tools submenu so it appears exactly once.
+    /// </summary>
+    /// <remarks>
+    /// This exists because a feature that a provider hands to a plugin should not also move in the menu.
+    /// A tool is normally offered under a node's <c>Tools</c> submenu, which is right for a tool that adds
+    /// something and wrong for one that replaces something the user already knows the place of. The flag is
+    /// the host's, not a plugin's opinion about its own importance: it only redirects a menu item the host
+    /// already owns, and a provider that declares <see cref="IDbProvider.SupportsActivityMonitor"/> keeps
+    /// its built-in monitor and ignores this. If two tools claim it for one node the first wins.
+    /// </remarks>
+    bool IsActivityMonitor => false;
+
+    /// <summary>
     /// Optionally produce a short summary for a chosen file the moment its <see cref="ToolFieldType.File"/>
     /// field changes (e.g. read a backup's plaintext header), shown under that field before Execute runs.
     /// Return null (the default) for no preview. <paramref name="filePath"/> is the current field value.

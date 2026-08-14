@@ -19,10 +19,12 @@ using DataTray.Core.Shortcuts;
 using DataTray.Core.Store;
 using DataTray.Core.Tools;
 using DataTray.Core.Update;
+using DataTray.Core.Viewers;
 using DataTray.Sdk.Shortcuts;
 using DataTray.Sdk.Localization;
 using DataTray.Sdk.Tools;
 using DataTray.Sdk.Extensibility;
+using DataTray.Sdk.Viewers;
 using DataTray.Infrastructure.Extensibility;
 using DataTray.Infrastructure.Persistence;
 using DataTray.Infrastructure.Secrets;
@@ -114,6 +116,32 @@ public static class AppServices
 
         services.AddSingleton<IToolRegistry>(new ToolRegistry(tools, toolLocalizers));
 
+        // Viewer plugins (type: "viewer") contribute alternative renderings of a result set (SE-75). Same
+        // shape as tools: one assembly may ship several, and each gets its plugin's localizer.
+        var viewerResults = new ViewerPluginLoader(localizer).Load(enabled);
+        var viewers = new List<IViewerPlugin>();
+        var viewerLocalizers = new Dictionary<string, IPluginLocalizer>();
+        foreach (var result in viewerResults)
+        {
+            if (result.Succeeded)
+            {
+                viewers.AddRange(result.Viewers);
+                if (result.Localizer is { } viewerLocalizer)
+                {
+                    foreach (var viewer in result.Viewers)
+                    {
+                        viewerLocalizers[viewer.Id] = viewerLocalizer;
+                    }
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"[plugin] skipped viewer '{result.PluginDirectory}': {result.Error}");
+            }
+        }
+
+        services.AddSingleton<IViewerRegistry>(new ViewerRegistry(viewers, viewerLocalizers));
+
         // MCP plugins (type: "mcp") contribute tools; the host — not any plugin — owns the server. Gather
         // the tools from every enabled MCP plugin so the host server can serve them.
         var mcpToolResults = new McpPluginLoader().Load(enabled);
@@ -192,6 +220,7 @@ public static class AppServices
         var loadOutcomes = providerResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error))
             .Concat(toolResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
             .Concat(mcpToolResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
+            .Concat(viewerResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
             .Concat(subsystemResults.Select(r => new PluginLoadOutcome(r.PluginDirectory, r.Succeeded, r.Error)))
             .ToList();
         services.AddSingleton(new PluginCatalogService(stateStore, discovered, loadOutcomes));
@@ -213,14 +242,11 @@ public static class AppServices
         services.AddTransient<PluginStoreViewModel>();
         services.AddSingleton<Func<PluginStoreViewModel>>(sp => sp.GetRequiredService<PluginStoreViewModel>);
 
-        // In-app updater (SE-137): the same shared HttpClient fetches each channel's update.json and the
-        // chosen asset. The running version is the informational stamp About also reads.
-        services.AddSingleton<IUpdateManifestSource>(sp =>
-            new HttpUpdateManifestSource(sp.GetRequiredService<HttpClient>()));
-        services.AddSingleton(sp =>
-            new AppUpdateService(sp.GetRequiredService<IUpdateManifestSource>(), RunningVersion()));
-        services.AddSingleton(sp => new UpdateDownloader(sp.GetRequiredService<HttpClient>()));
-        services.AddSingleton<IUpdateApplier>(new UpdateApplier());
+        // In-app updater (SE-137, on Velopack since SE-245): checking, downloading and applying are one
+        // service now, because the packaging tool owns all three — an installer built separately from the
+        // feed is an installer the updater cannot follow. The running version passed in is the
+        // informational stamp About also reads, used where there is no installed package to ask.
+        services.AddSingleton<IUpdateService>(new VelopackUpdateService(RunningVersion()));
         // Singleton: one shared instance behind the main-window banner and the Settings check, so a manual
         // check lights the same banner and offers the same "What's new" action.
         services.AddSingleton<AppUpdateViewModel>();
@@ -283,6 +309,10 @@ public static class AppServices
         // modal it used to back was retired), so it's resolved per-connection via this factory.
         services.AddTransient<ConnectionDialogViewModel>();
         services.AddSingleton<Func<ConnectionDialogViewModel>>(sp => sp.GetRequiredService<ConnectionDialogViewModel>);
+
+        // First-run wizard (SE-239): resolved once at startup when onboarding hasn't run. Takes the
+        // connection-form factory above so its third step is a real connection form, not a copy of one.
+        services.AddTransient<FirstRunViewModel>();
 
         // Connection Manager window (master-detail): opened from the sidebar/menu, same factory-delegate
         // pattern as the dialogs. Reuses the connection-form factory above for its detail panel.

@@ -38,6 +38,7 @@ public interface IToolPlugin
 | `Target` | A `ToolTarget` that decides which tree nodes offer the tool (see below). |
 | `Fields` | The Route A input declarations; the host renders a generic dialog from them, exactly like the connection form. Empty when the tool uses a Route B custom view. |
 | `IsDestructive` | When true the host shows a destructive-action confirmation before running. |
+| `IsActivityMonitor` | Declares this tool *is* the connection's Activity Monitor (an engine-specific replacement for the host's built-in one). The host's own "Activity Monitor…" item on a connection root opens it, and it is left out of the node's `Tools` submenu — a tool that **replaces** a feature keeps that feature's place, unlike one that adds a feature. |
 | `PreviewAsync` | Optional: when a `File` field changes, return a short summary of the chosen file (e.g. read a backup header) shown under that field before Execute runs. |
 | `ExecuteAsync` | Runs the tool. `inputs` holds the collected field values keyed by `ToolField.Key`; report progress lines through `progress`. |
 
@@ -63,12 +64,27 @@ public sealed record ToolExecutionContext(
     DbNodeRef? Node,             // the node the tool launched on; null at the connection root
     IDbProvider Provider,        // walk schema / run queries through the same interface the host uses
     string ProviderId,
-    IToolHost Host);             // host-only services: file pickers + GetPluginSetting(key)
+    IToolHost Host,              // host-only services: file pickers + GetPluginSetting(key)
+    IReadOnlyList<DbNodeRef>? NodePath = null);  // root → Node, inclusive (v7)
 ```
 
 The `Provider` handed over is the live provider for that connection, so a generic
 ("universal") tool can introspect the schema, run queries and recreate objects
 through the same `IDbProvider` the host uses — no driver dependency of its own.
+
+`NodePath` is the ancestry from the connection root down to `Node`, inclusive —
+the same list a provider receives for introspection. A name alone does not
+identify every node: an index is named within its table, and an "Indexes" folder
+is called that under every table in the database. Ask for an ancestor by kind
+rather than walking the list:
+
+```csharp
+var table = context.Ancestor(DbNodeKind.Table);   // null when there is none
+var schema = context.Ancestor(DbNodeKind.Schema);
+```
+
+It is empty on a host older than tool API 7, so a tool that needs it should say
+what is missing rather than guess.
 
 ### The `ToolField` form (Route A)
 
@@ -107,10 +123,50 @@ returned `Control` is an Avalonia type shared across the ALC boundary, add an
 Avalonia reference to the plugin `.csproj` with `ExcludeAssets="runtime"` (share
 the host's copy) — see [Referencing Avalonia for a Route B view](capabilities.md#referencing-avalonia-for-a-route-b-view).
 
+### A tab instead of a dialog — `IToolDocumentUi` (host API 6)
+
+A tool that implements `IToolDocumentUi` opens as a **tab in the main window**
+rather than a dialog, and owns everything inside it:
+
+```csharp
+public interface IToolDocumentUi
+{
+    Control CreateDocument(IToolDocumentContext context);
+    Geometry? Icon => null;
+}
+```
+
+The distinction is lifetime, not looks. A dialog collects input, runs, reports
+and closes — the host's generic chrome exists for that shape. A document is
+something the user keeps open while working on something else, which is why the
+ER diagram (SE-82) is one: it is read alongside the queries it explains, and a
+dialog that has to be dismissed to type a query is the wrong container.
+
+Consequences worth knowing before choosing this over Route B:
+
+- `Fields` is never read and **`ExecuteAsync` is never called** — opening the
+  tab *is* the action. `ToolTarget` still decides where the menu entry appears.
+- `IToolDocumentContext` is narrower than `IToolUiContext`: there are no field
+  values, because nothing is being collected. It carries the `IDbProvider` and
+  `ConnectionProfile` (so a view can build a schema reader), the launch node,
+  the plugin's localizer, and three host actions — `SetTitle`, `OpenQueryEditor`
+  and `CloseDocument`.
+- Reopening the tool on the same connection, database and node **focuses the
+  existing tab** rather than opening a second one.
+- If the returned control implements `IDisposable`, the host disposes it when
+  the tab closes. A document holds what a dialog never does — a schema snapshot,
+  a timer — and without this they live as long as the app.
+- **Document tabs are not restored on restart.** The host persists query tabs
+  only; a document would have to re-read the schema to come back, and doing that
+  silently on every launch is a cost the user did not ask for.
+
+Same Avalonia/ALC rule as Route B: reference Avalonia with
+`ExcludeAssets="runtime"` so the control has one type identity with the host.
+
 ### Tool manifest
 
 Identical to a provider's, but `type` is `"tool"` and `hostApiVersion` tracks the
-**tool** contract (`ToolHostApi.Version`, currently `1`), which versions
+**tool** contract (`ToolHostApi.Version`, currently `7`), which versions
 separately from the provider contract:
 
 ```json

@@ -153,6 +153,15 @@
   <data name="RefreshOff" xml:space="preserve">
     <value>Off</value>
   </data>
+  <data name="MonitorDatabase" xml:space="preserve">
+    <value>Database</value>
+  </data>
+  <data name="MonitorAllDatabases" xml:space="preserve">
+    <value>(all)</value>
+  </data>
+  <data name="MonitorBlockingOnly" xml:space="preserve">
+    <value>Blocking only</value>
+  </data>
   <data name="KillSession" xml:space="preserve">
     <value>Kill session</value>
   </data>
@@ -1254,6 +1263,15 @@
   <data name="StoreCategoryExtensions" xml:space="preserve">
     <value>Extensions</value>
   </data>
+  <data name="StoreCategoryViewers" xml:space="preserve">
+    <value>Viewers</value>
+  </data>
+  <data name="ViewLabel" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="ViewGrid" xml:space="preserve">
+    <value>Grid</value>
+  </data>
   <data name="StoreCategoryOther" xml:space="preserve">
     <value>Other</value>
   </data>
@@ -1491,32 +1509,17 @@
   <data name="UpdateBannerUpdateNow" xml:space="preserve">
     <value>Update now</value>
   </data>
-  <data name="UpdateBannerOpenFolder" xml:space="preserve">
-    <value>Open folder</value>
-  </data>
   <data name="UpdateBannerCancel" xml:space="preserve">
     <value>Cancel</value>
   </data>
   <data name="UpdateBannerRetry" xml:space="preserve">
     <value>Retry</value>
   </data>
-  <data name="UpdateBannerRefetched" xml:space="preserve">
-    <value>Newer build {0} downloaded — install and restart now?</value>
-  </data>
-  <data name="UpdateBannerUpToDate" xml:space="preserve">
-    <value>You're already on the latest build.</value>
-  </data>
   <data name="UpdateDialogTitle" xml:space="preserve">
     <value>Update available</value>
   </data>
   <data name="UpdateDialogVersion" xml:space="preserve">
     <value>Version {0}</value>
-  </data>
-  <data name="UpdateDialogPublished" xml:space="preserve">
-    <value>Published {0}</value>
-  </data>
-  <data name="UpdateDialogCommit" xml:space="preserve">
-    <value>Commit {0}</value>
   </data>
   <data name="UpdateDialogDownload" xml:space="preserve">
     <value>Download</value>
@@ -1527,17 +1530,8 @@
   <data name="UpdateDialogInstalling" xml:space="preserve">
     <value>Installing…</value>
   </data>
-  <data name="UpdateDialogGuided" xml:space="preserve">
-    <value>Downloaded — drag DataTray to Applications, then reopen it.</value>
-  </data>
-  <data name="UpdateRollback" xml:space="preserve">
-    <value>Roll back to the previous version</value>
-  </data>
   <data name="UpdateDialogDownloading" xml:space="preserve">
     <value>Downloading…</value>
-  </data>
-  <data name="UpdateDialogDownloaded" xml:space="preserve">
-    <value>Downloaded — opening the folder.</value>
   </data>
   <data name="UpdateDialogDownloadFailed" xml:space="preserve">
     <value>The download failed.</value>
@@ -1595,6 +1589,24 @@
   </data>
   <data name="FormatCasingPreserve" xml:space="preserve">
     <value>Preserve</value>
+  </data>
+  <data name="HtmlTableStyleLabel" xml:space="preserve">
+    <value>HTML table style</value>
+  </data>
+  <data name="HtmlTableStyleHint" xml:space="preserve">
+    <value>Applies to "Copy as HTML" and the HTML export. A styled table right-aligns numbers and spells NULL out; the plain one leaves every choice to whatever you paste into.</value>
+  </data>
+  <data name="HtmlTableStylePlain" xml:space="preserve">
+    <value>Plain</value>
+  </data>
+  <data name="HtmlTableStyleHairlines" xml:space="preserve">
+    <value>Hairlines</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFill" xml:space="preserve">
+    <value>Filled header</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFillZebra" xml:space="preserve">
+    <value>Filled header + striped rows</value>
   </data>
   <data name="PluginUpdatesBadge" xml:space="preserve">
     <value>Updates</value>
@@ -1692,6 +1704,27 @@
   <data name="UpdateIntervalManual" xml:space="preserve">
     <value>Only on startup</value>
   </data>
+  <data name="UpdateUnmanagedInstall" xml:space="preserve">
+    <value>This copy is not managed by the updater, so it cannot replace itself. Download a new build from the releases page.</value>
+  </data>
+  <data name="UpdateLegacyInstallNotice" xml:space="preserve">
+    <value>An older DataTray installation is still on this PC. Its Start-menu shortcut launches the previous version against the same data.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemove" xml:space="preserve">
+    <value>Remove old installation</value>
+  </data>
+  <data name="UpdateLegacyInstallKeep" xml:space="preserve">
+    <value>Keep both</value>
+  </data>
+  <data name="UpdateLegacyInstallTitle" xml:space="preserve">
+    <value>Remove the old installation?</value>
+  </data>
+  <data name="UpdateLegacyInstallMessage" xml:space="preserve">
+    <value>This runs the previous installer's uninstaller. It removes the old program files and its Start-menu shortcut. Your connections, settings and installed plugins are stored separately and are not touched.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemoving" xml:space="preserve">
+    <value>Removing the previous DataTray installation.</value>
+  </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Check for updates</value>
   </data>
@@ -1717,9 +1750,6 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   </data>
   <data name="UpdateChannelDowngradeAccepted" xml:space="preserve">
     <value>{0} is queued — close Settings to download and install it.</value>
-  </data>
-  <data name="UpdateChannelDowngradeNoAsset" xml:space="preserve">
-    <value>{0} has no download for this platform; the channel is switched but nothing can be installed here.</value>
   </data>
   <data name="UpdateCheckChecking" xml:space="preserve">
     <value>Checking…</value>
@@ -1781,5 +1811,140 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   </data>
   <data name="SaveCloseDontSave" xml:space="preserve">
     <value>Don't save</value>
+  </data>
+  <data name="SelectNone" xml:space="preserve">
+    <value>Select None</value>
+  </data>
+  <data name="ImportConnectionsTitle" xml:space="preserve">
+    <value>Import from another client</value>
+  </data>
+  <data name="ImportConnectionsHint" xml:space="preserve">
+    <value>Connections found in the other database clients on this machine. A password comes along only where the client stored it in plain text — the rows below say which. The rest keep theirs in a credential store DataTray doesn't open, and ask once on first connect.</value>
+  </data>
+  <data name="ImportConnectionsNone" xml:space="preserve">
+    <value>No connections from another database client found on this machine.</value>
+  </data>
+  <data name="ImportConnectionsFound" xml:space="preserve">
+    <value>{0} of {1} can be imported</value>
+  </data>
+  <data name="ImportConnectionsWithPassword" xml:space="preserve">
+    <value>includes password</value>
+  </data>
+  <data name="FirstRunTitle" xml:space="preserve">
+    <value>Welcome to DataTray</value>
+  </data>
+  <data name="FirstRunStepWelcome" xml:space="preserve">
+    <value>Welcome</value>
+  </data>
+  <data name="FirstRunStepEngine" xml:space="preserve">
+    <value>Engine</value>
+  </data>
+  <data name="FirstRunStepConnection" xml:space="preserve">
+    <value>Connection</value>
+  </data>
+  <data name="FirstRunStepDone" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="FirstRunTagline" xml:space="preserve">
+    <value>Every database engine is a plugin.</value>
+  </data>
+  <data name="FirstRunIntro" xml:space="preserve">
+    <value>Two steps: pick an engine, add your first connection. Everything here can be changed later.</value>
+  </data>
+  <data name="FirstRunShownOnce" xml:space="preserve">
+    <value>Shown once, on first launch.</value>
+  </data>
+  <data name="FirstRunStart" xml:space="preserve">
+    <value>Get started</value>
+  </data>
+  <data name="FirstRunSkip" xml:space="preserve">
+    <value>Skip</value>
+  </data>
+  <data name="FirstRunBack" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="FirstRunNext" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="FirstRunOpen" xml:space="preserve">
+    <value>Open DataTray</value>
+  </data>
+  <data name="FirstRunIncluded" xml:space="preserve">
+    <value>INCLUDED</value>
+  </data>
+  <data name="FirstRunIncludedTag" xml:space="preserve">
+    <value>Ready to use</value>
+  </data>
+  <data name="FirstRunFromStore" xml:space="preserve">
+    <value>FROM THE PLUGIN STORE</value>
+  </data>
+  <data name="FirstRunInstall" xml:space="preserve">
+    <value>Install…</value>
+  </data>
+  <data name="FirstRunRestartNeeded" xml:space="preserve">
+    <value>DataTray loads plugins when it starts, so it needs to restart before you can use the engine you just installed. You'll come back to this step.</value>
+  </data>
+  <data name="FirstRunRestartNow" xml:space="preserve">
+    <value>Restart now</value>
+  </data>
+  <data name="FirstRunImportFound" xml:space="preserve">
+    <value>Already using another client? DataTray found {0} saved connections on this machine.</value>
+  </data>
+  <data name="FirstRunImportThem" xml:space="preserve">
+    <value>Import them</value>
+  </data>
+  <data name="FirstRunConnectionIntro" xml:space="preserve">
+    <value>Your first {0} connection.</value>
+  </data>
+  <data name="FirstRunAiHint" xml:space="preserve">
+    <value>AI access is off for this connection. Turn it on per connection later, if you want one.</value>
+  </data>
+  <data name="FirstRunDoneTitle" xml:space="preserve">
+    <value>You're set</value>
+  </data>
+  <data name="FirstRunDoneCount" xml:space="preserve">
+    <value>{0} connections ready.</value>
+  </data>
+  <data name="FirstRunDoneCountOne" xml:space="preserve">
+    <value>One connection ready.</value>
+  </data>
+  <data name="FirstRunDoneNone" xml:space="preserve">
+    <value>No connections yet — you can add one any time from the Connection Manager.</value>
+  </data>
+  <data name="FirstRunDoneTray" xml:space="preserve">
+    <value>DataTray lives in the tray. Closing the window doesn't quit it — click the tray icon to come back, or right-click it to quit.</value>
+  </data>
+  <data name="FirstRunDoneAi" xml:space="preserve">
+    <value>AI access is off everywhere. An AI client can only see a connection you switch on yourself, one at a time.</value>
+  </data>
+  <data name="FirstRunDoneStore" xml:space="preserve">
+    <value>More engines and tools are under Tools › Plugin Store — diagrams, backups, schema compare.</value>
+  </data>
+  <data name="ImportFetchPasswords" xml:space="preserve">
+    <value>Also fetch {0} passwords from the system credential store…</value>
+  </data>
+  <data name="ImportFetchPasswordsHint" xml:space="preserve">
+    <value>DataGrip keeps these in the keychain your operating system manages, not in its own files. Your system decides whether to hand them over, and may ask you first. Anything that comes back goes straight into DataTray's own keychain.</value>
+  </data>
+  <data name="NewIndex" xml:space="preserve">
+    <value>New Index…</value>
+  </data>
+  <data name="IndexUnique" xml:space="preserve">
+    <value>Unique</value>
+  </data>
+  <data name="IndexUniqueHint" xml:space="preserve">
+    <value>The index rejects duplicate values in its key columns. Creating it fails if the table already holds any.</value>
+  </data>
+  <data name="IndexColumn" xml:space="preserve">
+    <value>Column</value>
+  </data>
+  <data name="IndexDescending" xml:space="preserve">
+    <value>Desc</value>
+  </data>
+  <data name="IndexDescendingHint" xml:space="preserve">
+    <value>Store this column in descending order. Matters for queries that sort or range-scan that way; ascending is the default.</value>
+  </data>
+  <data name="AddIndexColumn" xml:space="preserve">
+    <value>+ Add column</value>
   </data>
 </root>

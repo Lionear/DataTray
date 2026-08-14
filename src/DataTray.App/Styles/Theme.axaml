@@ -32,6 +32,19 @@
           <SolidColorBrush x:Key="SEStatusErrorBrush" Color="#D64545" />
           <SolidColorBrush x:Key="SEStatusBusyBrush" Color="#3574F0" />
           <SolidColorBrush x:Key="SEStatusWaitingBrush" Color="#E0A33E" />
+
+          <!-- Brand (SE-209). Three colours that carry a meaning and are used for nothing else: brand
+               blue is the identity, cyan means extensibility (plugins, Managed chips), purple means AI
+               access. Distinct from the app accent #3574F0, which the working surfaces keep.
+               Ink is the on-surface variant: #06B6D4 is a 6.8:1 read on this background, so dark uses
+               the brand cyan itself for text, hairlines and dots. -->
+          <SolidColorBrush x:Key="SEBrandBrush" Color="#2563EB" />
+          <SolidColorBrush x:Key="SEBrandHoverBrush" Color="#3B7BF5" />
+          <SolidColorBrush x:Key="SEExtensibilityBrush" Color="#06B6D4" />
+          <SolidColorBrush x:Key="SEExtensibilityTextBrush" Color="#06B6D4" />
+          <SolidColorBrush x:Key="SEExtensibilityWashBrush" Color="#06B6D4" Opacity="0.13" />
+          <SolidColorBrush x:Key="SEExtensibilityWashBorderBrush" Color="#06B6D4" Opacity="0.33" />
+          <SolidColorBrush x:Key="SEAiBrush" Color="#7C3AED" />
         </ResourceDictionary>
 
         <!-- Light -->
@@ -57,6 +70,18 @@
           <SolidColorBrush x:Key="SEStatusErrorBrush" Color="#C4362F" />
           <SolidColorBrush x:Key="SEStatusBusyBrush" Color="#2F6FEB" />
           <SolidColorBrush x:Key="SEStatusWaitingBrush" Color="#B9791F" />
+
+          <!-- Brand (SE-209), same three meanings as the dark set. The colours themselves don't shift
+               with the theme — only the ink does: brand cyan reads 2.4:1 on white, so text, hairlines
+               and dots take a darkened cyan (5.8:1) while fills, washes and the mark keep #06B6D4.
+               That split is what the wizard was groping at with its stray #0E8DA1 (SE-241). -->
+          <SolidColorBrush x:Key="SEBrandBrush" Color="#2563EB" />
+          <SolidColorBrush x:Key="SEBrandHoverBrush" Color="#3B7BF5" />
+          <SolidColorBrush x:Key="SEExtensibilityBrush" Color="#06B6D4" />
+          <SolidColorBrush x:Key="SEExtensibilityTextBrush" Color="#0A7080" />
+          <SolidColorBrush x:Key="SEExtensibilityWashBrush" Color="#06B6D4" Opacity="0.13" />
+          <SolidColorBrush x:Key="SEExtensibilityWashBorderBrush" Color="#06B6D4" Opacity="0.33" />
+          <SolidColorBrush x:Key="SEAiBrush" Color="#7C3AED" />
         </ResourceDictionary>
 
       </ResourceDictionary.ThemeDictionaries>

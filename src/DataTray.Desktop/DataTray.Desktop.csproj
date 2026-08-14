@@ -94,6 +94,10 @@
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>schema-diff</PluginId>
       </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.ErDiagram\bin\$(Configuration)\$(TargetFramework)\**\*"
+                          Condition="'$(Configuration)' == 'Debug'">
+        <PluginId>er-diagram</PluginId>
+      </ProviderPluginFile>
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.CopyTable\bin\$(Configuration)\$(TargetFramework)\**\*"
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>copy-table</PluginId>
@@ -105,6 +109,10 @@
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.MsSqlBacpac\bin\$(Configuration)\$(TargetFramework)\**\*"
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>mssql-bacpac</PluginId>
+      </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Viewers.Basic\bin\$(Configuration)\$(TargetFramework)\**\*"
+                          Condition="'$(Configuration)' == 'Debug'">
+        <PluginId>basic-viewers</PluginId>
       </ProviderPluginFile>
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Backends.Docker\bin\$(Configuration)\$(TargetFramework)\**\*"
                           Condition="'$(Configuration)' == 'Debug'">

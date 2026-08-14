@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "basic-viewers",
+  "type": "viewer",
+  "name": "Basic Result Viewers",
+  "version": "0.1.0",
+  "hostApiVersion": 1,
+  "entryAssembly": "DataTray.Viewers.Basic.dll",
+  "localization": "Lang/strings"
+}

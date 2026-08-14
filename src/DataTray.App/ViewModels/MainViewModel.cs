@@ -57,6 +57,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly Func<PluginStoreViewModel> _pluginStoreFactory;
     private readonly Core.Plugins.PluginCatalogService _pluginCatalog;
     private readonly IToolRegistry _tools;
+    private readonly Core.Viewers.IViewerRegistry _viewers;
     private readonly Func<ToolDialogViewModel> _toolDialogFactory;
     private readonly Func<RoutineParametersDialogViewModel> _routineParamsDialogFactory;
     private readonly IAppSettingsStore _settingsStore;
@@ -72,6 +73,21 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private DocumentViewModel? _selectedDocument;
+
+    // Only the tab you can actually see polls: a backgrounded Activity Monitor querying the server every
+    // 5s is waste, and one less thing rebuilding a grid nobody is watching.
+    partial void OnSelectedDocumentChanged(DocumentViewModel? oldValue, DocumentViewModel? newValue)
+    {
+        if (oldValue is { IsMonitorMode: true } previous)
+        {
+            previous.PauseMonitor();
+        }
+
+        if (newValue is { IsMonitorMode: true } current)
+        {
+            current.ResumeMonitor();
+        }
+    }
 
     [ObservableProperty]
     private string _historySearch = string.Empty;
@@ -100,6 +116,7 @@ public partial class MainViewModel : ViewModelBase
         Func<ImportCsvDialogViewModel> importCsvDialogFactory,
         Func<SettingsViewModel> settingsDialogFactory,
         IToolRegistry tools,
+        Core.Viewers.IViewerRegistry viewers,
         Func<ToolDialogViewModel> toolDialogFactory,
         Func<RoutineParametersDialogViewModel> routineParamsDialogFactory,
         Func<PluginStoreViewModel> pluginStoreFactory,
@@ -128,6 +145,7 @@ public partial class MainViewModel : ViewModelBase
         _importCsvDialogFactory = importCsvDialogFactory;
         _settingsDialogFactory = settingsDialogFactory;
         _tools = tools;
+        _viewers = viewers;
         _toolDialogFactory = toolDialogFactory;
         _routineParamsDialogFactory = routineParamsDialogFactory;
         _pluginStoreFactory = pluginStoreFactory;
@@ -965,15 +983,35 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasApplicableTools => ApplicableTools.Count > 0;
 
+    /// <summary>The tool that supplies this node's Activity Monitor, when one claims it (SE-251). Kept out
+    /// of <see cref="ApplicableTools"/> so it appears once, on the host's own menu item, where the
+    /// built-in monitor has always been.</summary>
+    private IToolPlugin? _activityMonitorTool;
+
+    /// <summary>Whether the tree's "Activity Monitor…" item is shown: the provider has a built-in monitor
+    /// (Postgres/MySQL) or a tool supplies one (SQL Server). Lives here rather than on the node because
+    /// only this view-model can see the tool registry.</summary>
+    public bool CanShowActivityMonitor =>
+        SelectedNode?.CanShowActivityMonitor == true || _activityMonitorTool is not null;
+
     // A tool applies to a connection node or a schema-object node; recompute whenever selection changes.
     private void RefreshApplicableTools(TreeNodeViewModel? node)
     {
         ApplicableTools.Clear();
+        _activityMonitorTool = null;
 
         if (node is not null && (node.IsConnectionNode || node.NodeKind is not null) && node.Connection is { } connection)
         {
             foreach (var tool in _tools.Applicable(connection.ProviderId, node.NodeKind))
             {
+                // A tool that IS the Activity Monitor is reached from the host's own menu item instead, so
+                // it must not also show up under Tools — one feature, one entry.
+                if (tool.IsActivityMonitor)
+                {
+                    _activityMonitorTool ??= tool;
+                    continue;
+                }
+
                 var captured = tool;
                 var title = _tools.LocalizerFor(tool.Id).Resolve(tool.TitleKey, tool.Title);
                 var leaf = new ToolMenuNode(title, new RelayCommand(() => RunToolCommand.Execute(captured)));
@@ -993,6 +1031,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(HasApplicableTools));
+        OnPropertyChanged(nameof(CanShowActivityMonitor));
     }
 
     private static ToolMenuNode AddTo(ObservableCollection<ToolMenuNode> collection, ToolMenuNode node)
@@ -1014,13 +1053,79 @@ public partial class MainViewModel : ViewModelBase
         var profile = _connections.Resolve(connection, node.DatabaseName);
         DbNodeRef? nodeRef = node.NodeKind is { } kind ? new DbNodeRef(kind, node.Name) : null;
 
+        // A tool that supplies a document opens as a tab instead of a dialog (SE-216). Its ExecuteAsync is
+        // never called — opening the tab is the action — so this returns before the dialog is built.
+        if (tool is IToolDocumentUi document)
+        {
+            OpenPluginDocument(tool, document, connection, node.DatabaseName, nodeRef, profile, provider);
+            return;
+        }
+
         var dialog = _toolDialogFactory();
-        dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId);
+        dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId, node.NodePath);
         // Let a tool hand generated SQL to a query tab on the launched connection/database (SchemaDiff).
         dialog.OpenQueryRequested = sql => OpenQueryWithContent(connection, node.DatabaseName, sql);
         // ...or on a picked secondary connection/database, for a tool that scripts to the destination (Copy Table).
         dialog.OpenQueryOnConnectionRequested = (target, database, sql) => OpenQueryWithContent(target, database, sql);
         await ToolDialogRequested(dialog);
+    }
+
+    /// <summary>
+    /// Open (or focus) a plugin-owned tab for a tool that implements <see cref="IToolDocumentUi"/>.
+    ///
+    /// <para>Identity is the tool plus what it was launched on, so reopening the same diagram on the same
+    /// schema focuses the tab that is already there rather than stacking a second copy of it — the same
+    /// rule browse and monitor tabs follow.</para>
+    ///
+    /// <para>A plugin that throws while building its view must not take the window with it: the tab is
+    /// simply not opened and the error is reported the way any other tool failure is.</para>
+    /// </summary>
+    private void OpenPluginDocument(
+        IToolPlugin tool,
+        IToolDocumentUi documentUi,
+        SavedConnection connection,
+        string? database,
+        DbNodeRef? node,
+        ConnectionProfile profile,
+        IDbProvider provider)
+    {
+        var key = $"{tool.Id}|{connection.Id}|{database}|{node?.Name}";
+
+        var existing = Documents.FirstOrDefault(d => d.MatchesPluginDocument(key));
+        if (existing is not null)
+        {
+            SelectedDocument = existing;
+            return;
+        }
+
+        var document = NewDocument();
+        var context = new ToolDocumentContext(
+            provider,
+            connection.ProviderId,
+            profile,
+            node,
+            _tools.LocalizerFor(tool.Id),
+            title => document.Title = title,
+            sql => OpenQueryWithContent(connection, database, sql),
+            () => CloseTabCommand.Execute(document),
+            (name, extensions) => DocumentSaveFileRequested?.Invoke(name, extensions)
+                                  ?? Task.FromResult<string?>(null),
+            extensions => DocumentOpenFileRequested?.Invoke(extensions)
+                          ?? Task.FromResult<string?>(null));
+
+        Avalonia.Controls.Control view;
+        try
+        {
+            view = documentUi.CreateDocument(context);
+        }
+        catch (Exception ex)
+        {
+            ReportError(tool.Title, ex.Message);
+            return;
+        }
+
+        document.InitPluginDocument(connection, database, key, tool.Title, view, documentUi.Icon);
+        AddDocument(document);
     }
 
     // Open a new query tab on a connection/database pre-filled with SQL (no file backing).
@@ -1034,6 +1139,12 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Set by the view so the VM can show the generic tool dialog.</summary>
     public Func<ToolDialogViewModel, Task>? ToolDialogRequested { get; set; }
+
+    /// <summary>Set by the view: file pickers for a plugin-owned tab (SE-216). Only the view owns a
+    /// TopLevel, and a document tab lives long enough that it cannot borrow the tool dialog's.</summary>
+    public Func<string, string[], Task<string?>>? DocumentSaveFileRequested { get; set; }
+
+    public Func<string[], Task<string?>>? DocumentOpenFileRequested { get; set; }
 
     // Full rebuild — used only at startup. Add/edit/delete go through the targeted helpers below so
     // that touching one connection never collapses the whole tree (loses every other node's expand +
@@ -1698,10 +1809,56 @@ public partial class MainViewModel : ViewModelBase
         await CreateObjectAsync(node, DbObjectKind.Table, node.SchemaName, node.DatabaseName);
     }
 
+    // "New Index…" on a table's Indexes folder. Unlike the three above, the dialog needs to know what it
+    // can index, so the table's columns are read first and offered as the picker's list — typing a column
+    // name that does not exist is a failure the database reports seconds later, and there is no reason to
+    // let it get that far.
+    [RelayCommand]
+    private async Task NewIndexAsync()
+    {
+        if (SelectedNode is not { CanCreateIndex: true } node || node.TableName is not { } table)
+        {
+            return;
+        }
+
+        await CreateObjectAsync(node, DbObjectKind.Index, node.SchemaName, node.DatabaseName,
+            table, await LoadTableColumnsAsync(node));
+    }
+
+    // The table's column names, for the New Index picker. Best-effort: the dialog's column box is editable,
+    // so a provider that cannot list them (or a permission error) costs the suggestions, not the feature.
+    private async Task<IReadOnlyList<string>> LoadTableColumnsAsync(TreeNodeViewModel node)
+    {
+        try
+        {
+            var provider = _providers.Get(node.Connection.ProviderId);
+            var profile = _connections.Resolve(node.Connection, node.DatabaseName);
+            // The Indexes folder's own path with its last step swapped for the Columns folder beside it:
+            // providers dispatch on the last node's kind and read the table from the ancestry above it.
+            var path = node.NodePath
+                .Take(node.NodePath.Count - 1)
+                .Append(new DbNodeRef(DbNodeKind.ColumnFolder, "Columns"))
+                .ToList();
+
+            var columns = await provider.GetChildNodesAsync(profile, path, CancellationToken.None);
+            return [.. columns.Select(c => c.Name)];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     // Shared DDL Create flow: open the dialog pre-configured for `kind`, run the (possibly user-edited)
     // SQL it returns via ExecuteDdlAsync, then refresh `node` so the new object appears in the tree —
     // `node` is always the one the "New …" menu item appeared on, i.e. already the right parent to reload.
-    private async Task CreateObjectAsync(TreeNodeViewModel node, DbObjectKind kind, string? parentSchema, string? database)
+    private async Task CreateObjectAsync(
+        TreeNodeViewModel node,
+        DbObjectKind kind,
+        string? parentSchema,
+        string? database,
+        string? table = null,
+        IReadOnlyList<string>? tableColumns = null)
     {
         if (CreateObjectDialogRequested is null)
         {
@@ -1710,7 +1867,7 @@ public partial class MainViewModel : ViewModelBase
 
         var provider = _providers.Get(node.Connection.ProviderId);
         var dialog = _createDialogFactory();
-        dialog.Configure(provider, kind, parentSchema);
+        dialog.Configure(provider, kind, parentSchema, table, tableColumns);
 
         var sql = await CreateObjectDialogRequested(dialog);
         if (string.IsNullOrWhiteSpace(sql))
@@ -2258,6 +2415,14 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ActivityMonitor()
     {
+        // An engine whose monitor comes from a plugin (SQL Server, SE-248) opens that tool's tab from this
+        // same item: the feature changed owner, not place.
+        if (_activityMonitorTool is { } tool)
+        {
+            RunToolCommand.Execute(tool);
+            return;
+        }
+
         if (SelectedNode is not { CanShowActivityMonitor: true } node || node.Connection is not { } connection)
         {
             return;
@@ -2495,6 +2660,9 @@ public partial class MainViewModel : ViewModelBase
                 _closedTabs = new Stack<(SavedConnection, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
             }
         }
+
+        // A plugin tab's content outlives the tab unless it is told not to (SE-216).
+        document.DisposePluginView();
 
         var index = Documents.IndexOf(document);
         Documents.Remove(document);
@@ -2786,7 +2954,7 @@ public partial class MainViewModel : ViewModelBase
 
     private DocumentViewModel NewDocument()
     {
-        var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _queryLog, _schemaCache, _serverVersions, _settingsStore, Loc);
+        var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _queryLog, _schemaCache, _serverVersions, _settingsStore, Loc, _viewers);
         // Surface every execution outcome (row counts, cancellations, failures) in the shared Output panel.
         document.Reported += (level, message) => ReportOutput(level, document.Connection?.Name, message);
         // A query auto-connects outside the tree's connect flow, so reflect that on the connection's status dot.

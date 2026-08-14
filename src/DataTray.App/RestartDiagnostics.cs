@@ -9,6 +9,8 @@ namespace DataTray.App;
 /// updater's relaunch have been intermittently failing to bring a new instance back (mainly on Fedora), so
 /// both the outgoing process (spawn target + result) and the incoming one (which start path it took) append
 /// here. One file, PID-stamped, so the full parent→child sequence is visible after a failed restart.
+/// Also carries the last-gasp crash line (Program's AppDomain.UnhandledException hook) — same question,
+/// "what happened to this process", so it stays one file rather than a second half-empty log.
 /// Never throws — diagnostics must not be able to break a restart.
 /// </summary>
 public static class RestartDiagnostics
