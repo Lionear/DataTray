@@ -150,7 +150,12 @@ internal static class ActivityTables
 
     public static IReadOnlyList<string[]> RecentQueries(ActivitySample now, ActivitySample? previous)
     {
-        var before = previous?.Queries.ToDictionary(q => q.Key, StringComparer.Ordinal)
+        // DistinctBy, not a plain ToDictionary: the keys come from a DMV, and a duplicate one used to take
+        // the whole refresh down with "An item with the same key has already been added". The sampler now
+        // aggregates so that cannot happen, but a grid that loses one row's baseline for a refresh is a far
+        // better failure than a monitor that stops monitoring.
+        var before = previous?.Queries.DistinctBy(q => q.Key, StringComparer.Ordinal)
+                .ToDictionary(q => q.Key, StringComparer.Ordinal)
             ?? new Dictionary<string, QueryTotals>(StringComparer.Ordinal);
         var seconds = Seconds(previous, now);
 

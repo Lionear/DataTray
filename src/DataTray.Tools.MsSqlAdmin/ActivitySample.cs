@@ -36,10 +36,11 @@ internal sealed record FileIoTotals(
     long IoStallMs,
     long IoCount);
 
-/// <summary>Cumulative execution totals for one cached statement, from <c>sys.dm_exec_query_stats</c>.
-/// <see cref="Key"/> identifies the same statement across refreshes so its rates can be differenced; it
-/// changes when the plan is evicted and recompiled, which <see cref="ActivityRates.PerSecond"/> absorbs as
-/// a counter reset.</summary>
+/// <summary>Cumulative execution totals for one statement, summed over every cached plan for it, from
+/// <c>sys.dm_exec_query_stats</c>. <see cref="Key"/> is the statement's handle and offsets — the columns the
+/// sampler groups on, so it is unique within a sample — and identifies the same statement across refreshes
+/// so its rates can be differenced; it changes when the statement is recompiled at a different offset, which
+/// <see cref="ActivityRates.PerSecond"/> absorbs as a counter reset.</summary>
 internal sealed record QueryTotals(
     string Key,
     string Text,
