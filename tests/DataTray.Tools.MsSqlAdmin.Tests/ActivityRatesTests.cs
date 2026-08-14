@@ -80,6 +80,43 @@ public class ActivityRatesTests
     }
 
     [Fact]
+    public void CompareCells_orders_numbers_by_value_not_by_their_digits()
+    {
+        // Built through the formatter the grid itself uses, so the thousands separator is whatever the
+        // running culture writes — which is the separator the sort has to cope with.
+        var nine = ActivityRates.Number(9);
+        var ten = ActivityRates.Number(10);
+        var thousands = ActivityRates.Number(1234);
+
+        Assert.True(ActivityRates.CompareCells(nine, ten) < 0);
+        Assert.True(ActivityRates.CompareCells(ten, thousands) < 0);
+        // As text, "1,234" sorts before "9" — the whole complaint behind SE-265's numeric half.
+        Assert.True(ActivityRates.CompareCells(thousands, nine) > 0);
+    }
+
+    [Fact]
+    public void CompareCells_reads_the_number_in_front_of_a_unit()
+    {
+        // Average Duration is written "200 ms". Sorted as text, 1,234 ms lands between 1 ms and 2 ms.
+        Assert.True(ActivityRates.CompareCells(ActivityRates.Milliseconds(2), ActivityRates.Milliseconds(1234)) < 0);
+        Assert.True(ActivityRates.CompareCells(ActivityRates.Milliseconds(1234), ActivityRates.Milliseconds(2)) > 0);
+    }
+
+    [Fact]
+    public void CompareCells_is_a_total_order_on_a_column_that_mixes_numbers_and_text()
+    {
+        // "Blocked By" is empty or a session id; a wait resource is a page address. Comparing each pair by
+        // whichever rule fits it is not transitive — 9 < 10 as numbers, "1x" between them as text — and
+        // List.Sort is entitled to throw on a comparer that contradicts itself, which would look to a user
+        // exactly like a header click that does nothing.
+        List<string> cells = ["9", "1x", "10", "", "2"];
+
+        cells.Sort(ActivityRates.CompareCells);
+
+        Assert.Equal(["2", "9", "10", "", "1x"], cells);
+    }
+
+    [Fact]
     public void IsBenignWait_drops_the_idle_background_waits()
     {
         // These dwarf every real wait — a server idle for a week has a week of LAZYWRITER_SLEEP — so the
