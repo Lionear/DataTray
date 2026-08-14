@@ -82,7 +82,23 @@ public static class ToolHostApi
     //                  monitor into a plugin and, with it, one level deeper in the menu; a feature changing
     //                  owner should not change place. Folded into 7 rather than given an 8 because 7 has
     //                  not shipped — v0.7.0 (2026-07-30) carries tool API 5. Additive default false.
-    public const int Version = 7;
+    // v8 (2026-08-14): the toolbar seams (SE-255) — IToolbarPlugin + ToolbarContribution,
+    //                  IQueryToolbarPlugin + QueryToolbarContribution, IQueryDocument +
+    //                  QueryDocumentKind (all in DataTray.Sdk.Extensibility) and the "toolbar" capability,
+    //                  so a subsystem plugin can put a button in the application toolbar and in the query
+    //                  windows it applies to. Additive: nothing existing changes, and MinimumSupported
+    //                  stays 1, so every plugin built against v1–v7 keeps loading untouched.
+    //                  A new number rather than a fold-in into the still-unreleased 7, which is the
+    //                  exception the earlier folds relied on. The exception does not hold here: 7 is
+    //                  already out on the preview and nightly channels, and this bump adds *types*, not
+    //                  default interface members. A plugin declaring 7 to use IToolbarPlugin would be
+    //                  accepted by one of those hosts and then die in GetTypes() with
+    //                  ReflectionTypeLoadException — the whole plugin, panel and menu items included, for
+    //                  "Unable to load one or more of the requested types". That is the SE-166 trap; a
+    //                  version those hosts refuse outright is the accurate answer.
+    //                  (The SE-255 design doc predates 6 and 7 and says "5 → 6"; the reasoning is what
+    //                  transfers, not the number.)
+    public const int Version = 8;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
     /// extensibility seams, v4 the services + providers capabilities), so older tools keep loading on a newer
