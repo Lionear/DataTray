@@ -83,6 +83,73 @@ public class IndexStatementsTests
         Assert.Contains("N'[dbo].[O''Brien]'", sql);
     }
 
+    [Fact]
+    public void The_folder_actions_report_on_every_index_of_the_table()
+    {
+        var sql = IndexStatements.FragmentationStats(Dialect, "dbo", "Fitting", index: null);
+
+        Assert.Contains("OBJECT_ID(N'[dbo].[Fitting]')", sql);
+        // No name filter: "Rebuild All" is confirmed against the whole list it would rebuild.
+        Assert.DoesNotContain("i.name = N'", sql);
+    }
+
+    [Fact]
+    public void A_single_index_action_reports_on_that_index_only()
+    {
+        var sql = IndexStatements.FragmentationStats(Dialect, "dbo", "Fitting", "IX_Fitting_Name");
+
+        Assert.Contains("i.name = N'IX_Fitting_Name'", sql);
+    }
+
+    [Fact]
+    public void Fragmentation_is_read_in_the_cheap_mode()
+    {
+        // DETAILED reads every page: opening this dialog on a large table would scan the whole index for a
+        // number the user is about to act on either way.
+        var sql = IndexStatements.FragmentationStats(Dialect, "dbo", "Fitting", index: null);
+
+        Assert.Contains("'LIMITED'", sql);
+        Assert.DoesNotContain("DETAILED", sql);
+    }
+
+    [Fact]
+    public void The_heap_is_left_out_of_the_report()
+    {
+        // index_id 0 has no name and ALTER INDEX cannot address it, so a row for it is one no button acts on.
+        var sql = IndexStatements.FragmentationStats(Dialect, "dbo", "Fitting", index: null);
+
+        Assert.Contains("i.name IS NOT NULL", sql);
+    }
+
+    [Fact]
+    public void A_partitioned_index_is_folded_into_one_row()
+    {
+        // One row per partition would list "IX_Fitting_Name" four times against a dialog whose button acts
+        // on the index as a whole.
+        var sql = IndexStatements.FragmentationStats(Dialect, "dbo", "Fitting", index: null);
+
+        Assert.Contains("MAX(ps.avg_fragmentation_in_percent)", sql);
+        Assert.Contains("SUM(ps.page_count)", sql);
+        Assert.Contains("GROUP BY i.name, i.type_desc", sql);
+    }
+
+    [Fact]
+    public void The_fragmentation_report_quotes_names_inside_the_literal_too()
+    {
+        var sql = IndexStatements.FragmentationStats(Dialect, "dbo", "O'Brien", "IX_A'B");
+
+        Assert.Contains("N'[dbo].[O''Brien]'", sql);
+        Assert.Contains("N'IX_A''B'", sql);
+    }
+
+    [Fact]
+    public void A_table_without_a_schema_is_left_unqualified_in_the_report_too()
+    {
+        var sql = IndexStatements.FragmentationStats(Dialect, schema: null, "Fitting", index: null);
+
+        Assert.Contains("OBJECT_ID(N'[Fitting]')", sql);
+    }
+
     /// <summary>SQL Server's quoting, standing in for the real dialect so these stay host-free. The rest of
     /// the dialect is irrelevant here — these statements never page and never qualify across databases.</summary>
     private sealed class BracketDialect : ISqlDialect

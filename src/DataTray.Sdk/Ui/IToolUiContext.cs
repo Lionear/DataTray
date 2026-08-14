@@ -34,6 +34,20 @@ public interface IToolUiContext
     ConnectionProfile Profile { get; }
     DbNodeRef? Node { get; }
 
+    /// <summary>The same ancestry <see cref="ToolExecutionContext.NodePath"/> carries, so a custom view can
+    /// show live data about the object the tool will act on. <see cref="Node"/> alone does not identify one:
+    /// an index is named within its table and an "Indexes" folder is named nothing at all, so a view that
+    /// only knows a kind and a name cannot query the object it is about to describe. Empty default — for a
+    /// connection root, and for a host older than this member, so a view that reads it should say what is
+    /// missing rather than guess.</summary>
+    IReadOnlyList<DbNodeRef> NodePath => [];
+
+    /// <summary>The nearest ancestor of <paramref name="kind"/> on the way down to this node (the node
+    /// itself included), or null when there is none — the same question, and the same answer, as
+    /// <see cref="ToolExecutionContext.Ancestor"/>, so a view and the tool it feeds resolve their target
+    /// identically.</summary>
+    string? Ancestor(DbNodeKind kind) => NodePath.LastOrDefault(n => n.Kind == kind)?.Name;
+
     /// <summary>Show a save/open file picker (the same one a Route A File field uses), so a custom view can
     /// host its own Browse button. Returns the chosen path, or null if cancelled.</summary>
     Task<string?> PickSaveFileAsync(string suggestedName, params string[] extensions);
