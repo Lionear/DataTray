@@ -229,6 +229,10 @@ public sealed class AppSettings
     /// <summary>Whether to check the chosen channel for a newer build once on startup. On by default.</summary>
     public bool CheckForUpdatesOnStartup { get; set; } = true;
 
+    /// <summary>Set once the user has dealt with the leftover pre-Velopack Windows install (SE-245) —
+    /// either by removing it or by waving the notice away. Keeps a one-time notice one-time.</summary>
+    public bool LegacyInstallNoticeDismissed { get; set; }
+
     /// <summary>Proactive plugin-update behaviour (SE-138). Default <see cref="PluginUpdatePolicy.Notify"/>.
     /// Reuses <see cref="UpdateCheckIntervalMinutes"/> for the background re-check cadence.</summary>
     public PluginUpdatePolicy PluginUpdatePolicy { get; set; } = PluginUpdatePolicy.Notify;

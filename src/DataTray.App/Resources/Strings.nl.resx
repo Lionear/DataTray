@@ -1707,6 +1707,24 @@
   <data name="UpdateUnmanagedInstall" xml:space="preserve">
     <value>Deze kopie wordt niet door de updater beheerd en kan zichzelf niet vervangen. Download een nieuwe build van de releasepagina.</value>
   </data>
+  <data name="UpdateLegacyInstallNotice" xml:space="preserve">
+    <value>Er staat nog een oudere DataTray-installatie op deze pc. De snelkoppeling daarvan start de vorige versie op dezelfde gegevens.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemove" xml:space="preserve">
+    <value>Oude installatie verwijderen</value>
+  </data>
+  <data name="UpdateLegacyInstallKeep" xml:space="preserve">
+    <value>Allebei houden</value>
+  </data>
+  <data name="UpdateLegacyInstallTitle" xml:space="preserve">
+    <value>Oude installatie verwijderen?</value>
+  </data>
+  <data name="UpdateLegacyInstallMessage" xml:space="preserve">
+    <value>Hiermee draait het verwijderprogramma van de vorige installatie. Dat haalt de oude programmabestanden en de snelkoppeling weg. Je verbindingen, instellingen en geïnstalleerde plugins staan los daarvan en blijven staan.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemoving" xml:space="preserve">
+    <value>Bezig met verwijderen van de vorige DataTray-installatie.</value>
+  </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Controleren op updates</value>
   </data>

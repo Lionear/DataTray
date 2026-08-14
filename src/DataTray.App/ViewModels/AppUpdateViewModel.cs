@@ -2,6 +2,7 @@ using System.Threading;
 using DataTray.Core.Localization;
 using DataTray.Core.Settings;
 using DataTray.Core.Update;
+using DataTray.Infrastructure.Update;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -49,6 +50,11 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     /// <summary>Set by the view: shows the changelog dialog for the offered build.</summary>
     public Func<UpdateAvailableViewModel, Task>? ChangelogRequested { get; set; }
 
+    /// <summary>Set by the view: confirms removing the leftover pre-Velopack Windows install (SE-245).
+    /// Without a hook the removal simply does not happen — never silently, since it takes away an
+    /// install the user still has.</summary>
+    public Func<Task<bool>>? ConfirmRemoveLegacyInstall { get; set; }
+
     /// <summary>The channel of the running build — the default a fresh install follows until one is chosen.</summary>
     public UpdateChannel RunningChannel => _service.BuildChannel;
 
@@ -85,10 +91,73 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     public async Task CheckOnStartupAsync(CancellationToken ct)
     {
         var settings = _settingsStore.Load();
+        DetectLegacyInstall(settings);
+
         if (settings.CheckForUpdatesOnStartup)
         {
             await CheckEffectiveAsync(settings, ct);
         }
+    }
+
+    // --- Leftover pre-Velopack Windows install (SE-245) --------------------------------------------
+
+    private string? _legacyUninstaller;
+
+    /// <summary>True when an Inno-installed DataTray is still registered beside this one. Windows only,
+    /// and only inside a managed install — from a build directory the "old" install may well be the one
+    /// the user actually uses.</summary>
+    [ObservableProperty]
+    private bool _hasLegacyInstall;
+
+    private void DetectLegacyInstall(AppSettings settings)
+    {
+        if (settings.LegacyInstallNoticeDismissed || _service.Support != UpdateSupport.Supported)
+        {
+            return;
+        }
+
+        _legacyUninstaller = LegacyWindowsInstall.FindUninstaller();
+        HasLegacyInstall = _legacyUninstaller is not null;
+    }
+
+    /// <summary>
+    /// Run the old installer's uninstaller, after an explicit yes. The notice does not come back either
+    /// way: removing it settles the question, and so does declining it.
+    /// </summary>
+    [RelayCommand]
+    private async Task RemoveLegacyInstall()
+    {
+        if (_legacyUninstaller is not { } uninstaller || ConfirmRemoveLegacyInstall is null)
+        {
+            return;
+        }
+
+        if (!await ConfirmRemoveLegacyInstall())
+        {
+            return;
+        }
+
+        try
+        {
+            LegacyWindowsInstall.Remove(uninstaller);
+            Reported?.Invoke(Loc["UpdateLegacyInstallRemoving"]);
+        }
+        catch (Exception ex)
+        {
+            Reported?.Invoke(ex.Message);
+        }
+
+        DismissLegacyInstall();
+    }
+
+    /// <summary>Wave the notice away for good — the user has seen it and chosen to keep both.</summary>
+    [RelayCommand]
+    private void DismissLegacyInstall()
+    {
+        var settings = _settingsStore.Load();
+        settings.LegacyInstallNoticeDismissed = true;
+        _settingsStore.Save(settings);
+        HasLegacyInstall = false;
     }
 
     // Floor on the configurable re-check interval, so a mis-set value can't hammer the update server.

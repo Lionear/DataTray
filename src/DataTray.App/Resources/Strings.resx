@@ -1707,6 +1707,24 @@
   <data name="UpdateUnmanagedInstall" xml:space="preserve">
     <value>This copy is not managed by the updater, so it cannot replace itself. Download a new build from the releases page.</value>
   </data>
+  <data name="UpdateLegacyInstallNotice" xml:space="preserve">
+    <value>An older DataTray installation is still on this PC. Its Start-menu shortcut launches the previous version against the same data.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemove" xml:space="preserve">
+    <value>Remove old installation</value>
+  </data>
+  <data name="UpdateLegacyInstallKeep" xml:space="preserve">
+    <value>Keep both</value>
+  </data>
+  <data name="UpdateLegacyInstallTitle" xml:space="preserve">
+    <value>Remove the old installation?</value>
+  </data>
+  <data name="UpdateLegacyInstallMessage" xml:space="preserve">
+    <value>This runs the previous installer's uninstaller. It removes the old program files and its Start-menu shortcut. Your connections, settings and installed plugins are stored separately and are not touched.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemoving" xml:space="preserve">
+    <value>Removing the previous DataTray installation.</value>
+  </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Check for updates</value>
   </data>
