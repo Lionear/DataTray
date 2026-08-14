@@ -204,8 +204,11 @@
             <TextBlock Text="{Binding UpdateCheckStatus}" VerticalAlignment="Center" FontSize="11.5"
                        Foreground="{DynamicResource SETextSecondaryBrush}" />
           </StackPanel>
-          <Button Content="{Binding Loc[UpdateRollback]}" Command="{Binding RollBackUpdateCommand}"
-                  IsVisible="{Binding CanRollback}" HorizontalAlignment="Left" Margin="0,2,0,0" />
+          <!-- Not a managed install (build directory, unpacked archive): say so instead of offering a
+               check that could never lead to an install (SE-245). -->
+          <TextBlock Text="{Binding Loc[UpdateUnmanagedInstall]}" IsVisible="{Binding IsUnmanagedInstall}"
+                     TextWrapping="Wrap" Margin="0,2,0,0" FontSize="11.5"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
         </StackPanel>
         </ScrollViewer>
 

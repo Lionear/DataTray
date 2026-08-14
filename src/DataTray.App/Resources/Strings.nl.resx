@@ -1509,32 +1509,17 @@
   <data name="UpdateBannerUpdateNow" xml:space="preserve">
     <value>Nu updaten</value>
   </data>
-  <data name="UpdateBannerOpenFolder" xml:space="preserve">
-    <value>Map openen</value>
-  </data>
   <data name="UpdateBannerCancel" xml:space="preserve">
     <value>Annuleren</value>
   </data>
   <data name="UpdateBannerRetry" xml:space="preserve">
     <value>Opnieuw</value>
   </data>
-  <data name="UpdateBannerRefetched" xml:space="preserve">
-    <value>Nieuwere build {0} gedownload — nu installeren en herstarten?</value>
-  </data>
-  <data name="UpdateBannerUpToDate" xml:space="preserve">
-    <value>Je hebt al de nieuwste build.</value>
-  </data>
   <data name="UpdateDialogTitle" xml:space="preserve">
     <value>Update beschikbaar</value>
   </data>
   <data name="UpdateDialogVersion" xml:space="preserve">
     <value>Versie {0}</value>
-  </data>
-  <data name="UpdateDialogPublished" xml:space="preserve">
-    <value>Gepubliceerd {0}</value>
-  </data>
-  <data name="UpdateDialogCommit" xml:space="preserve">
-    <value>Commit {0}</value>
   </data>
   <data name="UpdateDialogDownload" xml:space="preserve">
     <value>Downloaden</value>
@@ -1545,17 +1530,8 @@
   <data name="UpdateDialogInstalling" xml:space="preserve">
     <value>Bezig met installeren…</value>
   </data>
-  <data name="UpdateDialogGuided" xml:space="preserve">
-    <value>Gedownload — sleep DataTray naar Programma's en open het opnieuw.</value>
-  </data>
-  <data name="UpdateRollback" xml:space="preserve">
-    <value>Terug naar de vorige versie</value>
-  </data>
   <data name="UpdateDialogDownloading" xml:space="preserve">
     <value>Bezig met downloaden…</value>
-  </data>
-  <data name="UpdateDialogDownloaded" xml:space="preserve">
-    <value>Gedownload — map wordt geopend.</value>
   </data>
   <data name="UpdateDialogDownloadFailed" xml:space="preserve">
     <value>De download is mislukt.</value>
@@ -1728,6 +1704,9 @@
   <data name="UpdateIntervalManual" xml:space="preserve">
     <value>Alleen bij opstarten</value>
   </data>
+  <data name="UpdateUnmanagedInstall" xml:space="preserve">
+    <value>Deze kopie wordt niet door de updater beheerd en kan zichzelf niet vervangen. Download een nieuwe build van de releasepagina.</value>
+  </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Controleren op updates</value>
   </data>
@@ -1753,9 +1732,6 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   </data>
   <data name="UpdateChannelDowngradeAccepted" xml:space="preserve">
     <value>{0} staat klaar — sluit Instellingen om 'm te downloaden en installeren.</value>
-  </data>
-  <data name="UpdateChannelDowngradeNoAsset" xml:space="preserve">
-    <value>{0} heeft geen download voor dit platform; het kanaal is gewisseld maar er valt hier niets te installeren.</value>
   </data>
   <data name="UpdateCheckChecking" xml:space="preserve">
     <value>Bezig met controleren…</value>

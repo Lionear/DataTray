@@ -143,18 +143,9 @@
           </StackPanel>
         </Border>
 
-        <!-- Guided / hand-off (green) — macOS drag or a download-only asset -->
-        <Border IsVisible="{Binding Update.IsGuided}" Background="#1F4FB06A"
-                BorderBrush="#594FB06A" BorderThickness="0,0,0,1" Padding="12,7">
-          <StackPanel Orientation="Horizontal" Spacing="12">
-            <TextBlock Text="{Binding Update.StatusMessage}" Foreground="#4FB06A"
-                       FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
-            <Button Classes="Subtle" Content="{Binding Loc[UpdateBannerOpenFolder]}"
-                    Command="{Binding Update.OpenFolderCommand}" />
-            <Button Classes="Subtle" Content="{Binding Loc[UpdateBannerLater]}"
-                    Command="{Binding Update.LaterCommand}" />
-          </StackPanel>
-        </Border>
+        <!-- The guided / hand-off banner is gone with SE-245: it existed for the macOS DMG drag and for
+             assets this platform could not apply in place, and the updater now applies every platform
+             itself. -->
 
         <!-- Failed (red) -->
         <Border IsVisible="{Binding Update.IsFailed}" Background="#1FE5686A"
