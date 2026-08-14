@@ -8,26 +8,58 @@ using Avalonia.Layout;
 
 namespace DataTray.Tools.MsSqlAdmin;
 
-/// <summary>
-/// One row of a monitor grid. The cells are bound by index (<c>[0]</c>, <c>[1]</c>, …) so one row type
-/// serves all five grids, and they are replaced in place on refresh: keeping the row objects alive is what
-/// lets the scroll position and the selected row survive a refresh, which a grid you are reading while it
-/// reloads every ten seconds absolutely needs.
-/// </summary>
-internal sealed class GridRow(string[] cells) : INotifyPropertyChanged
+/// <summary>One cell of a monitor grid: a string that can say when it changed.</summary>
+/// <remarks>
+/// A notifying object per cell rather than a plain string in the row, because a column binds to a property
+/// path and re-reads it only when that property announces itself. A row's own indexer announces nothing a
+/// binding listens to, so cells bound to <c>[0]</c>, <c>[1]</c>, … kept showing the values they were
+/// realised with — every grid in the tab was frozen on its first sample, and a header click reordered the
+/// rows behind a screen that never redrew (SE-265). <c>Cells[i].Value</c> is the shape the host's own
+/// result grid binds to, for exactly this reason.
+/// </remarks>
+internal sealed class GridCell(string value) : INotifyPropertyChanged
 {
-    public string[] Cells { get; private set; } = cells;
+    private string _value = value;
 
-    public string this[int index] => index >= 0 && index < Cells.Length ? Cells[index] : string.Empty;
+    public string Value
+    {
+        get => _value;
+        set
+        {
+            if (string.Equals(_value, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _value = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
+/// One row of a monitor grid. One row type serves all five grids, and the cells are written in place on
+/// refresh: keeping the row objects alive is what lets the scroll position and the selected row survive a
+/// refresh, which a grid you are reading while it reloads every ten seconds absolutely needs.
+/// </summary>
+internal sealed class GridRow(string[] cells)
+{
+    /// <summary>An array, not any read-only list: a binding to <c>Cells[i]</c> reaches the element through
+    /// <see cref="System.Collections.IList"/>, which an array implements and a read-only wrapper does not —
+    /// bind to one of those and every cell in the grid renders empty.</summary>
+    public GridCell[] Cells { get; } = [.. cells.Select(c => new GridCell(c))];
+
+    /// <summary>The cells as plain text — what a row action reads to know what it acts on.</summary>
+    public string[] Values => [.. Cells.Select(c => c.Value)];
 
     public void Replace(string[] cells)
     {
-        Cells = cells;
-        // "Item[]" is the framework's name for "every indexer value changed" — one notification rather than
-        // one per column.
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
+        for (var i = 0; i < Cells.Length; i++)
+        {
+            Cells[i].Value = i < cells.Length ? cells[i] : string.Empty;
+        }
     }
 }
 
@@ -39,7 +71,9 @@ internal sealed class GridRow(string[] cells) : INotifyPropertyChanged
 /// Sorting is done here rather than by the DataGrid, the same way the host's own result grid does it: the
 /// built-in sort is cancelled and the rows are ordered by this class, because the rows are replaced in
 /// place on every refresh and a sort the grid owns would silently be applied to values that have since
-/// changed. Numeric-looking columns sort numerically, so "9" does not come after "10".
+/// changed. Numeric-looking columns sort numerically (<see cref="ActivityRates.CompareCells"/>), so "9"
+/// does not come after "10", and the sort is stable, so rows a column cannot tell apart stay put instead
+/// of reshuffling every ten seconds.
 /// </remarks>
 internal sealed class ActivityGrid
 {
@@ -88,7 +122,7 @@ internal sealed class ActivityGrid
             _grid.Columns.Add(new DataGridTextColumn
             {
                 Header = headers[i],
-                Binding = new Binding($"[{i}]"),
+                Binding = new Binding($"Cells[{i}].Value"),
                 // A width of 0 means "as wide as it needs to be": these headers are long ("Recent Wait Time
                 // (ms/sec)") beside cells that are short, and a pixel width guessed per column clipped the
                 // headers into riddles. Only the columns holding a whole query or a file path are pinned,
@@ -132,7 +166,7 @@ internal sealed class ActivityGrid
 
     /// <summary>The cells of the selected row, or null when nothing is selected — what a row action
     /// (Kill Process) reads to know what it acts on.</summary>
-    public string[]? SelectedCells => (_grid.SelectedItem as GridRow)?.Cells;
+    public string[]? SelectedCells => (_grid.SelectedItem as GridRow)?.Values;
 
     /// <summary>Attach a right-click action to the rows (the Processes grid's Kill Process).</summary>
     public void SetRowMenu(ContextMenu menu) => _grid.ContextMenu = menu;
@@ -191,7 +225,13 @@ internal sealed class ActivityGrid
         var list = rows.ToList();
         if (_sortColumn >= 0)
         {
-            list.Sort((a, b) => Compare(Cell(a, _sortColumn), Cell(b, _sortColumn)) * (_sortDescending ? -1 : 1));
+            // OrderBy, not List.Sort: it is stable, so the rows a sorted column cannot tell apart — and
+            // "0" is most of what a quiet server reports — keep the server's own order instead of
+            // reshuffling among themselves on every refresh.
+            var sign = _sortDescending ? -1 : 1;
+            list = [.. list.OrderBy(
+                r => Cell(r, _sortColumn),
+                Comparer<string>.Create((a, b) => ActivityRates.CompareCells(a, b) * sign))];
         }
 
         for (var i = 0; i < list.Count; i++)
@@ -217,17 +257,4 @@ internal sealed class ActivityGrid
     }
 
     private static string Cell(string[] row, int index) => index < row.Length ? row[index] : string.Empty;
-
-    // Numbers as numbers ("9" before "10"), everything else as text. The cells are already formatted for
-    // display, so the parse has to accept the thousands separators that formatting put there.
-    private static int Compare(string a, string b)
-    {
-        if (double.TryParse(a, NumberStyles.Any, CultureInfo.CurrentCulture, out var x)
-            && double.TryParse(b, NumberStyles.Any, CultureInfo.CurrentCulture, out var y))
-        {
-            return x.CompareTo(y);
-        }
-
-        return string.Compare(a, b, StringComparison.CurrentCultureIgnoreCase);
-    }
 }
