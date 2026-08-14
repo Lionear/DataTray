@@ -226,6 +226,16 @@
     <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
   </Style>
 
+  <!-- Context menus: give the popup its own edge. Fluent leaves the elevation to the window manager
+       (Popup.WindowManagerAddShadowHint), and KWin draws no shadow around an override-redirect popup —
+       so on Linux the menu was a dark rectangle on a dark panel with no boundary at all, and the tree
+       rows it half-covered read as part of the menu. A hairline border costs nothing on the platforms
+       that do add a shadow and fixes the ones that don't. -->
+  <Style Selector="ContextMenu">
+    <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+    <Setter Property="BorderThickness" Value="{StaticResource SEHairlineThickness}" />
+  </Style>
+
   <!-- Tabs: flat editor tabs with an accent underline on the active tab (DataGrip-style) -->
   <Style Selector="TabControl">
     <Setter Property="Background" Value="Transparent" />
