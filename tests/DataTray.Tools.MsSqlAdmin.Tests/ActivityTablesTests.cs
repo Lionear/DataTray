@@ -103,6 +103,44 @@ public class ActivityTablesTests
         Assert.Equal("51", rows[1][10]);
     }
 
+    [Fact]
+    public void ServerVersion_names_the_build_and_the_host_on_linux()
+    {
+        // Verbatim from SQL Server 2025 CU6 in a container, tabs and all.
+        var line = ActivityTables.ServerVersion(
+            "Microsoft SQL Server 2025 (RTM-CU6) (KB5093421) - 17.0.4055.5 (X64) \n"
+            + "\tJun  9 2026 12:41:10 \n"
+            + "\tCopyright (C) 2025 Microsoft Corporation\n"
+            + "\tEnterprise Developer Edition (64-bit) on Linux (Ubuntu 24.04.4 LTS) <X64>");
+
+        Assert.Equal(
+            "Microsoft SQL Server 2025 (RTM-CU6) (KB5093421) - 17.0.4055.5 (X64) · Linux (Ubuntu 24.04.4 LTS)",
+            line);
+    }
+
+    [Fact]
+    public void ServerVersion_drops_the_architecture_tail_windows_appends()
+    {
+        var line = ActivityTables.ServerVersion(
+            "Microsoft SQL Server 2019 (RTM-CU18) (KB5017593) - 15.0.4261.1 (X64) \r\n"
+            + "\tSep  6 2022 20:09:11 \r\n"
+            + "\tCopyright (C) 2019 Microsoft Corporation\r\n"
+            + "\tDeveloper Edition (64-bit) on Windows Server 2019 Standard 10.0 <X64> (Build 17763: ) (Hypervisor)");
+
+        Assert.Equal(
+            "Microsoft SQL Server 2019 (RTM-CU18) (KB5017593) - 15.0.4261.1 (X64) · Windows Server 2019 Standard 10.0",
+            line);
+    }
+
+    [Fact]
+    public void ServerVersion_falls_back_to_the_build_when_the_host_cannot_be_found()
+    {
+        // A localised install says "on" in its own language. Naming the build and staying quiet about the
+        // host beats printing whatever happens to follow the last "on" in a German sentence.
+        Assert.Equal("Microsoft SQL Server 2019", ActivityTables.ServerVersion("Microsoft SQL Server 2019\n\tsomething"));
+        Assert.Equal(string.Empty, ActivityTables.ServerVersion(string.Empty));
+    }
+
     private static ProcessRow Process(int sessionId, int blockedBy) => new(
         sessionId, true, "sa", "Sales", "running", "SELECT", "app", 0, "", "", blockedBy, 0, "host", "default");
 
@@ -123,5 +161,5 @@ public class ActivityTablesTests
         IReadOnlyList<WaitTotals>? waits = null,
         IReadOnlyList<FileIoTotals>? files = null,
         IReadOnlyList<QueryTotals>? queries = null) =>
-        new(takenAt, processes ?? [], waits ?? [], files ?? [], queries ?? [], [], new ServerCounters(null, 0, 0));
+        new(takenAt, processes ?? [], waits ?? [], files ?? [], queries ?? [], [], new ServerCounters(null, 0, 0), "");
 }
