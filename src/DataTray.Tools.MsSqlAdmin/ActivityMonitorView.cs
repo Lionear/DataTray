@@ -44,6 +44,19 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
     private readonly ComboBox _interval = new() { MinWidth = 90, FontSize = 12 };
     private readonly TextBlock _status = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.75, FontSize = 12 };
 
+    // Which server this is, at the far end of the toolbar: the build and the OS under it. Trimmed rather
+    // than wrapped, because it is reference information — the whole of @@VERSION is on its tooltip.
+    private readonly TextBlock _version = new()
+    {
+        VerticalAlignment = VerticalAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        TextAlignment = TextAlignment.Right,
+        TextTrimming = TextTrimming.CharacterEllipsis,
+        Margin = new Thickness(16, 0, 0, 0),
+        Opacity = 0.75,
+        FontSize = 12
+    };
+
     // Every sample since the tab opened, trimmed to what the graphs and the "recent" column still need.
     private readonly List<ActivitySample> _history = [];
 
@@ -132,11 +145,10 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
         var refreshNow = new Button { Content = _loc.Get("activity.refreshNow"), FontSize = 12 };
         refreshNow.Click += (_, _) => _ = RefreshAsync();
 
-        var toolbar = new StackPanel
+        var controls = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Thickness(10, 8),
             Children =
             {
                 new TextBlock
@@ -150,6 +162,13 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
                 _status
             }
         };
+
+        // The version fills whatever the controls leave, so it sits against the right edge and gives up its
+        // own width first when the window is narrow.
+        var toolbar = new DockPanel { Margin = new Thickness(10, 8) };
+        DockPanel.SetDock(controls, Dock.Left);
+        toolbar.Children.Add(controls);
+        toolbar.Children.Add(_version);
 
         var graphs = new Grid
         {
@@ -261,6 +280,9 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
         {
             _history.RemoveRange(0, _history.Count - ActivityChart.Capacity);
         }
+
+        _version.Text = ActivityTables.ServerVersion(sample.Version);
+        ToolTip.SetTip(_version, sample.Version.Length == 0 ? null : sample.Version);
 
         _processes.Update(ActivityTables.Processes(sample));
         _waits.Update(ActivityTables.ResourceWaits(sample, previous, baseline));

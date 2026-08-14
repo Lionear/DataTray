@@ -9,11 +9,11 @@ namespace DataTray.Tools.MsSqlAdmin;
 /// STATE that any of these DMVs already requires.
 /// </summary>
 /// <remarks>
-/// <para>All seven statements go over as <b>one script</b> (<see cref="IDbProvider.ExecuteScriptAsync"/>,
-/// which returns one result set per SELECT, in order) rather than as seven calls. The provider opens a
-/// connection per call, and seven connections every ten seconds is a cost the server pays for nothing —
+/// <para>All eight statements go over as <b>one script</b> (<see cref="IDbProvider.ExecuteScriptAsync"/>,
+/// which returns one result set per SELECT, in order) rather than as eight calls. The provider opens a
+/// connection per call, and eight connections every ten seconds is a cost the server pays for nothing —
 /// the samples are also then consistent with each other, taken at one instant rather than smeared across
-/// seven round trips.</para>
+/// eight round trips.</para>
 /// <para>ponytail: one script means one failure — an instance missing any single DMV (Azure SQL Database
 /// has no scheduler ring buffer and no <c>sys.master_files</c> in the shape used here) fails the whole
 /// refresh rather than one section. Split the script per section if Azure SQL support is wanted; against
@@ -29,10 +29,10 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
     public async Task<ActivitySample> ReadAsync(int refreshSeconds, CancellationToken ct)
     {
         var results = await provider.ExecuteScriptAsync(profile, Script(RecentWindowSeconds(refreshSeconds)), ct);
-        if (results.Count < 7)
+        if (results.Count < 8)
         {
             throw new InvalidOperationException(
-                $"The Activity Monitor expected 7 result sets from its DMV script and received {results.Count}.");
+                $"The Activity Monitor expected 8 result sets from its DMV script and received {results.Count}.");
         }
 
         var processes = ReadProcesses(results[0]);
@@ -43,7 +43,8 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
             ReadFiles(results[2]),
             ReadQueries(results[3]),
             ReadActiveQueries(results[4]),
-            ReadCounters(results[5], results[6]));
+            ReadCounters(results[5], results[6]),
+            results[7].Rows.Count > 0 ? Text(results[7].Rows[0][0]) : string.Empty);
     }
 
     private static IReadOnlyList<ProcessRow> ReadProcesses(QueryResult result)
@@ -171,11 +172,11 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         : Convert.ToInt32(value, CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// The seven SELECTs behind one refresh, in the order <see cref="ReadAsync"/> unpacks them. Kept as one
+    /// The eight SELECTs behind one refresh, in the order <see cref="ReadAsync"/> unpacks them. Kept as one
     /// literal so the column order a reader sees and the indexes the reader uses sit on the same screen.
     /// </summary>
     private static string Script(int recentWindowSeconds) => $"""
-        -- DataTray Activity Monitor. This marker is what result set 4 filters on: all seven statements go
+        -- DataTray Activity Monitor. This marker is what result set 4 filters on: all eight statements go
         -- over as one batch and therefore share one sql_handle and one cached text, so a single NOT LIKE
         -- keeps the monitor's own queries out of its Recent Expensive Queries grid — which would otherwise
         -- report, every ten seconds, that the most expensive thing on this server is the monitor.
@@ -305,5 +306,11 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         SELECT ISNULL(wait_type, '') AS wait_type
         FROM sys.dm_os_waiting_tasks
         WHERE session_id IS NOT NULL;
+
+        -- 8. Build and host, for the line beside the toolbar. @@VERSION rather than SERVERPROPERTY plus
+        --    sys.dm_os_host_info because it names the host in the same breath as the build and exists on
+        --    every version — host_info only arrived in 2017, and a missing view here would fail the whole
+        --    refresh (see the remarks on this class), not just this one line.
+        SELECT @@VERSION AS server_version;
         """;
 }

@@ -44,6 +44,37 @@ internal static class ActivityTables
         "Wait Type", "Blocked By"
     ];
 
+    /// <summary>
+    /// The build-and-host line the toolbar shows, from <c>@@VERSION</c>: "Microsoft SQL Server 2025
+    /// (RTM-CU6) (KB5093421) - 17.0.4055.5 (X64) · Linux (Ubuntu 24.04.4 LTS)".
+    /// </summary>
+    /// <remarks>
+    /// <c>@@VERSION</c>'s first line is the build, and its last ends in "&lt;edition&gt; on &lt;host&gt;" —
+    /// the same shape on Windows and on Linux. A string that does not have that shape (a localised install
+    /// says "on" in its own language) falls back to the build alone: half the answer beats a wrong one, and
+    /// the whole string is on the tooltip either way.
+    /// </remarks>
+    public static string ServerVersion(string version)
+    {
+        var build = version.Split('\n')[0].Trim();
+        var on = version.LastIndexOf(" on ", StringComparison.Ordinal);
+        if (on < 0)
+        {
+            return build;
+        }
+
+        var host = version[(on + 4)..].Trim();
+        // "… on Windows Server 2019 Standard 10.0 <X64> (Build 17763: ) (Hypervisor)" — the architecture
+        // and build number are already in the first line, and this line has to fit beside a toolbar.
+        var architecture = host.IndexOf(" <", StringComparison.Ordinal);
+        if (architecture > 0)
+        {
+            host = host[..architecture];
+        }
+
+        return build.Length == 0 ? host : build + " · " + host;
+    }
+
     public static IReadOnlyList<string[]> Processes(ActivitySample now) =>
     [
         .. now.Processes.Select(p => new[]

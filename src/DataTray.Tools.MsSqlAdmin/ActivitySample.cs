@@ -83,4 +83,7 @@ internal sealed record ActivitySample(
     IReadOnlyList<FileIoTotals> Files,
     IReadOnlyList<QueryTotals> Queries,
     IReadOnlyList<ActiveQueryRow> ActiveQueries,
-    ServerCounters Counters);
+    ServerCounters Counters,
+    /// <summary><c>@@VERSION</c> verbatim: the build, and the operating system it runs on.
+    /// <see cref="ActivityTables.ServerVersion"/> cuts it down to the line the toolbar shows.</summary>
+    string Version);
