@@ -60,6 +60,12 @@ the only assembly a plugin references from this repository.
 | `plugins/Tools.UniversalBackup` | tool | Full `IToolPlugin` example (streaming backup/restore); also implements `IPluginSettings` (default backup folder). |
 | `plugins/Providers.Template` | provider | Debug-only reference example implementing **every** capability: `IPluginSettings` (Route A, all field types), `IShortcutContributor` (two shortcuts). The place to copy from. |
 
+## Proposed, not yet implemented
+
+- [Toolbar architecture](toolbar-architecture.md) — how plugins will contribute
+  actions to the application toolbar and to a query window's toolbar. Design
+  only; nothing in it exists yet.
+
 ## Future plugin types
 
 The manifest's `type` field is a discriminator, so more plugin kinds can be added

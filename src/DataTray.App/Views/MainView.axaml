@@ -6,6 +6,7 @@
              xmlns:sdk="using:DataTray.Sdk.Ui"
              xmlns:views="using:DataTray.App.Views"
              xmlns:conn="using:DataTray.Core.Connections"
+             xmlns:ctl="using:DataTray.App.Controls"
              x:Class="DataTray.App.Views.MainView">
   <UserControl.Resources>
     <!-- Recursive menu-item theme for the tools tree (ToolMenuNode): a leaf binds its Run command; a
@@ -208,35 +209,103 @@
                          FontWeight="SemiBold" Foreground="{DynamicResource SEStatusWaitingBrush}" />
             </StackPanel>
           </Button>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Classes="Accent"
-                  Command="{Binding NewQueryTabCommand}">
-            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-              <Path Width="12" Height="12" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Plus}"
-                    Stroke="{DynamicResource SEAccentFgBrush}" StrokeThickness="1.4"
-                    StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding Loc[NewQueryTab]}" VerticalAlignment="Center" />
-            </StackPanel>
+          <!-- Customise (SE-255): the toolbar is the one setting you want to change while looking at it, so
+               it gets its own way in rather than only the long way round through Settings. Deliberately not
+               a catalog entry — an action that can be hidden cannot be the way back to unhiding things. -->
+          <Button DockPanel.Dock="Right" Classes="Subtle" Padding="7,4" Margin="6,0,0,0"
+                  VerticalAlignment="Center"
+                  Command="{Binding CustomizeToolbarCommand}"
+                  ToolTip.Tip="{Binding Loc[ToolbarCustomize]}">
+            <Path Width="15" Height="15" Stretch="Uniform" Data="{x:Static vm:NodeIcons.SettingsToolbar}"
+                  Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.4"
+                  StrokeJoin="Round" StrokeLineCap="Round" />
           </Button>
-          <Button Classes="Search" Padding="9,5" MinWidth="280" ToolTip.Tip="Ctrl+K"
-                  Command="{Binding ToggleSearchCommand}">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <Path Grid.Column="0" Width="14" Height="14" VerticalAlignment="Center"
-                    Data="M7,3 A4,4 0 1 0 7,11 A4,4 0 1 0 7,3 M10,10 L13.5,13.5"
-                    Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="1.3"
-                    StrokeJoin="Round" StrokeLineCap="Round" />
-              <TextBlock Grid.Column="1" Margin="7,0,0,0" VerticalAlignment="Center"
-                         Text="{Binding Loc[GoToObject]}" FontSize="12.5"
-                         Foreground="{DynamicResource SETextFaintBrush}" />
-              <Border Grid.Column="2" Padding="4,1" CornerRadius="3"
-                      BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
-                      VerticalAlignment="Center">
-                <TextBlock Text="⌘K" FontSize="10.5" FontFamily="Cascadia Code,Consolas,Menlo,monospace"
-                           Foreground="{DynamicResource SETextFaintBrush}" />
-              </Border>
-            </Grid>
+
+          <!-- Overflow (SE-255 §4): whatever the strip cannot fit at this window width lands in this
+               flyout, in the user's order — so what they put first survives longest. Collapsed while
+               everything fits, which is what keeps the wide case free of chrome. -->
+          <Button DockPanel.Dock="Right" Classes="Subtle" Padding="7,4" Margin="6,0,0,0"
+                  VerticalAlignment="Center"
+                  IsVisible="{Binding #AppToolbarStrip.HasOverflow}"
+                  ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">
+            <Path Width="15" Height="15" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Overflow}"
+                  Fill="{DynamicResource SETextSecondaryBrush}" />
+            <Button.Flyout>
+              <MenuFlyout ItemsSource="{Binding #AppToolbarStrip.OverflowItems}">
+                <MenuFlyout.ItemContainerTheme>
+                  <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                    <Setter Property="Command" Value="{Binding Command}" />
+                    <Setter Property="Icon">
+                      <Template>
+                        <Path Width="14" Height="14" Stretch="Uniform" Data="{Binding Icon}"
+                              Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.4"
+                              StrokeJoin="Round" StrokeLineCap="Round" />
+                      </Template>
+                    </Setter>
+                    <!-- Label plus a muted suffix: the owning plugin's name, or a shortcut hint. -->
+                    <Setter Property="Header">
+                      <Template>
+                        <StackPanel Orientation="Horizontal" Spacing="18">
+                          <TextBlock Text="{Binding Header}" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Detail}" VerticalAlignment="Center" FontSize="11"
+                                     Foreground="{DynamicResource SETextFaintBrush}" />
+                        </StackPanel>
+                      </Template>
+                    </Setter>
+                  </ControlTheme>
+                </MenuFlyout.ItemContainerTheme>
+              </MenuFlyout>
+            </Button.Flyout>
           </Button>
-          </StackPanel>
+
+          <!-- The strip itself: the user's resolved layout (Settings ▸ Toolbar), laid out by the panel
+               that decides overflow by measuring rather than counting. -->
+          <ctl:OverflowItemsControl x:Name="AppToolbarStrip" ItemsSource="{Binding ToolbarActions}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <ctl:OverflowPanel Spacing="8" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:ToolbarActionViewModel">
+                <!-- One special case in the template, none in the layout model: the quick-open renders as
+                     a search field while it is in the strip, and as an ordinary row in the flyout. -->
+                <Panel ctl:OverflowPanel.OverflowHeader="{Binding Label}"
+                       ctl:OverflowPanel.OverflowIcon="{Binding Icon}"
+                       ctl:OverflowPanel.OverflowCommand="{Binding Command}"
+                       ctl:OverflowPanel.OverflowDetail="{Binding Detail}">
+                  <Button IsVisible="{Binding IsButton}" Classes.Accent="{Binding IsAccent}"
+                          Command="{Binding Command}" ToolTip.Tip="{Binding Label}">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Path Width="12" Height="12" Stretch="Uniform" Data="{Binding Icon}"
+                            Stroke="{DynamicResource SETextPrimaryBrush}" StrokeThickness="1.4"
+                            StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button IsVisible="{Binding IsQuickOpen}" Classes="Search" Padding="9,5" MinWidth="280"
+                          ToolTip.Tip="Ctrl+K" Command="{Binding Command}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Path Grid.Column="0" Width="14" Height="14" VerticalAlignment="Center"
+                            Data="M7,3 A4,4 0 1 0 7,11 A4,4 0 1 0 7,3 M10,10 L13.5,13.5"
+                            Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="1.3"
+                            StrokeJoin="Round" StrokeLineCap="Round" />
+                      <TextBlock Grid.Column="1" Margin="7,0,0,0" VerticalAlignment="Center"
+                                 Text="{Binding Label}" FontSize="12.5"
+                                 Foreground="{DynamicResource SETextFaintBrush}" />
+                      <Border Grid.Column="2" Padding="4,1" CornerRadius="3"
+                              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+                              VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Detail}" FontSize="10.5"
+                                   FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                                   Foreground="{DynamicResource SETextFaintBrush}" />
+                      </Border>
+                    </Grid>
+                  </Button>
+                </Panel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ctl:OverflowItemsControl>
         </DockPanel>
       </Border>
     </StackPanel>

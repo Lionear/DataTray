@@ -21,6 +21,7 @@ using DataTray.Core.Schema;
 using DataTray.Core.Session;
 using DataTray.Core.Settings;
 using DataTray.Core.Shortcuts;
+using DataTray.Core.Toolbar;
 using DataTray.Core.Tools;
 using DataTray.Sdk;
 using DataTray.Sdk.Localization;
@@ -63,6 +64,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IAppSettingsStore _settingsStore;
     private readonly IOpenTabsStore _openTabsStore;
     private readonly IRecentFilesStore _recentFiles;
+    private readonly ToolbarLayoutService _toolbarLayout;
 
     // Selected tree node drives the active connection: any node knows its owning connection.
     [ObservableProperty]
@@ -126,6 +128,7 @@ public partial class MainViewModel : ViewModelBase
         IRecentFilesStore recentFiles,
         AppUpdateViewModel appUpdate,
         PluginUpdatesViewModel pluginUpdates,
+        ToolbarLayoutService toolbarLayout,
         ILocalizer localizer)
     {
         _providers = providers;
@@ -154,6 +157,8 @@ public partial class MainViewModel : ViewModelBase
         _openTabsStore = openTabsStore;
         _recentFiles = recentFiles;
         _recentFiles.Changed += OnRecentFilesChanged;
+        _toolbarLayout = toolbarLayout;
+        _toolbarLayout.Changed += BuildToolbar;
         Update = appUpdate;
         PluginUpdates = pluginUpdates;
         // The update badge opens the Store straight on its Installed tab, where the updates live.
@@ -187,7 +192,36 @@ public partial class MainViewModel : ViewModelBase
         RestoreOpenTabs();
         RefreshRecentFiles();
         EvaluatePluginRestart();
+        BuildToolbar();
     }
+
+    // --- Application toolbar (SE-255) --------------------------------------------------------------
+
+    /// <summary>The user's resolved toolbar: the visible catalog entries, in the user's order. Rebuilt
+    /// whenever Settings ▸ Toolbar saves, so a change lands without a restart.</summary>
+    public ObservableCollection<ToolbarActionViewModel> ToolbarActions { get; } = [];
+
+    private void BuildToolbar()
+    {
+        ToolbarActions.Clear();
+        foreach (var entry in _toolbarLayout.VisibleActions())
+        {
+            // Host entries carry a resx key; plugin entries (SE-255 part 2) arrive already localized.
+            if (ToolbarActionFor(entry) is { } action)
+            {
+                ToolbarActions.Add(action);
+            }
+        }
+    }
+
+    private ToolbarActionViewModel? ToolbarActionFor(ToolbarActionEntry entry) => entry.Id switch
+    {
+        ToolbarCatalog.Ids.NewQueryTab =>
+            new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), NewQueryTabCommand, isAccent: true),
+        ToolbarCatalog.Ids.GoToObject =>
+            new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), ToggleSearchCommand, detail: "⌘K"),
+        _ => null,
+    };
 
 
     // Reopen the query tabs from the previous session (skipping any whose connection no longer exists).
@@ -2926,6 +2960,11 @@ public partial class MainViewModel : ViewModelBase
         // The store may have staged installs/removes/toggles — refresh the main-window banner.
         EvaluatePluginRestart();
     }
+
+    /// <summary>Jump straight to Settings ▸ Toolbar from the strip's own gear (SE-255) — the toolbar is the
+    /// one setting you want to change while looking at it.</summary>
+    [RelayCommand]
+    private Task CustomizeToolbar() => OpenSettingsOnAsync("Toolbar");
 
     // Opens Settings pre-navigated to a given category key. Used by the Plugin Store's deep-link.
     private async Task OpenSettingsOnAsync(string categoryKey)
