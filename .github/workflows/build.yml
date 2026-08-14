@@ -156,28 +156,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # No PublishSingleFile anywhere since SE-245: the updater replaces an application *folder* and
+          # patches it per file, so it needs the files as files. A self-extracting single exe defeats both.
           - name: Windows x64
             os: windows-latest
             rid: win-x64
-            arch: x64
-            package: windows
-            publishArgs: "-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true"
+            platform: win
+            mainExe: DataTray.Desktop.exe
+            icon: src/DataTray.Desktop/app.ico
           - name: Windows ARM64
             os: windows-latest
             rid: win-arm64
-            arch: arm64
-            package: windows
-            publishArgs: "-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true"
+            platform: win
+            mainExe: DataTray.Desktop.exe
+            icon: src/DataTray.Desktop/app.ico
           - name: Linux AppImage
             os: ubuntu-latest
             rid: linux-x64
-            package: appimage
-            publishArgs: ""
-          - name: macOS Apple Silicon (DMG)
+            platform: linux
+            mainExe: DataTray.Desktop
+            icon: src/DataTray.App/Assets/icon.png
+          - name: macOS Apple Silicon
             os: macos-14
             rid: osx-arm64
-            package: dmg
-            publishArgs: ""
+            platform: osx
+            mainExe: DataTray.Desktop
+            icon: src/DataTray.Desktop/app.icns
 
     steps:
       - uses: actions/checkout@v4
@@ -214,125 +218,138 @@ jobs:
             -r ${{ matrix.rid }} \
             --self-contained true \
             -p:Version=${{ steps.version.outputs.value }} \
-            ${{ matrix.publishArgs }} \
             -o publish/${{ matrix.rid }}
 
-      # --- Packaging: one step per target type ---
-
-      - name: Package (Windows zip)
-        if: matrix.package == 'windows'
-        shell: pwsh
-        run: |
-          $out = "artifacts"
-          New-Item -ItemType Directory -Force -Path $out | Out-Null
-          Compress-Archive -Path "publish/${{ matrix.rid }}/*" `
-            -DestinationPath "$out/DataTray-${{ steps.version.outputs.value }}-${{ matrix.rid }}.zip" -Force
-
-      # Convenience installer next to the zip: Start-menu entry + uninstaller, per-user so it needs no
-      # admin (matching where the Plugin Store already writes). Unsigned — SmartScreen warns on first run.
-      - name: Package (Windows installer)
-        if: matrix.package == 'windows'
-        shell: pwsh
-        # Version/arch/rid reach pwsh as env, not `${{ }}` spliced into the command line. Version is the
-        # tainted one (it can trace back to inputs.version); the Resolve version step already whitelists
-        # it, this keeps the sink from re-opening the hole.
-        env:
-          APP_VERSION: ${{ steps.version.outputs.value }}
-          APP_ARCH: ${{ matrix.arch }}
-          PUBLISH_RID: ${{ matrix.rid }}
-        run: |
-          # Pin the Inno Setup version so a build today and one last month use the same ISCC.
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
-            choco install innosetup --version=6.7.1 --no-progress -y
-          }
-          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
-
-          & $iscc tools/windows-installer.iss `
-            "/DAppVersion=$env:APP_VERSION" `
-            "/DArch=$env:APP_ARCH" `
-            "/DSourceDir=$(Resolve-Path "publish/$env:PUBLISH_RID")" `
-            "/DOutputDir=$(Resolve-Path artifacts)"
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with $LASTEXITCODE" }
-
-      - name: Package (Linux AppImage)
-        if: matrix.package == 'appimage'
+      # Packaging is Velopack's since SE-245. It produces the user-facing download *and* the update
+      # package and feed for the same channel in one step, which is the point: an installer built
+      # separately from the feed is an installer the updater cannot follow. Pinned to the same version
+      # as the Velopack PackageReference — that is the only combination Velopack supports.
+      - name: Install vpk
         shell: bash
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"   # GitHub runners have no FUSE
-          ARCH: x86_64                     # publish tree carries multiple arch signatures; pin the target
-        run: |
-          set -euo pipefail
-          APPDIR=AppDir
-          rm -rf "$APPDIR"
-          mkdir -p "$APPDIR/usr/bin"
-          cp -r publish/${{ matrix.rid }}/* "$APPDIR/usr/bin/"
-          chmod +x "$APPDIR/usr/bin/DataTray.Desktop"
+        run: dotnet tool install -g vpk --version 1.2.0
 
-          # Icon (top-level + hicolor path both referenced by the .desktop entry)
-          cp src/DataTray.App/Assets/icon.png "$APPDIR/lionear-datatray.png"
-          mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-          cp src/DataTray.App/Assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/lionear-datatray.png"
-
-          cat > "$APPDIR/lionear-datatray.desktop" <<'EOF'
-          [Desktop Entry]
-          Type=Application
-          Name=DataTray
-          Exec=DataTray.Desktop
-          Icon=lionear-datatray
-          Categories=Development;Database;
-          Terminal=false
-          EOF
-
-          cat > "$APPDIR/AppRun" <<'EOF'
-          #!/bin/sh
-          HERE="$(dirname "$(readlink -f "$0")")"
-          exec "$HERE/usr/bin/DataTray.Desktop" "$@"
-          EOF
-          chmod +x "$APPDIR/AppRun"
-
-          # appimagetool is the one external binary this pipeline runs, so it gets verified before it
-          # runs, not just pinned. The tag is only a download location: AppImage re-uploads assets onto
-          # existing tags (the "1.9.1" asset is itself a re-pushed continuous build), so a tag pin proves
-          # nothing. The sha256 is the actual lock — bump it deliberately when you choose a new build.
-          APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
-          APPIMAGETOOL_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
-          wget -q "$APPIMAGETOOL_URL" -O appimagetool
-          echo "$APPIMAGETOOL_SHA256  appimagetool" | sha256sum -c -
-          chmod +x appimagetool
-
-          mkdir -p artifacts
-          ./appimagetool "$APPDIR" "artifacts/DataTray-${{ steps.version.outputs.value }}-x86_64.AppImage"
-
-      - name: Package (macOS DMG)
-        if: matrix.package == 'dmg'
+      # macOS `codesign` treats any directory whose name contains a dot as a nested bundle, and
+      # Velopack signs the app recursively — so one such directory anywhere in the payload fails the
+      # whole package with "bundle format unrecognized, invalid, or unsuitable" and a path, which reads
+      # like a broken signing setup rather than "a plugin brought a runtimes/<rid>/lib/net9.0 folder".
+      # That is what happened the first time this workflow ran. Catch it here, where the message can
+      # say which directory and what to do, instead of in a signing error further down.
+      - name: Check for bundle-hostile directory names
+        if: matrix.platform == 'osx'
         shell: bash
         run: |
           set -euo pipefail
-          # The Desktop project's CreateMacAppBundle target assembles the .app
-          # from the publish output on macOS, one level above PublishDir.
-          APP="publish/DataTray.app"
-          if [ ! -d "$APP" ]; then
-            echo "Expected app bundle not found at: $APP" >&2
-            ls -la publish >&2
+          OFFENDERS=$(find "publish/${{ matrix.rid }}" -type d -name '*.*' || true)
+          if [ -n "$OFFENDERS" ]; then
+            echo "::error::Directories with a dot in the name are in the macOS payload; codesign will refuse the bundle."
+            echo "$OFFENDERS" >&2
+            echo "Usually a plugin staged from bin/ rather than from a RID-specific publish — see" >&2
+            echo "PublishMsSqlProviderForStaging in src/DataTray.Desktop/DataTray.Desktop.csproj." >&2
+            exit 1
+          fi
+          echo "No dotted directories in the payload."
+
+      # vpk derives CFBundleShortVersionString from the pack version and pads it to four components,
+      # where Apple allows at most three — so 0.8.0-nightly.99 would ship as 0.8.0.0. The repo's own
+      # Info.plist is handed over instead, with the two version fields filled in here. Note that --plist
+      # and --bundleId cannot both be given; the bundle id lives in that file.
+      - name: Prepare macOS Info.plist
+        if: matrix.platform == 'osx'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+
+          # CFBundleVersion takes the version whole — it is a build identifier and may carry the
+          # pre-release suffix. CFBundleShortVersionString is the one with the rule, so it drops the
+          # suffix and keeps at most three components.
+          SHORT=$(printf '%s' "$VERSION" | sed -E 's/[-+].*$//' | cut -d. -f1-3)
+          if ! printf '%s' "$SHORT" | grep -Eq '^[0-9]+(\.[0-9]+){0,2}$'; then
+            echo "Refusing CFBundleShortVersionString '$SHORT', derived from version '$VERSION'" >&2
             exit 1
           fi
 
-          # Best-effort ad-hoc sign (identity "-", no Developer ID) so the bundle carries a
-          # consistent signature. Non-fatal: `codesign --deep` is flaky, and the app runs
-          # fine unsigned anyway — a downloaded copy just needs `xattr -cr` (see release
-          # notes) because it is not notarized. Never let a signing hiccup fail the build.
-          codesign --force --deep --sign - "$APP" \
-            || echo "::warning::ad-hoc codesign failed; shipping unsigned bundle (needs xattr -cr on download)"
-          codesign --verify --deep --strict --verbose=2 "$APP" \
-            || echo "::warning::codesign verify reported issues (continuing)"
+          cp src/DataTray.Desktop/Info.plist Info.plist
+          plutil -replace CFBundleShortVersionString -string "$SHORT" Info.plist
+          plutil -replace CFBundleVersion -string "$VERSION" Info.plist
+          plutil -lint Info.plist
+
+      # --- Packaging ---
+
+      - name: Package (vpk)
+        shell: bash
+        env:
+          # The channel carries the RID, not just the platform: a Velopack feed carries the packages
+          # themselves, so one shared "win" feed would offer an x64 package to an arm64 install. Mirrors
+          # UpdateChannelExtensions.VelopackChannel, which is what the app asks for.
+          CHANNEL: ${{ matrix.rid }}-${{ needs.setup.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.value }}
+          RID: ${{ matrix.rid }}
+          MAIN_EXE: ${{ matrix.mainExe }}
+          ICON: ${{ matrix.icon }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          EXTRA=()
+          case "$PLATFORM" in
+            # Ad-hoc sign the bundle vpk builds. Without it the .app ships with the signature the .NET
+            # SDK left on the apphost and no seal around it — no Contents/_CodeSignature, and an
+            # identifier of "apphost". macOS reads a signature that claims resources against a bundle
+            # that has none as *damaged*, which is the one refusal a user cannot click past. Ad-hoc does
+            # not make it trusted, it makes it ordinary: the verdict drops back to "no usable
+            # signature", the state every unsigned app is in. Real trust needs the Developer ID from
+            # SE-146, and the .pkg needs --signInstallIdentity on top; this flag signs the app only.
+            osx)   EXTRA+=(--signAppIdentity - --plist Info.plist) ;;
+            linux) EXTRA+=(--categories "Development;Database") ;;
+          esac
+
+          # ${EXTRA[@]+…}, not "${EXTRA[@]}": macOS runners ship bash 3.2, where an empty array's
+          # expansion is an unbound variable under `set -u` and kills the step. The guarded form
+          # expands to nothing when the array is empty and is a no-op on bash 5.
+          vpk pack ${EXTRA[@]+"${EXTRA[@]}"} \
+            --packId DataTray \
+            --packTitle DataTray \
+            --packAuthors Lionear \
+            --packVersion "$VERSION" \
+            --packDir "publish/$RID" \
+            --mainExe "$MAIN_EXE" \
+            --icon "$ICON" \
+            --channel "$CHANNEL" \
+            --outputDir artifacts
+
+      # A second macOS download, alongside the .pkg vpk makes. Not a duplicate: Gatekeeper treats the
+      # two completely differently. A .pkg is *executed* by Installer.app, so an unsigned one is refused
+      # before its payload is touched — and there is nothing for the user to clear, because the app does
+      # not exist yet. A .dmg is passive data: it mounts, the app is dragged out, and the ordinary
+      # unsigned-app path applies. Until SE-146 buys a Developer ID this is the only macOS download that
+      # works without a terminal — and it is also the asset the pre-Velopack updater knows how to open,
+      # so the transition bridge in the release job depends on it existing.
+      #
+      # Built from the Portable.zip rather than a fresh publish, so the image carries exactly what the
+      # portable download carries, ad-hoc seal included, instead of a second signing implementation free
+      # to drift from the one above.
+      - name: Package (macOS dmg)
+        if: matrix.platform == 'osx'
+        shell: bash
+        env:
+          CHANNEL: ${{ matrix.rid }}-${{ needs.setup.outputs.channel }}
+        run: |
+          set -euo pipefail
+          ZIP="artifacts/DataTray-$CHANNEL-Portable.zip"
+          if [ ! -f "$ZIP" ]; then
+            echo "::error::expected $ZIP from the pack step" >&2
+            ls -la artifacts >&2
+            exit 1
+          fi
 
           STAGE="$(mktemp -d)"
-          cp -R "$APP" "$STAGE/"
-          ln -s /Applications "$STAGE/Applications"   # drag-to-install UX
+          # -x __MACOSX/*: zip keeps resource forks in a sibling directory, which would otherwise sit
+          # next to the app in the mounted image.
+          unzip -q "$ZIP" -d "$STAGE" -x '__MACOSX/*'
+          ln -s /Applications "$STAGE/Applications"   # the drag-to-install gesture people expect
 
-          mkdir -p artifacts
-          DMG="artifacts/DataTray-${{ steps.version.outputs.value }}-osx-arm64.dmg"
+          DMG="artifacts/DataTray-$CHANNEL.dmg"
 
           # hdiutil intermittently fails with "Resource busy" on CI: something (Spotlight indexing the
           # freshly copied staging dir is the usual suspect) still holds it when the image is built. The
@@ -348,6 +365,7 @@ jobs:
 
           echo "hdiutil failed three times" >&2
           exit 1
+
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -402,6 +420,13 @@ jobs:
           mkdir -p assets
           find dist -type f -exec cp {} assets/ \;
 
+          # vpk also writes Squirrel's legacy RELEASES feed. Nothing we ship reads it — the pre-Velopack
+          # client reads update.json and the current one reads releases.<channel>.json — and both Windows
+          # RIDs name it plain "RELEASES", so flattening four RIDs into one directory keeps whichever was
+          # copied last. Publishing a file that names one architecture's feed and silently carries the
+          # other's is worse than not publishing it, so it goes.
+          rm -f assets/RELEASES assets/RELEASES-*
+
           # Release notes are the maintainer-curated CHANGELOG.md [Unreleased] section (Keep a Changelog),
           # not the git log — the changelog is the source of truth for "what changed". An empty section
           # falls back to a neutral line so a release never ships blank notes. On a Stable build the
@@ -424,17 +449,49 @@ jobs:
           # is valid for every channel (branch builds resolve HEAD to the branch tip we built).
           TARGET=$(git rev-parse "${HEAD_REF}^{commit}")
           PUBLISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          DOWNLOAD_BASE="https://github.com/$GH_REPO/releases/download/$RELEASE_TAG"
 
-          CHANNEL="$CHANNEL" VERSION="$VERSION" COMMIT="$COMMIT" PUBLISHED_AT="$PUBLISHED_AT" \
-            ASSET_DIR=assets DOWNLOAD_BASE="$DOWNLOAD_BASE" NOTES_FILE=notes.md OUT=update.json \
-            tools/make-update-manifest.sh
+          # --- The bridge for installs still on the pre-Velopack updater (SE-245) -------------------
+          #
+          # That updater reads .../releases/download/{stable|preview|nightly}/update.json and applies
+          # what it names: a Windows installer it launches, an AppImage it swaps, a DMG it opens. All
+          # three land the user in a Velopack-managed install, because Velopack decides "am I managed"
+          # from what is on disk, not from an installation record. So the old path only has to reach a
+          # Velopack build once.
+          #
+          # It cannot be a file committed in advance: the three channels cross over at different moments
+          # (nightly tonight, preview at the next merge to main, stable at the next tag). Each one
+          # freezes itself, the first time it builds a Velopack release.
+          #
+          # The legacy-* tags are PERMANENT. Unlike the rolling channel tags, which are deleted and
+          # recreated on every run, these are never touched again — the frozen update.json points at the
+          # assets on its own tag, and recycling that tag would 404 exactly the users this exists for.
+          LEGACY_TAG="legacy-$CHANNEL"
+          if ! gh release view "$LEGACY_TAG" >/dev/null 2>&1; then
+            echo "No $LEGACY_TAG release yet — this is the transition build for '$CHANNEL'. Freezing it."
+            CHANNEL="$CHANNEL" VERSION="$VERSION" COMMIT="$COMMIT" PUBLISHED_AT="$PUBLISHED_AT" \
+              ASSET_DIR=assets \
+              DOWNLOAD_BASE="https://github.com/$GH_REPO/releases/download/$LEGACY_TAG" \
+              NOTES_FILE=notes.md OUT=update.json \
+              tools/make-update-manifest.sh
+            # Uploaded as update.json — that exact name is what the old client requests.
+            gh release create "$LEGACY_TAG" assets/* update.json \
+              --title "Transition build for the $CHANNEL channel" \
+              --notes "Frozen on purpose. The pre-Velopack in-app updater is pointed here, so installs still on the old update method can reach a Velopack build. Never delete this release or its assets." \
+              --prerelease --target "$TARGET"
+          else
+            echo "$LEGACY_TAG already exists — leaving it frozen and reusing its manifest."
+            gh release download "$LEGACY_TAG" --pattern update.json --output update.json --clobber
+          fi
+
+          # Whatever happened above, update.json now holds the FROZEN manifest, and it is republished onto
+          # this channel's rolling tag below so old installs keep finding it. The new updater does not read
+          # it at all — it reads vpk's releases.<rid>-<stream>.json from the same release.
 
           BODY="$(cat notes.md)
 
           These builds are unsigned / not notarized.
           macOS: after moving to /Applications, clear quarantine: xattr -cr \"/Applications/DataTray.app\".
-          Windows: pick the -setup.exe (per-user, no admin) or the .zip; SmartScreen may warn on first launch."
+          Windows: pick the -Setup.exe (per-user, no admin) or the -Portable.zip; SmartScreen may warn on first launch."
 
           if [ "$CHANNEL" = stable ]; then
             # Real latest release on the human-pushed v-tag (assets here). Delete only the release, never
@@ -442,11 +499,14 @@ jobs:
             gh release delete "$RELEASE_TAG" --yes || true
             gh release create "$RELEASE_TAG" assets/* \
               --title "DataTray $VERSION" --notes "$BODY" --latest --target "$TARGET"
-            # Rolling `stable` pointer: only update.json, whose asset URLs point at the v-tag release above.
+            # Rolling `stable` pointer, for the pre-Velopack updater only: it carries the frozen
+            # update.json, whose asset URLs point at the legacy-stable release rather than at the v-tag
+            # above. The Velopack updater never looks here — Stable resolves to
+            # /releases/latest/download, which is the v-tag release the assets were just uploaded to.
             gh release delete "$TAG" --yes --cleanup-tag || true
             gh release create "$TAG" update.json \
-              --title "Stable channel manifest" \
-              --notes "Update manifest for the Stable channel (points at the latest v-tag release)." \
+              --title "Stable channel manifest (pre-Velopack updater)" \
+              --notes "Update manifest read by the pre-Velopack in-app updater. It points at the frozen legacy-stable release, which is the build that carries those installs across." \
               --latest=false --target "$TARGET"
 
             # Archive the notes we just shipped: roll CHANGELOG.md's [Unreleased] into [VERSION] on the

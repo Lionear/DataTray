@@ -22,6 +22,7 @@ using DataTray.Core.Viewers;
 using DataTray.App.Viewers;
 using DataTray.Sdk;
 using DataTray.Sdk.Editing;
+using DataTray.Sdk.Extensibility;
 using DataTray.Sdk.Ui;
 using DataTray.Sdk.Viewers;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -94,7 +95,7 @@ public sealed partial class ResultSetTab(string label, EditableResultSet set) : 
 /// (Notes §5). Both modes share the editable result grid and the save-flow (Notes §8),
 /// each tab bound to its own connection.
 /// </summary>
-public partial class DocumentViewModel : ViewModelBase
+public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 {
     private readonly IDbProviderRegistry _providers;
     private readonly ConnectionService _connections;
@@ -419,6 +420,83 @@ public partial class DocumentViewModel : ViewModelBase
     public bool IsMonitorMode => Mode == DocumentMode.Monitor;
 
     public bool IsPluginMode => Mode == DocumentMode.Plugin;
+
+    // --- Query-toolbar contributions and IQueryDocument (SE-255) ------------------------------------
+
+    private IReadOnlyList<QueryToolbarContribution> _queryToolbarContributions = [];
+    private IHostUi? _pluginHostUi;
+
+    /// <summary>Stable for the lifetime of the tab — the id a contribution sees on <see cref="IQueryDocument"/>.</summary>
+    public string DocumentId { get; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>The plugin buttons this tab actually shows, rendered at the end of its mode bar. Refiltered
+    /// whenever the connection, database or mode changes.</summary>
+    public ObservableCollection<Controls.OverflowItem> PluginToolbarItems { get; } = [];
+
+    /// <summary>Hand this tab the registered query-toolbar contributions (MainViewModel does it for every
+    /// document it creates, and for the ones already open when plugins finish activating).</summary>
+    public void MountQueryToolbar(IReadOnlyList<QueryToolbarContribution> contributions, IHostUi hostUi)
+    {
+        _queryToolbarContributions = contributions;
+        _pluginHostUi = hostUi;
+        RefreshPluginToolbarItems();
+    }
+
+    private void RefreshPluginToolbarItems()
+    {
+        PluginToolbarItems.Clear();
+        if (_pluginHostUi is not { } hostUi || IsPluginMode)
+        {
+            return;
+        }
+
+        foreach (var contribution in _queryToolbarContributions)
+        {
+            // A predicate is plugin code on the UI thread: one that throws must cost its own button, not
+            // the toolbar. Same containment the activator gives Initialize.
+            try
+            {
+                if (!contribution.AppliesTo(this))
+                {
+                    continue;
+                }
+            }
+            catch (Exception ex)
+            {
+                Reported?.Invoke(OutputLevel.Error, $"{contribution.Id}: {ex.Message}");
+                continue;
+            }
+
+            var invoke = contribution.InvokeAsync;
+            PluginToolbarItems.Add(new Controls.OverflowItem(
+                contribution.Title,
+                contribution.Icon,
+                new AsyncRelayCommand(() => invoke(this, hostUi)),
+                contribution.Tooltip));
+        }
+    }
+
+    QueryDocumentKind IQueryDocument.Kind => Mode switch
+    {
+        DocumentMode.Browse => QueryDocumentKind.Browse,
+        DocumentMode.Monitor => QueryDocumentKind.Monitor,
+        // Plugin tabs have no row-0 bar, so no contribution is ever filtered against one.
+        _ => QueryDocumentKind.Query,
+    };
+
+    // SavedConnection.Values holds only the non-secret fields — secrets live in the keychain via
+    // ConnectionService — so this is the same view IManagedConnections.All() hands out.
+    ManagedConnectionInfo? IQueryDocument.Connection => Connection is { } c
+        ? new ManagedConnectionInfo(c.Id, c.Name, c.ProviderId, c.Folder, c.Values)
+        : null;
+
+    string? IQueryDocument.Database => _database;
+
+    string? IQueryDocument.SelectedSql => SelectionText.Length > 0 ? SelectionText : null;
+
+    void IQueryDocument.SetSql(string sql) => Sql = sql;
+
+    Task IQueryDocument.RunAsync(CancellationToken ct) => RunAsync(ct);
 
     /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
     /// tab is recognisable at a glance (SE-123, mockup icon-per-tabtype).</summary>
@@ -1209,6 +1287,10 @@ public partial class DocumentViewModel : ViewModelBase
     // connection/database and never touch either — this is a no-op there.
     partial void OnConnectionChanged(SavedConnection value)
     {
+        // Before the query-mode guard: a contribution scoped to a provider has to be re-evaluated on a
+        // browse or monitor tab too, and this is the assignment every Init* path goes through.
+        RefreshPluginToolbarItems();
+
         if (!IsQueryMode)
         {
             return;
@@ -1226,7 +1308,11 @@ public partial class DocumentViewModel : ViewModelBase
 
     // The database dropdown writes straight through to the same _database field ExecuteAsync/SaveAsync
     // already resolve with — browse tabs set it once via InitBrowse and never touch this property.
-    partial void OnSelectedDatabaseChanged(string? value) => _database = value;
+    partial void OnSelectedDatabaseChanged(string? value)
+    {
+        _database = value;
+        RefreshPluginToolbarItems();
+    }
 
     private async Task RefreshDatabasesAsync(SavedConnection connection)
     {

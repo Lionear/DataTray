@@ -9,9 +9,15 @@ using CommunityToolkit.Mvvm.Input;
 namespace DataTray.App.ViewModels;
 
 /// <summary>The update banner's state machine (SE-151): the download + install confirmation live in the
-/// banner itself, so it walks Available → Downloading → ReadyToInstall (or Guided for a macOS/hand-off) →
-/// (install &amp; restart), with Failed as the error branch.</summary>
-public enum BannerState { Available, Downloading, ReadyToInstall, Guided, Failed }
+/// banner itself, so it walks Available → Downloading → ReadyToInstall → (install &amp; restart), with
+/// Failed as the error branch.
+/// <para>
+/// The old <c>Guided</c> state is gone with SE-245. It existed for the two cases the previous updater
+/// could not finish by itself — the macOS DMG drag, and an asset this platform could not apply in place
+/// — and Velopack has neither: it applies every platform in place and restarts the app itself.
+/// </para>
+/// </summary>
+public enum BannerState { Available, Downloading, ReadyToInstall, Failed }
 
 /// <summary>
 /// The shared brain for the in-app updater's UI (SE-137): a single instance behind both the main-window
@@ -22,23 +28,16 @@ public enum BannerState { Available, Downloading, ReadyToInstall, Guided, Failed
 /// </summary>
 public sealed partial class AppUpdateViewModel : ViewModelBase
 {
-    private readonly AppUpdateService _service;
+    private readonly IUpdateService _service;
     private readonly IAppSettingsStore _settingsStore;
-    private readonly UpdateDownloader _downloader;
-    private readonly IUpdateApplier _applier;
 
     private UpdateCheckResult? _current;
     private CancellationTokenSource? _downloadCts;
-    private string? _downloadedPath;
 
-    public AppUpdateViewModel(
-        AppUpdateService service, IAppSettingsStore settingsStore, UpdateDownloader downloader,
-        IUpdateApplier applier, ILocalizer localizer)
+    public AppUpdateViewModel(IUpdateService service, IAppSettingsStore settingsStore, ILocalizer localizer)
     {
         _service = service;
         _settingsStore = settingsStore;
-        _downloader = downloader;
-        _applier = applier;
         Loc = localizer;
     }
 
@@ -51,14 +50,16 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     /// <summary>Set by the view: shows the changelog dialog for the offered build.</summary>
     public Func<UpdateAvailableViewModel, Task>? ChangelogRequested { get; set; }
 
-    /// <summary>Set by the view: carries out an apply result (relaunch/exit) via the desktop lifetime.</summary>
-    public Func<ApplyResult, Task>? ApplyRequested { get; set; }
-
-    /// <summary>Set by the view: opens/reveals the downloaded file in the platform shell.</summary>
-    public Func<string, Task>? OpenRequested { get; set; }
+    /// <summary>Set by the view: confirms removing the leftover pre-Velopack Windows install (SE-245).
+    /// Without a hook the removal simply does not happen — never silently, since it takes away an
+    /// install the user still has.</summary>
+    public Func<Task<bool>>? ConfirmRemoveLegacyInstall { get; set; }
 
     /// <summary>The channel of the running build — the default a fresh install follows until one is chosen.</summary>
-    public UpdateChannel RunningChannel => _service.RunningChannel;
+    public UpdateChannel RunningChannel => _service.BuildChannel;
+
+    /// <summary>Whether this install can replace itself; Settings tells the user when it cannot.</summary>
+    public UpdateSupport Support => _service.Support;
 
     [ObservableProperty]
     private bool _hasUpdate;
@@ -69,7 +70,7 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     // The inline download/install state (SE-151). The IsX bools drive which banner variant shows.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAvailable), nameof(IsDownloading), nameof(IsReadyToInstall),
-        nameof(IsGuided), nameof(IsFailed))]
+        nameof(IsFailed))]
     private BannerState _state = BannerState.Available;
 
     [ObservableProperty]
@@ -81,20 +82,82 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     public bool IsAvailable => State == BannerState.Available;
     public bool IsDownloading => State == BannerState.Downloading;
     public bool IsReadyToInstall => State == BannerState.ReadyToInstall;
-    public bool IsGuided => State == BannerState.Guided;
     public bool IsFailed => State == BannerState.Failed;
 
     /// <summary>The offered build's version, for Settings' inline status.</summary>
-    public string? OfferedVersion => _current?.Manifest?.Version;
+    public string? OfferedVersion => _current?.Build?.Version;
 
     /// <summary>Runs once at startup when auto-check is on; fetch failure is silent (offline = no banner).</summary>
     public async Task CheckOnStartupAsync(CancellationToken ct)
     {
         var settings = _settingsStore.Load();
+        DetectLegacyInstall(settings);
+
         if (settings.CheckForUpdatesOnStartup)
         {
             await CheckEffectiveAsync(settings, ct);
         }
+    }
+
+    // --- Leftover pre-Velopack Windows install (SE-245) --------------------------------------------
+
+    private string? _legacyUninstaller;
+
+    /// <summary>True when an Inno-installed DataTray is still registered beside this one. Windows only,
+    /// and only inside a managed install — from a build directory the "old" install may well be the one
+    /// the user actually uses.</summary>
+    [ObservableProperty]
+    private bool _hasLegacyInstall;
+
+    private void DetectLegacyInstall(AppSettings settings)
+    {
+        if (settings.LegacyInstallNoticeDismissed || _service.Support != UpdateSupport.Supported)
+        {
+            return;
+        }
+
+        _legacyUninstaller = LegacyWindowsInstall.FindUninstaller();
+        HasLegacyInstall = _legacyUninstaller is not null;
+    }
+
+    /// <summary>
+    /// Run the old installer's uninstaller, after an explicit yes. The notice does not come back either
+    /// way: removing it settles the question, and so does declining it.
+    /// </summary>
+    [RelayCommand]
+    private async Task RemoveLegacyInstall()
+    {
+        if (_legacyUninstaller is not { } uninstaller || ConfirmRemoveLegacyInstall is null)
+        {
+            return;
+        }
+
+        if (!await ConfirmRemoveLegacyInstall())
+        {
+            return;
+        }
+
+        try
+        {
+            LegacyWindowsInstall.Remove(uninstaller);
+            Reported?.Invoke(Loc["UpdateLegacyInstallRemoving"]);
+        }
+        catch (Exception ex)
+        {
+            Reported?.Invoke(ex.Message);
+        }
+
+        DismissLegacyInstall();
+    }
+
+    /// <summary>Wave the notice away for good — the user has seen it and chosen to keep both.</summary>
+    [RelayCommand]
+    private void DismissLegacyInstall()
+    {
+        var settings = _settingsStore.Load();
+        settings.LegacyInstallNoticeDismissed = true;
+        _settingsStore.Save(settings);
+        HasLegacyInstall = false;
     }
 
     // Floor on the configurable re-check interval, so a mis-set value can't hammer the update server.
@@ -134,7 +197,7 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     public async Task<UpdateStatus> RunCheckAsync(UpdateChannel channel, CancellationToken ct)
     {
         var result = await _service.CheckAsync(channel, ct);
-        if (result is { IsAvailable: true, Manifest: not null })
+        if (result is { IsAvailable: true, Build: not null })
         {
             Surface(result);
         }
@@ -149,23 +212,28 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
 
     /// <summary>
     /// Put a channel offer the user deliberately chose into the banner's download/install flow — including a
-    /// <b>downgrade</b>, which <see cref="CheckAsync"/> would never surface on its own.
+    /// <b>downgrade</b>, which <see cref="RunCheckAsync"/> would never surface on its own.
     ///
     /// <para>That asymmetry is deliberate rather than an inconsistency: an automatic check must never present
     /// an older build as an update, but a user who confirmed "switch and downgrade" has already been told
-    /// exactly what it means. The intent travels as this one call, so the rule in <c>IsNewer</c> stays as
-    /// strict as it was.</para>
+    /// exactly what it means. The intent travels as this one call, so the rule in the service stays as strict
+    /// as it was.</para>
     /// </summary>
-    public void SurfaceChosen(ChannelOffer offer) =>
-        Surface(UpdateCheckResult.Available(offer.Manifest, offer.Asset));
+    public void SurfaceChosen(ChannelOffer offer)
+    {
+        if (offer.Build is { } build)
+        {
+            Surface(UpdateCheckResult.Available(build));
+        }
+    }
 
     /// <summary>Builds the notes-only changelog dialog VM for the current offer (or null if there's none).</summary>
     public UpdateAvailableViewModel? BuildDialog() =>
-        _current is { Manifest: { } manifest } ? new UpdateAvailableViewModel(manifest, Loc) : null;
+        _current is { Build: { } build } ? new UpdateAvailableViewModel(build, Loc) : null;
 
     private async Task CheckEffectiveAsync(AppSettings settings, CancellationToken ct)
     {
-        var channel = settings.UpdateChannel ?? _service.RunningChannel;
+        var channel = settings.UpdateChannel ?? _service.BuildChannel;
         var result = await _service.CheckAsync(channel, ct);
 
         if (result.Status == UpdateStatus.Failed)
@@ -174,27 +242,26 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
             return;
         }
 
-        if (result is not { IsAvailable: true, Manifest: { } manifest })
+        if (result is not { IsAvailable: true, Build: { } build })
         {
             Reported?.Invoke(Loc.Get("UpdateLogUpToDate", channel));
             return;
         }
 
-        if (string.Equals(manifest.Version, settings.DismissedUpdateVersion, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(build.Version, settings.DismissedUpdateVersion, StringComparison.OrdinalIgnoreCase))
         {
-            Reported?.Invoke(Loc.Get("UpdateLogDismissed", channel, manifest.Version));
+            Reported?.Invoke(Loc.Get("UpdateLogDismissed", channel, build.Version));
             return;
         }
 
-        Reported?.Invoke(Loc.Get("UpdateLogAvailable", channel, manifest.Version));
+        Reported?.Invoke(Loc.Get("UpdateLogAvailable", channel, build.Version));
         Surface(result);
     }
 
     private void Surface(UpdateCheckResult result)
     {
         _current = result;
-        _downloadedPath = null;
-        BannerText = Loc.Get("UpdateBannerAvailable", result.Manifest!.Version);
+        BannerText = Loc.Get("UpdateBannerAvailable", result.Build!.Version);
         OnPropertyChanged(nameof(OfferedVersion));
         State = BannerState.Available;
         HasUpdate = true;
@@ -214,10 +281,10 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     [RelayCommand]
     private void Later()
     {
-        if (_current?.Manifest is { } manifest)
+        if (_current?.Build is { } build)
         {
             var settings = _settingsStore.Load();
-            settings.DismissedUpdateVersion = manifest.Version;
+            settings.DismissedUpdateVersion = build.Version;
             _settingsStore.Save(settings);
         }
 
@@ -226,12 +293,19 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
 
     // --- Inline download + install (SE-151) --------------------------------------------------------
 
-    /// <summary>Download the offer's asset (SHA-256 verified) inline in the banner. Success → ready to
-    /// install where in-place is possible, else a guided hand-off (folder opened). Cancel → back to Available.</summary>
+    /// <summary>
+    /// Download the offered build inline in the banner, then wait for the user to confirm the restart.
+    /// Cancel → back to Available.
+    /// <para>
+    /// The SE-153 re-fetch is gone with SE-245: it existed because a rolling asset URL could 404 between
+    /// the check and the download, and the updater now resolves the package through its own feed rather
+    /// than a URL we handed it.
+    /// </para>
+    /// </summary>
     [RelayCommand]
     private async Task Download()
     {
-        if (_current is not { Asset: { } asset, Manifest: { } manifest })
+        if (_current?.Build is not { } build)
         {
             return;
         }
@@ -240,65 +314,13 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
         var ct = _downloadCts.Token;
         State = BannerState.Downloading;
         DownloadProgress = 0;
-        StatusMessage = Loc.Get("UpdateBannerDownloading", OfferedVersion ?? "");
+        StatusMessage = Loc.Get("UpdateBannerDownloading", build.Version);
 
-        var progress = new Progress<double>(p => DownloadProgress = p);
         try
         {
-            var outcome = await _downloader.DownloadAsync(asset, progress, ct);
-            var offerAsset = asset;
-            var refreshed = false;
-
-            // SE-153: a rotating nightly asset can expire between the check and the download (404/410). Re-fetch
-            // update.json once for the current asset + checksum and retry — capped at a single retry (no loop).
-            if (outcome is { Success: false, AssetUnavailable: true })
-            {
-                var settings = _settingsStore.Load();
-                var channel = settings.UpdateChannel ?? _service.RunningChannel;
-                var fresh = await _service.CheckAsync(channel, ct);
-
-                if (fresh.Status == UpdateStatus.UpToDate)
-                {
-                    // The offered build was superseded and the running build is now newest — nothing to install.
-                    StatusMessage = Loc["UpdateBannerUpToDate"];
-                    HasUpdate = false;
-                    return;
-                }
-
-                if (fresh is { IsAvailable: true, Asset: { } freshAsset, Manifest: { } freshManifest })
-                {
-                    refreshed = !string.Equals(freshManifest.Version, manifest.Version, StringComparison.OrdinalIgnoreCase);
-                    offerAsset = freshAsset;
-                    _current = _current with { Manifest = freshManifest, Asset = freshAsset };
-                    OnPropertyChanged(nameof(OfferedVersion));
-                    if (refreshed) BannerText = Loc.Get("UpdateBannerAvailable", freshManifest.Version);
-                    outcome = await _downloader.DownloadAsync(freshAsset, progress, ct);
-                }
-                // else the re-fetch failed (offline) — fall through with the original 404 outcome.
-            }
-
-            if (outcome is not { Success: true, FilePath: { } path })
-            {
-                State = BannerState.Failed;
-                StatusMessage = outcome.Error ?? Loc["UpdateDialogDownloadFailed"];
-                return;
-            }
-
-            _downloadedPath = path;
-            if (_applier.CanApplyInPlace(offerAsset))
-            {
-                State = BannerState.ReadyToInstall;
-                StatusMessage = refreshed
-                    ? Loc.Get("UpdateBannerRefetched", OfferedVersion ?? "")
-                    : Loc.Get("UpdateBannerReady", OfferedVersion ?? "");
-            }
-            else
-            {
-                // No in-place install for this asset/platform — reveal the file for the user to run.
-                State = BannerState.Guided;
-                StatusMessage = Loc["UpdateDialogDownloaded"];
-                if (OpenRequested is not null) await OpenRequested(path);
-            }
+            await _service.DownloadAsync(new Progress<double>(p => DownloadProgress = p), ct);
+            State = BannerState.ReadyToInstall;
+            StatusMessage = Loc.Get("UpdateBannerReady", build.Version);
         }
         catch (OperationCanceledException)
         {
@@ -323,45 +345,29 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     [RelayCommand]
     private Task Retry() => Download();
 
-    /// <summary>Install the downloaded build in place and let the host relaunch/exit. A guided (macOS) or
-    /// failed apply keeps the app running with a status message.</summary>
+    /// <summary>
+    /// Apply the downloaded build and let the updater relaunch the app. On success this does not return —
+    /// the process is replaced — so reaching the line after it means the apply failed, and that is
+    /// reported rather than left as an app that quietly stayed on the old build.
+    /// </summary>
     [RelayCommand]
     private async Task InstallAndRestart()
     {
-        if (_downloadedPath is not { } path || _current?.Asset is not { } asset)
+        if (_current?.Build is null)
         {
             return;
         }
 
         StatusMessage = Loc["UpdateDialogInstalling"];
-        var result = await _applier.ApplyAsync(path, asset, CancellationToken.None);
 
-        if (result.Action == ApplyAction.Failed)
+        try
+        {
+            await _service.ApplyAndRestartAsync();
+        }
+        catch (Exception ex)
         {
             State = BannerState.Failed;
-            StatusMessage = result.Message ?? Loc["UpdateDialogDownloadFailed"];
-            return;
-        }
-
-        if (result.Action == ApplyAction.Guided)
-        {
-            State = BannerState.Guided;
-            StatusMessage = result.Message ?? Loc["UpdateDialogGuided"];
-        }
-
-        if (ApplyRequested is not null)
-        {
-            await ApplyRequested(result);
-        }
-    }
-
-    /// <summary>Reveal the downloaded file in the platform shell (the guided hand-off's action).</summary>
-    [RelayCommand]
-    private async Task OpenFolder()
-    {
-        if (_downloadedPath is { } path && OpenRequested is not null)
-        {
-            await OpenRequested(path);
+            StatusMessage = ex.Message;
         }
     }
 }

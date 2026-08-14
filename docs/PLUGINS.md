@@ -60,6 +60,13 @@ the only assembly a plugin references from this repository.
 | `plugins/Tools.UniversalBackup` | tool | Full `IToolPlugin` example (streaming backup/restore); also implements `IPluginSettings` (default backup folder). |
 | `plugins/Providers.Template` | provider | Debug-only reference example implementing **every** capability: `IPluginSettings` (Route A, all field types), `IShortcutContributor` (two shortcuts). The place to copy from. |
 
+## Design records
+
+- [Toolbar architecture](toolbar-architecture.md) — why the application toolbar
+  is a persisted user layout, why overflow is measured rather than counted, and
+  what a plugin may and may not do in either toolbar. The plugin-facing half is
+  in [capabilities](plugins/capabilities.md#toolbar-buttons-itoolbarplugin--iquerytoolbarplugin).
+
 ## Future plugin types
 
 The manifest's `type` field is a discriminator, so more plugin kinds can be added

@@ -17,6 +17,7 @@ using DataTray.Core.Session;
 using DataTray.Core.Settings;
 using DataTray.Core.Shortcuts;
 using DataTray.Core.Store;
+using DataTray.Core.Toolbar;
 using DataTray.Core.Tools;
 using DataTray.Core.Update;
 using DataTray.Core.Viewers;
@@ -242,14 +243,11 @@ public static class AppServices
         services.AddTransient<PluginStoreViewModel>();
         services.AddSingleton<Func<PluginStoreViewModel>>(sp => sp.GetRequiredService<PluginStoreViewModel>);
 
-        // In-app updater (SE-137): the same shared HttpClient fetches each channel's update.json and the
-        // chosen asset. The running version is the informational stamp About also reads.
-        services.AddSingleton<IUpdateManifestSource>(sp =>
-            new HttpUpdateManifestSource(sp.GetRequiredService<HttpClient>()));
-        services.AddSingleton(sp =>
-            new AppUpdateService(sp.GetRequiredService<IUpdateManifestSource>(), RunningVersion()));
-        services.AddSingleton(sp => new UpdateDownloader(sp.GetRequiredService<HttpClient>()));
-        services.AddSingleton<IUpdateApplier>(new UpdateApplier());
+        // In-app updater (SE-137, on Velopack since SE-245): checking, downloading and applying are one
+        // service now, because the packaging tool owns all three — an installer built separately from the
+        // feed is an installer the updater cannot follow. The running version passed in is the
+        // informational stamp About also reads, used where there is no installed package to ask.
+        services.AddSingleton<IUpdateService>(new VelopackUpdateService(RunningVersion()));
         // Singleton: one shared instance behind the main-window banner and the Settings check, so a manual
         // check lights the same banner and offers the same "What's new" action.
         services.AddSingleton<AppUpdateViewModel>();
@@ -282,6 +280,11 @@ public static class AppServices
         services.AddSingleton<IKeymapStore>(new JsonKeymapStore());
         var pluginShortcuts = CollectPluginShortcuts(registrations, tools);
         services.AddSingleton(sp => new KeymapService(sp.GetRequiredService<IKeymapStore>(), pluginShortcuts));
+
+        // The user's toolbar arrangement (toolbar.json), beside the keymap and modelled on it: a catalog
+        // of everything addressable, a persisted user layer over it, and a settings pane over both.
+        services.AddSingleton<IToolbarLayoutStore>(new JsonToolbarLayoutStore());
+        services.AddSingleton(sp => new ToolbarLayoutService(sp.GetRequiredService<IToolbarLayoutStore>()));
 
         // Query history (searchable, re-runnable) beside connections.json.
         services.AddSingleton<IQueryHistoryStore>(new JsonQueryHistoryStore());
