@@ -53,6 +53,14 @@ public sealed class OverflowPanel : Panel
     public static readonly AttachedProperty<string?> OverflowDetailProperty =
         AvaloniaProperty.RegisterAttached<OverflowPanel, Control, string?>("OverflowDetail");
 
+    /// <summary>
+    /// The flyout rows for a child that is itself a group of actions — an <c>ItemsControl</c> rendering a
+    /// plugin's contributions, say. The group overflows as one child (it is measured as one), but it lands
+    /// in the flyout as its individual actions rather than a single useless "plugin actions" row.
+    /// </summary>
+    public static readonly AttachedProperty<IEnumerable<OverflowItem>?> OverflowGroupProperty =
+        AvaloniaProperty.RegisterAttached<OverflowPanel, Control, IEnumerable<OverflowItem>?>("OverflowGroup");
+
     public static readonly StyledProperty<double> SpacingProperty =
         AvaloniaProperty.Register<OverflowPanel, double>(nameof(Spacing), 8d);
 
@@ -93,6 +101,11 @@ public sealed class OverflowPanel : Panel
     public static string? GetOverflowDetail(Control control) => control.GetValue(OverflowDetailProperty);
 
     public static void SetOverflowDetail(Control control, string? value) => control.SetValue(OverflowDetailProperty, value);
+
+    public static IEnumerable<OverflowItem>? GetOverflowGroup(Control control) => control.GetValue(OverflowGroupProperty);
+
+    public static void SetOverflowGroup(Control control, IEnumerable<OverflowItem>? value) =>
+        control.SetValue(OverflowGroupProperty, value);
 
     /// <summary>Gap between two visible children.</summary>
     public double Spacing
@@ -198,7 +211,8 @@ public sealed class OverflowPanel : Panel
             // Read after measuring: a ContentPresenter only realises its templated child during its own
             // measure pass, and that child is where an ItemTemplate puts the attached properties.
             var descriptor = Descriptor(child);
-            pinned[i] = GetIsPinned(descriptor) || GetOverflowHeader(descriptor) is null;
+            pinned[i] = GetIsPinned(descriptor)
+                || (GetOverflowHeader(descriptor) is null && GetOverflowGroup(descriptor) is null);
         }
 
         var fits = Fit(widths, pinned, Spacing, availableSize.Width);
@@ -217,6 +231,12 @@ public sealed class OverflowPanel : Panel
 
             _overflowed.Add(children[i]);
             var descriptor = Descriptor(children[i]);
+            if (GetOverflowGroup(descriptor) is { } group)
+            {
+                items.AddRange(group);
+                continue;
+            }
+
             items.Add(new OverflowItem(
                 GetOverflowHeader(descriptor) ?? string.Empty,
                 GetOverflowIcon(descriptor),

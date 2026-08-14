@@ -27,6 +27,21 @@
         </Template>
       </Setter>
     </ControlTheme>
+    <!-- A plugin's query-toolbar button (SE-255). The hairline is the ItemsControl's own left border, so
+         the separator overflows together with the group instead of being left stranded on the bar. -->
+    <DataTemplate x:Key="PluginToolbarButtonTemplate">
+      <Button Command="{Binding Command}" ToolTip.Tip="{Binding Detail}">
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <Path Width="12" Height="12" Stretch="Uniform" Data="{Binding Icon}"
+                Stroke="{DynamicResource SETextPrimaryBrush}" StrokeThickness="1.4"
+                StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Header}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </DataTemplate>
+    <ItemsPanelTemplate x:Key="PluginToolbarPanel">
+      <StackPanel Orientation="Horizontal" Spacing="8" />
+    </ItemsPanelTemplate>
   </UserControl.Resources>
   <UserControl.Styles>
     <!-- Flat tabs matching the document-tab strip (Theme.axaml TabItem): plain text, no button
@@ -110,6 +125,16 @@
         <ComboBox MinWidth="140" ItemsSource="{Binding AvailableDatabases}"
                   SelectedItem="{Binding SelectedDatabase}"
                   IsVisible="{Binding HasDatabasePicker}" ctl:OverflowPanel.IsPinned="True" />
+        <!-- Plugin contributions (SE-255), filtered per document by their own AppliesTo predicate. One
+             child, so the group overflows as a unit — but it lands in the flyout as its individual
+             actions, via the OverflowGroup attached property. -->
+        <ItemsControl ItemsSource="{Binding PluginToolbarItems}"
+                      IsVisible="{Binding PluginToolbarItems.Count}"
+                      ItemsPanel="{StaticResource PluginToolbarPanel}"
+                      ItemTemplate="{StaticResource PluginToolbarButtonTemplate}"
+                      BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
+                      Padding="8,0,0,0"
+                      ctl:OverflowPanel.OverflowGroup="{Binding PluginToolbarItems}" />
       </ctl:OverflowPanel>
       <Button Grid.Column="1" Classes="Subtle" Padding="7,4" Margin="6,0,0,0" VerticalAlignment="Center"
               IsVisible="{Binding #QueryBar.HasOverflow}" ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">
@@ -141,6 +166,16 @@
           <Button Content="{Binding Loc[Apply]}" Command="{Binding ApplyFilterCommand}" IsDefault="True"
                   ctl:OverflowPanel.OverflowHeader="{Binding Loc[Apply]}"
                   ctl:OverflowPanel.OverflowCommand="{Binding ApplyFilterCommand}" />
+          <!-- Plugin contributions (SE-255), filtered per document by their own AppliesTo predicate. One
+               child, so the group overflows as a unit — but it lands in the flyout as its individual
+               actions, via the OverflowGroup attached property. -->
+          <ItemsControl ItemsSource="{Binding PluginToolbarItems}"
+                        IsVisible="{Binding PluginToolbarItems.Count}"
+                        ItemsPanel="{StaticResource PluginToolbarPanel}"
+                        ItemTemplate="{StaticResource PluginToolbarButtonTemplate}"
+                        BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
+                        Padding="8,0,0,0"
+                        ctl:OverflowPanel.OverflowGroup="{Binding PluginToolbarItems}" />
         </ctl:OverflowPanel>
         <Button Grid.Column="1" Classes="Subtle" Padding="7,4" Margin="6,0,0,0" VerticalAlignment="Center"
                 IsVisible="{Binding #BrowseBar.HasOverflow}" ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">
@@ -196,6 +231,16 @@
         <CheckBox Content="{Binding Loc[MonitorBlockingOnly]}" IsChecked="{Binding BlockingOnly}"
                   VerticalAlignment="Center" IsVisible="{Binding HasBlockingFilter}"
                   ctl:OverflowPanel.IsPinned="True" />
+        <!-- Plugin contributions (SE-255), filtered per document by their own AppliesTo predicate. One
+             child, so the group overflows as a unit — but it lands in the flyout as its individual
+             actions, via the OverflowGroup attached property. -->
+        <ItemsControl ItemsSource="{Binding PluginToolbarItems}"
+                      IsVisible="{Binding PluginToolbarItems.Count}"
+                      ItemsPanel="{StaticResource PluginToolbarPanel}"
+                      ItemTemplate="{StaticResource PluginToolbarButtonTemplate}"
+                      BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
+                      Padding="8,0,0,0"
+                      ctl:OverflowPanel.OverflowGroup="{Binding PluginToolbarItems}" />
       </ctl:OverflowPanel>
       <Button Grid.Column="1" Classes="Subtle" Padding="7,4" Margin="6,0,0,0" VerticalAlignment="Center"
               IsVisible="{Binding #MonitorBar.HasOverflow}" ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">

@@ -24,6 +24,7 @@ using DataTray.Core.Shortcuts;
 using DataTray.Core.Toolbar;
 using DataTray.Core.Tools;
 using DataTray.Sdk;
+using DataTray.Sdk.Extensibility;
 using DataTray.Sdk.Localization;
 using DataTray.Sdk.Scripting;
 using DataTray.Sdk.Tools;
@@ -201,12 +202,16 @@ public partial class MainViewModel : ViewModelBase
     /// whenever Settings ▸ Toolbar saves, so a change lands without a restart.</summary>
     public ObservableCollection<ToolbarActionViewModel> ToolbarActions { get; } = [];
 
+    // Plugin-contributed toolbar actions, keyed by their namespaced id. Mounted after activation, so the
+    // strip is rebuilt around them rather than rebuilt from scratch.
+    private readonly Dictionary<string, ToolbarActionViewModel> _pluginToolbarActions = [];
+
     private void BuildToolbar()
     {
         ToolbarActions.Clear();
         foreach (var entry in _toolbarLayout.VisibleActions())
         {
-            // Host entries carry a resx key; plugin entries (SE-255 part 2) arrive already localized.
+            // Host entries carry a resx key; plugin entries arrive already localized by the plugin.
             if (ToolbarActionFor(entry) is { } action)
             {
                 ToolbarActions.Add(action);
@@ -220,8 +225,37 @@ public partial class MainViewModel : ViewModelBase
             new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), NewQueryTabCommand, isAccent: true),
         ToolbarCatalog.Ids.GoToObject =>
             new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), ToggleSearchCommand, detail: "⌘K"),
-        _ => null,
+        _ => _pluginToolbarActions.GetValueOrDefault(entry.Id),
     };
+
+    /// <summary>
+    /// Mount a plugin's application-toolbar contribution (SE-255 §2.5). The action joins the catalog, so it
+    /// appears in Settings ▸ Toolbar and — being absent from the saved layout — shows up straight away.
+    /// </summary>
+    public void AddToolbarAction(string id, string title, string pluginTitle, Geometry? icon, string? tooltip, Func<Task> invoke)
+    {
+        _pluginToolbarActions[id] = new ToolbarActionViewModel(
+            id, title, icon, new AsyncRelayCommand(invoke), detail: pluginTitle, tooltip: tooltip);
+        ToolbarIcons.Register(id, icon);
+        _toolbarLayout.RegisterPluginActions([new ToolbarActionEntry(id, title, ToolbarActionSource.Plugin, pluginTitle)]);
+    }
+
+    // --- Query-window toolbar contributions (SE-255 §2.5) ------------------------------------------
+
+    private IReadOnlyList<QueryToolbarContribution> _queryToolbarContributions = [];
+    private IHostUi? _pluginHostUi;
+
+    /// <summary>Hand the registered query-toolbar contributions to every document, now and in future. Tabs
+    /// restored at startup exist before plugins finish activating, so they are caught up here.</summary>
+    public void MountQueryToolbarContributions(IReadOnlyList<QueryToolbarContribution> contributions, IHostUi hostUi)
+    {
+        _queryToolbarContributions = contributions;
+        _pluginHostUi = hostUi;
+        foreach (var document in Documents)
+        {
+            document.MountQueryToolbar(contributions, hostUi);
+        }
+    }
 
 
     // Reopen the query tabs from the previous session (skipping any whose connection no longer exists).
@@ -2993,6 +3027,11 @@ public partial class MainViewModel : ViewModelBase
         document.Reported += (level, message) => ReportOutput(level, document.Connection?.Name, message);
         // A query auto-connects outside the tree's connect flow, so reflect that on the connection's status dot.
         document.ConnectionActivity += SetConnectionState;
+        if (_pluginHostUi is { } hostUi)
+        {
+            document.MountQueryToolbar(_queryToolbarContributions, hostUi);
+        }
+
         return document;
     }
 

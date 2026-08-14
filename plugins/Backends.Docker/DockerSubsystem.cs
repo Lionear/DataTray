@@ -15,7 +15,8 @@ namespace DataTray.Backends.Docker;
 /// a docked "Containers" panel). It also declares <c>process</c> (it can shell out to <c>docker</c>).
 /// It dogfoods every SE-164 seam: storage, connections, panel, menu (create flow) and background (live status).
 /// </summary>
-public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugin, IBackgroundPlugin, IConnectionMenuPlugin
+public sealed class DockerSubsystem
+    : ISubsystemPlugin, IPanelPlugin, IMenuPlugin, IBackgroundPlugin, IConnectionMenuPlugin, IToolbarPlugin
 {
     private IPluginRuntimeContext? _context;
     private IContainerRegistryStore? _registry;
@@ -219,6 +220,18 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
 
     public IReadOnlyList<MenuContribution> MenuItems =>
         [new MenuContribution("new-container", "New Local Container…", ShowCreateDialogAsync)];
+
+    // --- IToolbarPlugin (SE-255 toolbar seam) -----------------------------------------------------------
+    // The same action as the Tools-menu item, one click closer. It is only a proposal: whether the button is
+    // shown, and where it sits, is the user's (Settings ▸ Toolbar). No DefaultGesture — suggesting a key for
+    // a plugin that most installs do not have is how keymaps get crowded; it is bindable there regardless.
+
+    public IReadOnlyList<ToolbarContribution> ToolbarItems =>
+        [new ToolbarContribution("new-container", "New container", ShowCreateDialogAsync)
+        {
+            Icon = Icons.Container,
+            Tooltip = "New Local Container…",
+        }];
 
     // --- IConnectionMenuPlugin (SE-164 connection-menu seam) --------------------------------------------
 
