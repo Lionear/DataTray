@@ -17,6 +17,7 @@ using DataTray.Core.Session;
 using DataTray.Core.Settings;
 using DataTray.Core.Shortcuts;
 using DataTray.Core.Store;
+using DataTray.Core.Toolbar;
 using DataTray.Core.Tools;
 using DataTray.Core.Update;
 using DataTray.Core.Viewers;
@@ -279,6 +280,11 @@ public static class AppServices
         services.AddSingleton<IKeymapStore>(new JsonKeymapStore());
         var pluginShortcuts = CollectPluginShortcuts(registrations, tools);
         services.AddSingleton(sp => new KeymapService(sp.GetRequiredService<IKeymapStore>(), pluginShortcuts));
+
+        // The user's toolbar arrangement (toolbar.json), beside the keymap and modelled on it: a catalog
+        // of everything addressable, a persisted user layer over it, and a settings pane over both.
+        services.AddSingleton<IToolbarLayoutStore>(new JsonToolbarLayoutStore());
+        services.AddSingleton(sp => new ToolbarLayoutService(sp.GetRequiredService<IToolbarLayoutStore>()));
 
         // Query history (searchable, re-runnable) beside connections.json.
         services.AddSingleton<IQueryHistoryStore>(new JsonQueryHistoryStore());

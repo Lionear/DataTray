@@ -1161,6 +1161,21 @@
   <data name="ConfirmDeleteConnection" xml:space="preserve">
     <value>Connectie "{0}" verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
   </data>
+  <data name="SettingsToolbar" xml:space="preserve">
+    <value>Werkbalk</value>
+  </data>
+  <data name="ToolbarDesc" xml:space="preserve">
+    <value>Sleep om te herschikken. Vink uit om te verbergen — verborgen acties blijven bereikbaar via de menu's en kunnen nog steeds een sneltoets krijgen.</value>
+  </data>
+  <data name="ToolbarResetDefaults" xml:space="preserve">
+    <value>Terug naar standaard</value>
+  </data>
+  <data name="ToolbarSavedTo" xml:space="preserve">
+    <value>Opgeslagen in toolbar.json</value>
+  </data>
+  <data name="ToolbarOverflow" xml:space="preserve">
+    <value>Meer acties</value>
+  </data>
   <data name="SettingsKeyboard" xml:space="preserve">
     <value>Toetsenbord</value>
   </data>

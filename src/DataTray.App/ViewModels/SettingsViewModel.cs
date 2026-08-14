@@ -11,6 +11,7 @@ using DataTray.Core.Providers;
 using DataTray.Core.Settings;
 using DataTray.Core.Shortcuts;
 using DataTray.Core.Store;
+using DataTray.Core.Toolbar;
 using DataTray.Core.Tools;
 using DataTray.Sdk;
 using DataTray.Sdk.Formatting;
@@ -41,6 +42,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IDbProviderRegistry _providers;
     private readonly IToolRegistry _tools;
     private readonly KeymapService _keymap;
+    private readonly ToolbarLayoutService _toolbarLayout;
     private readonly Mcp.Hosting.McpService _mcp;
     private readonly Core.Logging.IQueryLog _queryLog;
     private readonly Core.Security.MasterPasswordService _masterPassword;
@@ -705,6 +707,7 @@ public partial class SettingsViewModel : ViewModelBase
         IDbProviderRegistry providers,
         IToolRegistry tools,
         KeymapService keymap,
+        ToolbarLayoutService toolbarLayout,
         Mcp.Hosting.McpService mcp,
         Core.Logging.IQueryLog queryLog,
         Core.Security.MasterPasswordService masterPassword,
@@ -719,6 +722,7 @@ public partial class SettingsViewModel : ViewModelBase
         _providers = providers;
         _tools = tools;
         _keymap = keymap;
+        _toolbarLayout = toolbarLayout;
         _mcp = mcp;
         _queryLog = queryLog;
         _masterPassword = masterPassword;
@@ -787,6 +791,8 @@ public partial class SettingsViewModel : ViewModelBase
                 "timeout page pagina rows rijen results resultaten browse confirm bevestig paging pagineren next prev volgende vorige copy kopieer html tabel table opmaak style stijl kleur colour export"),
             new SettingsCategory("QueryLog", localizer["SettingsQueryLog"], NodeIcons.SettingsQuery,
                 "query log audit logging"),
+            new SettingsCategory("Toolbar", localizer["SettingsToolbar"], NodeIcons.SettingsToolbar,
+                "toolbar werkbalk buttons knoppen order volgorde hide verberg overflow"),
             new SettingsCategory("Keyboard", localizer["SettingsKeyboard"], NodeIcons.SettingsKeyboard,
                 "keyboard toetsenbord shortcuts sneltoetsen keybindings gestures"),
             new SettingsCategory("Mcp", localizer["SettingsMcp"], NodeIcons.SettingsPlugins,
@@ -804,6 +810,7 @@ public partial class SettingsViewModel : ViewModelBase
         LoadFromStore();
         BuildPluginCatalog();
         BuildShortcutCatalog();
+        BuildToolbarList(_toolbarLayout.Resolve());
         LoadManualSources();
         _ = RefreshDiscoverySourcesAsync();
 
@@ -1080,6 +1087,45 @@ public partial class SettingsViewModel : ViewModelBase
         RecomputeShortcutConflicts();
     }
 
+    // --- Settings ▸ Toolbar (SE-255) ---------------------------------------------------------------
+
+    /// <summary>The toolbar in its edited order: one row per catalog entry, ticked when it is shown.
+    /// Persisted on Apply like everything else in this window, so Cancel really cancels.</summary>
+    public ObservableCollection<ToolbarSettingItem> ToolbarItems { get; } = [];
+
+    private void BuildToolbarList(IReadOnlyList<ToolbarLayoutItem> layout)
+    {
+        ToolbarItems.Clear();
+        foreach (var item in layout)
+        {
+            if (_toolbarLayout.Entry(item.Id) is not { } entry)
+            {
+                continue;
+            }
+
+            // A host entry's Title is a resx key; a plugin localized its own before handing it over.
+            var label = entry.Source == ToolbarActionSource.Host ? Loc[entry.Title] : entry.Title;
+            ToolbarItems.Add(new ToolbarSettingItem(
+                entry.Id, label, entry.PluginTitle, ToolbarIcons.For(entry), item.Visible));
+        }
+    }
+
+    /// <summary>Move a row (drag-reorder from the view, or Alt+Up/Alt+Down).</summary>
+    public void MoveToolbarItem(int from, int to)
+    {
+        if (from == to || from < 0 || to < 0 || from >= ToolbarItems.Count || to >= ToolbarItems.Count)
+        {
+            return;
+        }
+
+        ToolbarItems.Move(from, to);
+    }
+
+    [RelayCommand]
+    private void ResetToolbar() =>
+        // Catalog order, everything visible — the same fallback an install with no toolbar.json gets.
+        BuildToolbarList([.. _toolbarLayout.Catalog.Select(e => new ToolbarLayoutItem(e.Id, true))]);
+
     private void OnShortcutChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ShortcutItem.Gesture))
@@ -1256,6 +1302,10 @@ public partial class SettingsViewModel : ViewModelBase
         // Keyboard shortcuts: hand the whole edited map to the keymap service (persists diffs vs. default
         // and raises Changed so the main window rebinds live).
         _keymap.Apply(_allShortcuts.ToDictionary(s => s.Id, s => s.Gesture));
+
+        // Toolbar order + visibility; the service folds back any id whose plugin is currently absent and
+        // raises Changed so the strip rebuilds without a restart.
+        _toolbarLayout.Apply([.. ToolbarItems.Select(i => new ToolbarLayoutItem(i.Id, i.IsShown))]);
 
         ThemeApplier.Apply(Theme);
         if (Language is { Length: > 0 } language)
