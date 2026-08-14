@@ -2995,6 +2995,11 @@ public partial class MainViewModel : ViewModelBase
         EvaluatePluginRestart();
     }
 
+    /// <summary>Jump straight to Settings ▸ Toolbar from the strip's own gear (SE-255) — the toolbar is the
+    /// one setting you want to change while looking at it.</summary>
+    [RelayCommand]
+    private Task CustomizeToolbar() => OpenSettingsOnAsync("Toolbar");
+
     // Opens Settings pre-navigated to a given category key. Used by the Plugin Store's deep-link.
     private async Task OpenSettingsOnAsync(string categoryKey)
     {

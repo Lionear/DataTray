@@ -408,6 +408,24 @@ awkward for exactly the operation people actually do — nudging one button left
 Everything is hideable, including "New query tab". Nothing becomes unreachable by
 hiding it: the actions remain in the menus and remain bindable to a key (§3.4).
 
+**Getting there: a gear at the end of the strip.** The toolbar is the one setting a
+user wants to change while looking at it, so it gets its own way in — a small button
+docked right, between the overflow "…" and the update badge, that opens Settings
+pre-navigated to this pane. It is what VS Code and every browser do, and it is the
+difference between "I could rearrange this" and "I would have to go and find where
+that lives".
+
+It is deliberately **not** a catalog entry, so it cannot be reordered or hidden.
+That is not a special case begging to be generalised — it is the one control whose
+whole job is to reach the place where hiding is undone. An action that can be hidden
+cannot also be the way back. The same reasoning is why it is not in the overflow
+flyout either: it sits outside the measured strip and is always present, at the cost
+of a fixed ~29 px that the overflow budget never sees.
+
+The glyph is the same one the Settings rail uses for this pane
+(`Icons.SlidersHorizontal`), not a gear: the vendored Lucide set carries no cog, and
+showing the icon of the pane you land on beats introducing a second settings symbol.
+
 ### 3.4 Every toolbar action is a bindable command
 
 Because catalog entries already have stable ids, wiring them into the existing
@@ -753,6 +771,12 @@ with how every configurable toolbar behaves, and the reset button is one click, 
 it is the first setting in the app that lets a user remove a primary action from
 view. Worth a look at the settings pane before it ships rather than a rule in
 advance.
+
+*Partly answered by the gear in §3.3.* The sharp end of that question was not
+"can a user hide something they want" but "can they find their way back". With a
+permanent, unhideable entry point at the end of the strip, undoing a mistake is one
+click from where the mistake is visible, rather than a hunt through Settings. What
+remains is a judgement call about the pane itself, which is still worth Rick's eyes.
 
 **What the 0.8.0 constraint changed.** Checking the design against "no version bump"
 turned up a factual error in it: §2.4 claimed the SE-164 seams added contribution
