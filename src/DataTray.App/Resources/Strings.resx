@@ -1176,6 +1176,9 @@
   <data name="ToolbarOverflow" xml:space="preserve">
     <value>More actions</value>
   </data>
+  <data name="ToolbarCustomize" xml:space="preserve">
+    <value>Customise toolbar…</value>
+  </data>
   <data name="SettingsKeyboard" xml:space="preserve">
     <value>Keyboard</value>
   </data>

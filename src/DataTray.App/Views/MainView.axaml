@@ -209,6 +209,18 @@
                          FontWeight="SemiBold" Foreground="{DynamicResource SEStatusWaitingBrush}" />
             </StackPanel>
           </Button>
+          <!-- Customise (SE-255): the toolbar is the one setting you want to change while looking at it, so
+               it gets its own way in rather than only the long way round through Settings. Deliberately not
+               a catalog entry — an action that can be hidden cannot be the way back to unhiding things. -->
+          <Button DockPanel.Dock="Right" Classes="Subtle" Padding="7,4" Margin="6,0,0,0"
+                  VerticalAlignment="Center"
+                  Command="{Binding CustomizeToolbarCommand}"
+                  ToolTip.Tip="{Binding Loc[ToolbarCustomize]}">
+            <Path Width="15" Height="15" Stretch="Uniform" Data="{x:Static vm:NodeIcons.SettingsToolbar}"
+                  Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.4"
+                  StrokeJoin="Round" StrokeLineCap="Round" />
+          </Button>
+
           <!-- Overflow (SE-255 §4): whatever the strip cannot fit at this window width lands in this
                flyout, in the user's order — so what they put first survives longest. Collapsed while
                everything fits, which is what keeps the wide case free of chrome. -->
