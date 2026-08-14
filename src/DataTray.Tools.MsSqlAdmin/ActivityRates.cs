@@ -174,4 +174,40 @@ internal static class ActivityRates
 
     /// <summary>A duration in milliseconds, rendered the way SSMS's Average Duration column reads.</summary>
     public static string Milliseconds(double ms) => Number(ms) + " ms";
+
+    /// <summary>
+    /// Orders two grid cells the way a header click should: numbers by value, so 9 comes before 10 and
+    /// 1,234 after both, and everything else as text.
+    /// </summary>
+    /// <remarks>
+    /// The cells arrive already formatted for display, so the parse has to accept what
+    /// <see cref="Number"/> and <see cref="Milliseconds"/> put there — the culture's thousands separator,
+    /// and a unit appended after a space ("200 ms"), which is otherwise a column of numbers sorted as
+    /// text with 1,234 ms filed between 1 ms and 2 ms.
+    ///
+    /// <para>Numbers sort ahead of text rather than being compared against it. A column can hold both (an
+    /// empty "Blocked By" beside a session id), and comparing each pair by whichever rule happens to fit
+    /// is not a total order: 9 &lt; 10 as numbers while "1x" falls between them as text, and a sort given
+    /// contradictory answers is entitled to throw — which would leave a header click doing nothing at
+    /// all.</para>
+    /// </remarks>
+    public static int CompareCells(string a, string b)
+    {
+        var left = TryNumber(a, out var x);
+        var right = TryNumber(b, out var y);
+
+        if (left && right)
+        {
+            return x.CompareTo(y);
+        }
+
+        return left == right
+            ? string.Compare(a, b, StringComparison.CurrentCultureIgnoreCase)
+            : left ? -1 : 1;
+    }
+
+    private static bool TryNumber(string cell, out double value) =>
+        double.TryParse(cell, NumberStyles.Any, CultureInfo.CurrentCulture, out value)
+        || (cell.IndexOf(' ') is > 0 and var unit
+            && double.TryParse(cell.AsSpan(0, unit), NumberStyles.Any, CultureInfo.CurrentCulture, out value));
 }
