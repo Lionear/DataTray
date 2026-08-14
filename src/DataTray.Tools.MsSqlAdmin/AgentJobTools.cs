@@ -23,9 +23,10 @@ public abstract class AgentJobTool : IToolPlugin
     // Offered on an Agent job node only — the reason AgentJob is its own node kind rather than Object.
     public ToolTarget Target { get; } = new(ProviderIds: ["sqlserver"], NodeKinds: [DbNodeKind.AgentJob]);
 
-    // Straight under Tools: the tools only appear on a job node, so a "Job" submenu would add a level that
-    // says nothing. Mirrors SSMS, where these sit directly on the job's context menu.
-    public IReadOnlyList<string> MenuPath => [];
+    /// <summary>These are the job's own verbs, not extras offered on it, so they render straight on the
+    /// context menu the way SSMS has them rather than under Tools ▸ (SE-261). <c>MenuPath</c> is left at its
+    /// default because a node action ignores it.</summary>
+    public bool IsNodeAction => true;
 
     public IReadOnlyList<ToolField> Fields { get; } = [];
 
