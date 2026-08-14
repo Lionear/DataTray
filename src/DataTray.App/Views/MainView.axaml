@@ -421,10 +421,10 @@
                 <MenuItem Header="{Binding Loc[Tools]}" ItemsSource="{Binding ApplicableTools}"
                           IsVisible="{Binding HasApplicableTools}"
                           ItemContainerTheme="{DynamicResource ToolMenuNodeTheme}" />
-                <!-- Tools that are the node's own actions (SE-253) are spliced in right after this
-                     separator by the code-behind, and the separator shows only when there are any. A
-                     ContextMenu cannot interleave a bound collection with static items, and these belong on
-                     the node's menu rather than one level down under Tools. -->
+                <!-- Tools that are the node's own actions (SE-253) are spliced in right after this marker
+                     by the code-behind. A ContextMenu cannot interleave a bound collection with static
+                     items, and these belong on the node's menu rather than one level down under Tools.
+                     It stays invisible — it is an insertion point, not a divider; see SyncNodeActions. -->
                 <Separator x:Name="NodeActionsAnchor" IsVisible="False" />
                 <MenuItem Header="{Binding Loc[Refresh]}" Command="{Binding RefreshNodeCommand}"
                           IsVisible="{Binding SelectedNode.CanRefresh, FallbackValue=False}" />
