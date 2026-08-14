@@ -58,6 +58,24 @@ public class ActivityTablesTests
     }
 
     [Fact]
+    public void RecentQueries_survive_a_previous_sample_that_repeats_a_key()
+    {
+        // dm_exec_query_stats has a row per plan, so one statement can come back twice; the sampler sums
+        // those, but a server that finds a way to repeat a key must not take the refresh down with
+        // "An item with the same key has already been added" — which is exactly how this was reported.
+        var before = Sample(First, queries:
+        [
+            Query(executions: 10, workerTimeUs: 1_000_000, elapsedUs: 2_000_000),
+            Query(executions: 4, workerTimeUs: 500_000, elapsedUs: 1_000_000)
+        ]);
+        var now = Sample(Second, queries: [Query(executions: 30, workerTimeUs: 3_000_000, elapsedUs: 6_000_000)]);
+
+        var row = ActivityTables.RecentQueries(now, before).Single();
+
+        Assert.Equal(ActivityRates.Number(2), row[1]);
+    }
+
+    [Fact]
     public void The_first_refresh_shows_no_rates_at_all()
     {
         // With one sample there is nothing to difference. Zero is the honest answer; the alternative is

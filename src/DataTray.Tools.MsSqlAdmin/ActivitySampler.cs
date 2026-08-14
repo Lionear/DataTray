@@ -218,31 +218,54 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
 
         -- 4. Recent expensive queries: statements executed inside the window, dearest first. plan_count is
         --    every cached plan for the same query_hash, which is what makes plan-cache bloat visible.
+        --    dm_exec_query_stats has one row per *plan*, so one statement can appear several times over:
+        --    the same batch compiled against three databases, a recompile under different SET options, a
+        --    serial and a parallel plan side by side. Those rows are summed into one per statement here.
+        --    Two reasons: the grid would otherwise show the same query several times with its cost split
+        --    across the rows, and query_key — which the client uses to difference two samples — has to be
+        --    unique or the refresh dies on a duplicate dictionary key. The GROUP BY is therefore exactly
+        --    the three columns query_key is built from, which is what makes it unique by construction.
         WITH plans AS (
             SELECT query_hash, COUNT(*) AS plan_count
             FROM sys.dm_exec_query_stats
-            GROUP BY query_hash)
+            GROUP BY query_hash),
+        recent AS (
+            SELECT qs.sql_handle,
+                   qs.statement_start_offset,
+                   qs.statement_end_offset,
+                   -- Every plan of one statement carries the same query_hash (they are the same parse
+                   -- tree); MAX only picks the one value out of the group.
+                   MAX(qs.query_hash) AS query_hash,
+                   SUM(qs.execution_count) AS execution_count,
+                   SUM(qs.total_worker_time) AS total_worker_time,
+                   SUM(qs.total_physical_reads) AS total_physical_reads,
+                   SUM(qs.total_logical_writes) AS total_logical_writes,
+                   SUM(qs.total_logical_reads) AS total_logical_reads,
+                   SUM(qs.total_elapsed_time) AS total_elapsed_time
+            FROM sys.dm_exec_query_stats AS qs
+            WHERE qs.last_execution_time > DATEADD(second, -{recentWindowSeconds}, GETDATE())
+            GROUP BY qs.sql_handle, qs.statement_start_offset, qs.statement_end_offset)
         SELECT TOP (50)
-               CONVERT(varchar(140), qs.sql_handle, 2) + '-'
-                   + CONVERT(varchar(12), qs.statement_start_offset) AS query_key,
-               SUBSTRING(st.text, (qs.statement_start_offset / 2) + 1,
-                   ((CASE qs.statement_end_offset
+               CONVERT(varchar(140), r.sql_handle, 2) + '-'
+                   + CONVERT(varchar(12), r.statement_start_offset) + '-'
+                   + CONVERT(varchar(12), r.statement_end_offset) AS query_key,
+               SUBSTRING(st.text, (r.statement_start_offset / 2) + 1,
+                   ((CASE r.statement_end_offset
                          WHEN -1 THEN DATALENGTH(st.text)
-                         ELSE qs.statement_end_offset END - qs.statement_start_offset) / 2) + 1) AS statement_text,
+                         ELSE r.statement_end_offset END - r.statement_start_offset) / 2) + 1) AS statement_text,
                ISNULL(DB_NAME(st.dbid), '') AS database_name,
-               qs.execution_count,
-               qs.total_worker_time,
-               qs.total_physical_reads,
-               qs.total_logical_writes,
-               qs.total_logical_reads,
-               qs.total_elapsed_time,
+               r.execution_count,
+               r.total_worker_time,
+               r.total_physical_reads,
+               r.total_logical_writes,
+               r.total_logical_reads,
+               r.total_elapsed_time,
                ISNULL(p.plan_count, 1) AS plan_count
-        FROM sys.dm_exec_query_stats AS qs
-        CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS st
-        LEFT JOIN plans AS p ON p.query_hash = qs.query_hash
-        WHERE qs.last_execution_time > DATEADD(second, -{recentWindowSeconds}, GETDATE())
-          AND st.text NOT LIKE '%DataTray Activity Monitor%'
-        ORDER BY qs.total_worker_time DESC;
+        FROM recent AS r
+        CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) AS st
+        LEFT JOIN plans AS p ON p.query_hash = r.query_hash
+        WHERE st.text NOT LIKE '%DataTray Activity Monitor%'
+        ORDER BY r.total_worker_time DESC;
 
         -- 5. Active expensive queries: what is executing right now, this connection excluded.
         SELECT r.session_id,
