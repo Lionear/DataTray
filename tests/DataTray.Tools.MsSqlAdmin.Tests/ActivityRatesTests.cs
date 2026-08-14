@@ -80,6 +80,40 @@ public class ActivityRatesTests
     }
 
     [Fact]
+    public void ProcessorTime_reports_one_busy_core_as_its_share_of_the_box()
+    {
+        // Ten seconds of wall clock in which the engine burnt ten seconds of CPU. On a sixteen-core machine
+        // that is one core fully busy, which SSMS's graph reads as 6.25% — not 100%.
+        var before = Counters(processCpuMs: 100_000, msTicks: 1_000_000);
+        var now = Counters(processCpuMs: 110_000, msTicks: 1_010_000);
+
+        Assert.Equal(6.25, ActivityRates.ProcessorTime(now, before));
+    }
+
+    [Fact]
+    public void ProcessorTime_says_nothing_until_there_are_two_samples()
+    {
+        // Same rule as every other rate in the monitor: the cumulative total since startup is not this
+        // interval's figure, and a first refresh claiming 40% because that is the lifetime average would
+        // be inventing a number.
+        Assert.Null(ActivityRates.ProcessorTime(Counters(100_000, 1_000_000), before: null));
+    }
+
+    [Fact]
+    public void ProcessorTime_survives_a_restarted_instance_and_a_server_that_counts_no_cpus()
+    {
+        // ms_ticks is machine uptime and the CPU total is the process's: a restart resets one and not the
+        // other, and a negative rate on a graph reads as a monitoring bug rather than as a reboot.
+        var before = Counters(processCpuMs: 100_000, msTicks: 1_000_000);
+        Assert.Null(ActivityRates.ProcessorTime(Counters(500, 1_010_000), before));
+        Assert.Null(ActivityRates.ProcessorTime(Counters(110_000, 1_000_000), before));
+        Assert.Null(ActivityRates.ProcessorTime(Counters(110_000, 1_010_000, cpuCount: 0), before));
+    }
+
+    private static ServerCounters Counters(long processCpuMs, long msTicks, int cpuCount = 16) =>
+        new(WaitingTasks: 0, BatchRequests: 0, processCpuMs, msTicks, cpuCount);
+
+    [Fact]
     public void CompareCells_orders_numbers_by_value_not_by_their_digits()
     {
         // Built through the formatter the grid itself uses, so the thousands separator is whatever the

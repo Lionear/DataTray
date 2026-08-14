@@ -179,5 +179,5 @@ public class ActivityTablesTests
         IReadOnlyList<WaitTotals>? waits = null,
         IReadOnlyList<FileIoTotals>? files = null,
         IReadOnlyList<QueryTotals>? queries = null) =>
-        new(takenAt, processes ?? [], waits ?? [], files ?? [], queries ?? [], [], new ServerCounters(null, 0, 0), "");
+        new(takenAt, processes ?? [], waits ?? [], files ?? [], queries ?? [], [], new ServerCounters(0, 0, 0, 0, 0), "");
 }

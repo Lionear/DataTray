@@ -65,10 +65,19 @@ internal sealed record ActiveQueryRow(
     string WaitType,
     int BlockedBy);
 
-/// <summary>The three instance-wide numbers behind the Overview graphs. <see cref="CpuPercent"/> is null
-/// where the scheduler ring buffer is unavailable (Azure SQL Database), in which case that graph stays
-/// empty rather than drawing a zero line that would read as "idle".</summary>
-internal sealed record ServerCounters(double? CpuPercent, int WaitingTasks, long BatchRequests);
+/// <summary>
+/// The instance-wide numbers behind the Overview graphs. <see cref="ProcessCpuMs"/>, <see cref="MsTicks"/>
+/// and <see cref="CpuCount"/> are the raw parts of "% Processor Time" — CPU milliseconds burnt since
+/// startup, the clock they were burnt against, and how many cores there are to burn — which
+/// <see cref="ActivityRates.ProcessorTime"/> turns into a percentage once there are two samples to
+/// difference.
+/// </summary>
+internal sealed record ServerCounters(
+    int WaitingTasks,
+    long BatchRequests,
+    long ProcessCpuMs,
+    long MsTicks,
+    int CpuCount);
 
 /// <summary>
 /// One complete Activity Monitor refresh. Everything here is <b>raw</b>: cumulative counters as the server
