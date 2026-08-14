@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "sqlite",
+  "type": "provider",
+  "name": "SQLite",
+  "version": "0.5.0",
+  "hostApiVersion": 29,
+  "entryAssembly": "DataTray.Providers.Sqlite.dll"
+}

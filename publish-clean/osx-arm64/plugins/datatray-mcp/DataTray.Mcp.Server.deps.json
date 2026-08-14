@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "DataTray.Mcp.Server/0.8.0-localtest.4": {
+        "runtime": {
+          "DataTray.Mcp.Server.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "DataTray.Mcp.Server/0.8.0-localtest.4": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

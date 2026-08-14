@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "postgres",
+  "type": "provider",
+  "name": "PostgreSQL",
+  "version": "0.6.0",
+  "hostApiVersion": 29,
+  "entryAssembly": "DataTray.Providers.Postgres.dll"
+}

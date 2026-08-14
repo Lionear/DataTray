@@ -197,8 +197,11 @@
             </ComboBox>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
+            <!-- Hidden, not just disabled, when nothing can come of it: an install the updater does not
+                 manage has no path from "a newer build exists" to having it. The sentence below takes
+                 its place and says where to get one. -->
             <Button Content="{Binding Loc[UpdateCheckNow]}" Command="{Binding CheckForUpdatesNowCommand}"
-                    IsEnabled="{Binding !IsCheckingUpdate}" />
+                    IsEnabled="{Binding !IsCheckingUpdate}" IsVisible="{Binding !IsUnmanagedInstall}" />
             <Button Classes="Accent" Content="{Binding Loc[UpdateBannerViewChangelog]}"
                     Command="{Binding ShowWhatsNewCommand}" IsVisible="{Binding Update.HasUpdate}" />
             <TextBlock Text="{Binding UpdateCheckStatus}" VerticalAlignment="Center" FontSize="11.5"

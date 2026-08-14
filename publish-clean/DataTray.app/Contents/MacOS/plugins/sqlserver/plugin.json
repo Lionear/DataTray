@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "sqlserver",
+  "type": "provider",
+  "name": "SQL Server",
+  "version": "0.8.0",
+  "hostApiVersion": 29,
+  "entryAssembly": "DataTray.Providers.MsSql.dll"
+}
