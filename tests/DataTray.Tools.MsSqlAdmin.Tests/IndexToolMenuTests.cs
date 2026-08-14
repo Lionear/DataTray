@@ -1,5 +1,6 @@
 using DataTray.Sdk;
 using DataTray.Sdk.Tools;
+using DataTray.Sdk.Ui;
 
 namespace DataTray.Tools.MsSqlAdmin.Tests;
 
@@ -28,6 +29,18 @@ public class IndexToolMenuTests
     public void Every_index_action_renders_on_the_node_menu_not_under_Tools(IToolPlugin tool)
     {
         Assert.True(tool.IsNodeAction);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllIndexTools))]
+    public void Every_index_action_puts_something_in_its_dialog(IToolPlugin tool)
+    {
+        // These tools declare no fields — the action is the whole input — so without a view of their own the
+        // host's dialog renders a title and two buttons over an empty body, which is what it did. The
+        // is-check is what the host does; a CreateView method that stopped satisfying the interface would
+        // still compile and take the body away again.
+        Assert.Empty(tool.Fields);
+        Assert.IsAssignableFrom<ICustomToolUi>(tool);
     }
 
     [Theory]

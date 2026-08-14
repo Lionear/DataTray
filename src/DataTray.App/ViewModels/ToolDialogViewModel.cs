@@ -491,6 +491,7 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     IDbProvider IToolUiContext.Provider => _provider;
     ConnectionProfile IToolUiContext.Profile => _profile;
     DbNodeRef? IToolUiContext.Node => _node;
+    IReadOnlyList<DbNodeRef> IToolUiContext.NodePath => _nodePath;
 
     Task<string?> IToolUiContext.PickSaveFileAsync(string suggestedName, params string[] extensions) =>
         SaveFilePicker?.Invoke(suggestedName, extensions) ?? Task.FromResult<string?>(null);

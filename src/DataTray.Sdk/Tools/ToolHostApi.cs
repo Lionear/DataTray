@@ -111,6 +111,13 @@ public static class ToolHostApi
     //                  version those hosts refuse outright is the accurate answer.
     //                  (The SE-255 design doc predates 6 and 7 and says "5 → 6"; the reasoning is what
     //                  transfers, not the number.)
+    //   also in v8 (2026-08-14): IToolUiContext gains NodePath and Ancestor(), mirroring the pair
+    //                  ToolExecutionContext has carried since v7. A Route-B view was given Node but not the
+    //                  ancestry, so it could not describe the object its tool was about to act on: the index
+    //                  tools' dialog had nothing to show and rendered as a title over an empty body. Both are
+    //                  default interface members — an older host simply returns empty and a view that reads
+    //                  it says what is missing — so this is a fold-in by the SE-253 test ("does it add
+    //                  types?"), not a v9.
     public const int Version = 8;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
