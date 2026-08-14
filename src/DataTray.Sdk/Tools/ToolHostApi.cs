@@ -82,6 +82,19 @@ public static class ToolHostApi
     //                  monitor into a plugin and, with it, one level deeper in the menu; a feature changing
     //                  owner should not change place. Folded into 7 rather than given an 8 because 7 has
     //                  not shipped — v0.7.0 (2026-07-30) carries tool API 5. Additive default false.
+    //   also in v7 (2026-08-13): IToolPlugin.IsNodeAction (SE-253) — the general form of the above, for the
+    //                  case where the host has no menu item to redirect. A tool that is one of the node's own
+    //                  actions (SE-249's Rebuild/Reorganize/Disable/Drop on an index) renders directly on the
+    //                  node's context menu instead of inside its Tools submenu. Additive default false.
+    //                  Folded into 7 even though 7 is now out on preview and nightly, which reads like the
+    //                  exception failing. It does not: what makes a fold-in unsafe is the SE-166 trap, and
+    //                  that needs new *types*. SE-255 opened an 8 for exactly that reason — a plugin
+    //                  declaring 7 to use IToolbarPlugin loads on those hosts and then dies in GetTypes(),
+    //                  taking the whole plugin with it. A default interface member cannot do that: an
+    //                  old-7 host does not route on the flag, so the actions render under Tools, exactly as
+    //                  they did before SE-253. Wrong menu level on a preview host is the known ceiling here,
+    //                  and it is the cheaper end of the trade — calling this a v8 member would push plugin
+    //                  authors to declare 8 and lose every v7 host outright to fix one submenu level.
     // v8 (2026-08-14): the toolbar seams (SE-255) — IToolbarPlugin + ToolbarContribution,
     //                  IQueryToolbarPlugin + QueryToolbarContribution, IQueryDocument +
     //                  QueryDocumentKind (all in DataTray.Sdk.Extensibility) and the "toolbar" capability,
@@ -98,18 +111,6 @@ public static class ToolHostApi
     //                  version those hosts refuse outright is the accurate answer.
     //                  (The SE-255 design doc predates 6 and 7 and says "5 → 6"; the reasoning is what
     //                  transfers, not the number.)
-    //   also in v8 (2026-08-14): IToolPlugin.IsNodeAction (SE-253) — the general form of IsActivityMonitor,
-    //                  for the case where the host has no menu item to redirect. A tool that is one of the
-    //                  node's own actions (SE-249's Rebuild/Reorganize/Disable/Drop on an index) renders
-    //                  directly on the node's context menu instead of inside its Tools submenu.
-    //                  Written against 7 as a fold-in on the "7 has not shipped" exception, and moved here
-    //                  once SE-255 established that it has: a v7 host on preview or nightly does not route
-    //                  on this flag, so calling it a v7 member would promise placement those hosts do not
-    //                  give. Unlike the toolbar seams this is a default interface member, not a new type, so
-    //                  an older host is not the SE-166 trap — it ignores the flag and the actions render
-    //                  under Tools, exactly as they did before SE-253. That is why mssql-admin still
-    //                  declares 7: it *requires* NodePath and merely *benefits* here, and demanding 8 would
-    //                  cost those hosts the whole plugin to fix a submenu. Additive default false.
     public const int Version = 8;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
