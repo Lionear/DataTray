@@ -144,15 +144,15 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
 
     private static ServerCounters ReadCounters(QueryResult counters, QueryResult waitingTasks)
     {
-        var row = counters.Rows.Count > 0 ? counters.Rows[0] : [null, null];
+        var row = counters.Rows.Count > 0 ? counters.Rows[0] : [null, null, null, null];
         var waiting = waitingTasks.Rows.Count(r => !ActivityRates.IsBenignWait(Text(r[0])));
 
         return new ServerCounters(
-            // Null where the resource-pool counters are absent, so the graph shows a gap rather than a
-            // zero line that would read as an idle instance.
-            row[0] is null ? null : Convert.ToDouble(row[0], CultureInfo.InvariantCulture),
             waiting,
-            row.Length > 1 ? Long(row[1]) : 0);
+            Long(row[0]),
+            row.Length > 1 ? Long(row[1]) : 0,
+            row.Length > 2 ? Long(row[2]) : 0,
+            row.Length > 3 ? Int(row[3]) : 0);
     }
 
     // Query text is shown one row per query, so the newlines and indentation of a stored procedure would
@@ -262,20 +262,25 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         WHERE r.session_id <> @@SPID
         ORDER BY r.cpu_time DESC;
 
-        -- 6. Overview counters. The resource-pool CPU counter is a raw fraction over a fixed window: the
-        --    used value against its base is the instance's share of the whole box, which is what SSMS
-        --    graphs as "% Processor Time" — one busy core of sixteen reads as 6%. The base is the same
-        --    window for every pool, so it is taken once (MAX) while the usage is summed across pools.
-        --    Batch Requests/sec, by contrast, IS cumulative and is differenced by the client.
-        --    object_name is matched with LIKE because a named instance prefixes it.
-        SELECT (SELECT SUM(CASE WHEN counter_name = 'CPU usage %' THEN cntr_value END) * 100.0
-                       / NULLIF(MAX(CASE WHEN counter_name = 'CPU usage % base' THEN cntr_value END), 0)
-                FROM sys.dm_os_performance_counters
-                WHERE object_name LIKE '%Resource Pool Stats%') AS cpu_percent,
-               (SELECT TOP (1) cntr_value
+        -- 6. Overview counters. Processor time comes from the engine's own process accounting: kernel plus
+        --    user CPU milliseconds burnt since startup, beside the clock (ms_ticks) and the number of
+        --    logical CPUs. The client differences two samples, exactly as it does for every other rate
+        --    here, and the result is the instance's share of the whole box — one busy core of sixteen
+        --    reads as 6%, which is what SSMS graphs as "% Processor Time".
+        --    These three columns are the same on Windows and on Linux, which the alternatives are not: the
+        --    scheduler ring buffer is Windows-only, and the Resource Pool Stats "CPU usage %" perfmon
+        --    counter this used to read is populated by the resource governor's own sampling and comes back
+        --    flat zero on some builds of SQL Server on Linux (SE-260).
+        --    Batch Requests/sec IS cumulative and is differenced by the client too. object_name is matched
+        --    with LIKE because a named instance prefixes it.
+        SELECT (SELECT TOP (1) cntr_value
                 FROM sys.dm_os_performance_counters
                 WHERE counter_name = 'Batch Requests/sec'
-                  AND object_name LIKE '%SQL Statistics%') AS batch_requests;
+                  AND object_name LIKE '%SQL Statistics%') AS batch_requests,
+               si.process_kernel_time_ms + si.process_user_time_ms AS process_cpu_ms,
+               si.ms_ticks,
+               si.cpu_count
+        FROM sys.dm_os_sys_info AS si;
 
         -- 7. Waiting tasks, one row per waiting request, so the client can drop the idle waits with the
         --    same list the Resource Waits grid uses.

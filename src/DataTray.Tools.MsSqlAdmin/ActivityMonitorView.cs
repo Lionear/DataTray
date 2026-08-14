@@ -275,9 +275,10 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
     {
         var seconds = previous is null ? 0 : (sample.TakenAt - previous.TakenAt).TotalSeconds;
 
+        var processorTime = ActivityRates.ProcessorTime(sample.Counters, previous?.Counters);
         _cpu.Add(
-            sample.Counters.CpuPercent,
-            sample.Counters.CpuPercent is { } cpu
+            processorTime,
+            processorTime is { } cpu
                 ? ActivityRates.Number(cpu) + "%"
                 : _loc.Get("activity.graph.unavailable"));
 
