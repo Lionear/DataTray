@@ -994,10 +994,17 @@ public partial class MainViewModel : ViewModelBase
     public bool CanShowActivityMonitor =>
         SelectedNode?.CanShowActivityMonitor == true || _activityMonitorTool is not null;
 
+    /// <summary>Tools that are the selected node's own actions (SE-253) rather than extras offered on it —
+    /// SSMS' Rebuild/Reorganize/Disable/Drop on an index. Flat by design, and kept out of
+    /// <see cref="ApplicableTools"/> so each appears once, on the node's menu instead of under Tools. The
+    /// view splices these into the context menu, which XAML cannot do for a bound collection.</summary>
+    public ObservableCollection<ToolMenuNode> NodeActions { get; } = [];
+
     // A tool applies to a connection node or a schema-object node; recompute whenever selection changes.
     private void RefreshApplicableTools(TreeNodeViewModel? node)
     {
         ApplicableTools.Clear();
+        NodeActions.Clear();
         _activityMonitorTool = null;
 
         if (node is not null && (node.IsConnectionNode || node.NodeKind is not null) && node.Connection is { } connection)
@@ -1015,6 +1022,14 @@ public partial class MainViewModel : ViewModelBase
                 var captured = tool;
                 var title = _tools.LocalizerFor(tool.Id).Resolve(tool.TitleKey, tool.Title);
                 var leaf = new ToolMenuNode(title, new RelayCommand(() => RunToolCommand.Execute(captured)));
+
+                // Same rule one step further out: a tool that is the node's own verb goes on the node's menu,
+                // not into Tools. MenuPath is ignored here — a node action has nowhere to nest.
+                if (tool.IsNodeAction)
+                {
+                    NodeActions.Add(leaf);
+                    continue;
+                }
 
                 // Walk the tool's MenuPath, creating or reusing a group node per segment, so tools that
                 // share a path (even from different plugins) land in the same submenu.

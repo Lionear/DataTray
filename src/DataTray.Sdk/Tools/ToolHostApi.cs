@@ -82,6 +82,11 @@ public static class ToolHostApi
     //                  monitor into a plugin and, with it, one level deeper in the menu; a feature changing
     //                  owner should not change place. Folded into 7 rather than given an 8 because 7 has
     //                  not shipped — v0.7.0 (2026-07-30) carries tool API 5. Additive default false.
+    //   also in v7 (2026-08-13): IToolPlugin.IsNodeAction (SE-253) — the general form of the above, for the
+    //                  case where the host has no menu item to redirect. A tool that is one of the node's own
+    //                  actions (SE-249's Rebuild/Reorganize/Disable/Drop on an index) renders directly on the
+    //                  node's context menu instead of inside its Tools submenu. Same reasoning as SE-251 and
+    //                  the same fold-in rule: 7 has not shipped. Additive default false.
     public const int Version = 7;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3

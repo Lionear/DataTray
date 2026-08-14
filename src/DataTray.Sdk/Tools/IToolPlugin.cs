@@ -75,6 +75,21 @@ public interface IToolPlugin
     bool IsActivityMonitor => false;
 
     /// <summary>
+    /// True when this tool is one of the node's <b>own actions</b> rather than something extra offered on it
+    /// — Rebuild or Drop on an index, where SSMS puts the verb straight on the context menu. Such a tool is
+    /// rendered as a plain item on the node's menu and left out of its Tools submenu, so it appears once.
+    /// </summary>
+    /// <remarks>
+    /// The general form of <see cref="IsActivityMonitor"/>, for the case where the host has no menu item to
+    /// redirect. The line is what the action *is*, not how important it is: a tool that adds a capability to
+    /// a node (backup, schema diff, shrink — SSMS buries the equivalents under <c>Tasks ▸</c> itself) belongs
+    /// under Tools, and one that is the node's own verb belongs where a user right-clicks to reach it.
+    /// <see cref="MenuPath"/> is ignored for these — a node action with a submenu path is a tool that has not
+    /// made up its mind — and the items keep the order the registry returns them in.
+    /// </remarks>
+    bool IsNodeAction => false;
+
+    /// <summary>
     /// Optionally produce a short summary for a chosen file the moment its <see cref="ToolFieldType.File"/>
     /// field changes (e.g. read a backup's plaintext header), shown under that field before Execute runs.
     /// Return null (the default) for no preview. <paramref name="filePath"/> is the current field value.
