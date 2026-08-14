@@ -29,6 +29,31 @@ public sealed class ToolbarLayoutService
     public ToolbarActionEntry? Entry(string id) => _catalog.FirstOrDefault(c => c.Id == id);
 
     /// <summary>
+    /// Append plugin contributions to the catalog. Subsystem plugins are activated after the container is
+    /// built, so their actions arrive later than the host's — hence a registration call rather than a
+    /// constructor argument. Raises <see cref="Changed"/>, which is what makes the new buttons appear.
+    /// </summary>
+    public void RegisterPluginActions(IEnumerable<ToolbarActionEntry> entries)
+    {
+        var added = false;
+        foreach (var entry in entries)
+        {
+            if (_catalog.Any(c => c.Id == entry.Id))
+            {
+                continue;
+            }
+
+            _catalog.Add(entry);
+            added = true;
+        }
+
+        if (added)
+        {
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>
     /// The user's layout resolved against the catalog: saved entries in their saved order, then every
     /// catalog entry the layout does not mention, appended <em>visible</em>. Absent means new, not hidden —
     /// otherwise a freshly installed plugin's button would never appear. Saved ids the catalog cannot

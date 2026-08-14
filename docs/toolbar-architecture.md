@@ -1,6 +1,20 @@
 # Toolbar architecture (design)
 
-**Status:** proposed — design only, nothing implemented yet.
+**Status:** implemented in 0.8.0. Part 1 (the catalog, `toolbar.json`, `OverflowPanel`,
+Settings ▸ Toolbar) and part 2 (the plugin seams) both landed; the plugin-facing half is
+documented in [`plugins/capabilities.md`](plugins/capabilities.md).
+
+**Correction to §5, made during implementation.** This document was written against the
+0.7.0 tree, where `ToolHostApi.Version` was 5, and concludes "5 → 6". On `develop` the
+contract had already moved to **7** (v6 tool documents, v7 `NodePath` +
+`IsActivityMonitor`), so the toolbar seams shipped as **v8**. The reasoning carries over
+unchanged, with one nuance the analysis did not have to make: 7 is *unreleased* in the
+stable sense — v0.7.0 carries 5 — which is what let `IsActivityMonitor` fold into it, but
+7 is already out on the preview and nightly channels. Folding **new types** into a number
+those hosts already carry is precisely the `ReflectionTypeLoadException` half-failure §5.4
+describes, so a fold-in was not available here either. `MinimumSupported` stays 1, as §5
+says.
+
 **Revision:** fourth draft. The first draft shipped the application toolbar as a fixed
 strip with a count-based overflow; review rejected both. The toolbar is now
 **user-configurable and persisted**, and overflow is **measured against the available

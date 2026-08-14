@@ -15,7 +15,8 @@ public sealed class ToolbarActionViewModel(
     Geometry? icon,
     ICommand command,
     bool isAccent = false,
-    string? detail = null)
+    string? detail = null,
+    string? tooltip = null)
 {
     public string Id { get; } = id;
 
@@ -30,6 +31,12 @@ public sealed class ToolbarActionViewModel(
 
     /// <summary>Muted suffix in the overflow flyout: a shortcut hint, or the owning plugin's name.</summary>
     public string? Detail { get; } = detail;
+
+    /// <summary>Hover text. Falls back to the label, and always names the owning plugin when there is one,
+    /// so the user can tell where a button came from.</summary>
+    public string Tooltip { get; } = detail is { Length: > 0 } owner
+        ? $"{tooltip ?? label} — {owner}"
+        : tooltip ?? label;
 
     /// <summary>
     /// The quick-open renders as a search field rather than a button while it is in the strip; in the

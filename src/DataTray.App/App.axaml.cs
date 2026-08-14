@@ -129,6 +129,31 @@ public partial class App : Application
             }
         }
 
+        // Mount any application-toolbar contributions (SE-255). They join the action catalog, so the strip
+        // and Settings ▸ Toolbar see them in one pass — and, being absent from the saved layout, a freshly
+        // installed plugin's button shows up rather than waiting to be ticked on.
+        foreach (var contributor in subsystems.Toolbars)
+        {
+            foreach (var item in contributor.Plugin.ToolbarItems)
+            {
+                var invoke = item.InvokeAsync;
+                var id = $"{contributor.PluginId}:{item.Id}";
+                viewModel.AddToolbarAction(
+                    id, item.Title, contributor.PluginName, item.Icon, item.Tooltip, () => invoke(hostUi));
+
+                // Every toolbar action is bindable (SE-255 §3.4), which is what makes hiding one harmless.
+                // DefaultGesture is only a suggestion: null ships it unbound but still rebindable.
+                keymap.Register([new Core.Shortcuts.PluginShortcut(
+                    id, contributor.PluginId, contributor.PluginName, item.Title, item.DefaultGesture,
+                    _ => invoke(hostUi))]);
+            }
+        }
+
+        // Query-window toolbar contributions (SE-255): handed to every document, which filters them with
+        // their own AppliesTo predicate per tab.
+        viewModel.MountQueryToolbarContributions(
+            [.. subsystems.QueryToolbars.SelectMany(p => p.QueryToolbarItems)], hostUi);
+
         // Start any background loops (SE-164) under the shutdown token — fire-and-forget, like the update
         // checks; they stop cleanly when _shutdownCts cancels at exit (desktop.Exit, below).
         foreach (var background in subsystems.Background)
