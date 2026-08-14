@@ -40,6 +40,11 @@ public abstract class IndexToolBase : IToolPlugin
     /// <summary>The action is the whole input; there is nothing to collect.</summary>
     public IReadOnlyList<ToolField> Fields { get; } = [];
 
+    /// <summary>These are the node's own verbs, not extras offered on it, so they render straight on the
+    /// context menu the way SSMS has them rather than under Tools ▸ (SE-253). The implementation being a
+    /// plugin is a fact about this codebase, and should not cost the user a click.</summary>
+    public bool IsNodeAction => true;
+
     /// <summary>Disabling an index makes it unusable until it is rebuilt — and disabling a clustered index
     /// takes the table's data offline with it — while dropping one is gone for good. Both get the host's
     /// destructive confirmation; rebuilding and reorganising do not, since they only cost time.</summary>

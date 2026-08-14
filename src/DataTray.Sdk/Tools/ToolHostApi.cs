@@ -82,6 +82,19 @@ public static class ToolHostApi
     //                  monitor into a plugin and, with it, one level deeper in the menu; a feature changing
     //                  owner should not change place. Folded into 7 rather than given an 8 because 7 has
     //                  not shipped — v0.7.0 (2026-07-30) carries tool API 5. Additive default false.
+    //   also in v7 (2026-08-13): IToolPlugin.IsNodeAction (SE-253) — the general form of the above, for the
+    //                  case where the host has no menu item to redirect. A tool that is one of the node's own
+    //                  actions (SE-249's Rebuild/Reorganize/Disable/Drop on an index) renders directly on the
+    //                  node's context menu instead of inside its Tools submenu. Additive default false.
+    //                  Folded into 7 even though 7 is now out on preview and nightly, which reads like the
+    //                  exception failing. It does not: what makes a fold-in unsafe is the SE-166 trap, and
+    //                  that needs new *types*. SE-255 opened an 8 for exactly that reason — a plugin
+    //                  declaring 7 to use IToolbarPlugin loads on those hosts and then dies in GetTypes(),
+    //                  taking the whole plugin with it. A default interface member cannot do that: an
+    //                  old-7 host does not route on the flag, so the actions render under Tools, exactly as
+    //                  they did before SE-253. Wrong menu level on a preview host is the known ceiling here,
+    //                  and it is the cheaper end of the trade — calling this a v8 member would push plugin
+    //                  authors to declare 8 and lose every v7 host outright to fix one submenu level.
     // v8 (2026-08-14): the toolbar seams (SE-255) — IToolbarPlugin + ToolbarContribution,
     //                  IQueryToolbarPlugin + QueryToolbarContribution, IQueryDocument +
     //                  QueryDocumentKind (all in DataTray.Sdk.Extensibility) and the "toolbar" capability,
