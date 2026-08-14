@@ -14,6 +14,7 @@ stable sense — v0.7.0 carries 5 — which is what let `IsActivityMonitor` fold
 those hosts already carry is precisely the `ReflectionTypeLoadException` half-failure §5.4
 describes, so a fold-in was not available here either. `MinimumSupported` stays 1, as §5
 says.
+
 **Revision:** fourth draft. The first draft shipped the application toolbar as a fixed
 strip with a count-based overflow; review rejected both. The toolbar is now
 **user-configurable and persisted**, and overflow is **measured against the available
