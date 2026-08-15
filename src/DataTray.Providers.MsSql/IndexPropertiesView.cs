@@ -51,12 +51,8 @@ public sealed class IndexPropertiesView : UserControl
     private readonly string[] _pages;
     private readonly Control?[] _built;
 
-    private readonly TextBlock _status = new()
-    {
-        Opacity = 0.75,
-        TextWrapping = TextWrapping.Wrap,
-        VerticalAlignment = VerticalAlignment.Center
-    };
+    // Centred against the buttons it shares the footer with; Label() only carries the colour.
+    private readonly TextBlock _status = FormBits.Label("");
 
     private readonly Button _ok = new() { Content = "OK", MinWidth = 96, Classes = { "Accent" }, IsEnabled = false };
     private readonly Button _script = new() { Content = "Script", MinWidth = 80, IsEnabled = false };
@@ -64,23 +60,23 @@ public sealed class IndexPropertiesView : UserControl
     // General page editors, kept as fields because OK reads them and the load fills them.
     private readonly TextBox _name = new() { PlaceholderText = "Index name" };
     private readonly ComboBox _type = new() { ItemsSource = new[] { "Nonclustered", "Clustered" }, SelectedIndex = 0 };
-    private readonly CheckBox _unique = new() { Content = "Unique" };
+    private readonly ToggleSwitch _unique = FormBits.Toggle("Unique");
     private readonly SelectTable _keys = new(["Name", "Sort order", "Data type", "Nullable"], [0, 110, 140, 80]);
     private readonly SelectTable _included = new(["Name", "Data type", "Nullable"], [0, 140, 80]);
     private readonly ComboBox _addColumn = new() { Width = 220, PlaceholderText = "Add a column…" };
 
     // Options page. Grouped by what actually happens when OK is pressed, which is the distinction SSMS
     // renders identically and that this dialog makes visible with a pill per row.
-    private readonly CheckBox _allowRowLocks = new() { Content = "Allow row locks", IsChecked = true };
-    private readonly CheckBox _allowPageLocks = new() { Content = "Allow page locks", IsChecked = true };
-    private readonly CheckBox _ignoreDupKey = new() { Content = "Ignore duplicate values" };
-    private readonly CheckBox _autoRecompute = new() { Content = "Automatically recompute statistics", IsChecked = true };
-    private readonly CheckBox _optimizeSequentialKey = new() { Content = "Optimize for sequential key" };
-    private readonly CheckBox _padIndex = new() { Content = "Pad index" };
+    private readonly ToggleSwitch _allowRowLocks = FormBits.Toggle("Allow row locks");
+    private readonly ToggleSwitch _allowPageLocks = FormBits.Toggle("Allow page locks");
+    private readonly ToggleSwitch _ignoreDupKey = FormBits.Toggle("Ignore duplicate values");
+    private readonly ToggleSwitch _autoRecompute = FormBits.Toggle("Automatically recompute statistics");
+    private readonly ToggleSwitch _optimizeSequentialKey = FormBits.Toggle("Optimize for sequential key");
+    private readonly ToggleSwitch _padIndex = FormBits.Toggle("Pad index");
     private readonly NumericUpDown _fillFactor = new() { Minimum = 0, Maximum = 100, Increment = 5, Value = 0, Width = 120 };
     private readonly NumericUpDown _maxDop = new() { Minimum = 0, Maximum = 64, Value = 0, Width = 120 };
-    private readonly CheckBox _sortInTempDb = new() { Content = "Sort results in tempdb" };
-    private readonly TextBlock _optionDescription = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.75 };
+    private readonly ToggleSwitch _sortInTempDb = FormBits.Toggle("Sort results in tempdb");
+    private readonly TextBlock _optionDescription = FormBits.Label("");
 
     // Storage page.
     private readonly ComboBox _dataSpacePicker = new() { Width = 260, PlaceholderText = "Default filegroup" };
@@ -96,7 +92,7 @@ public sealed class IndexPropertiesView : UserControl
         PlaceholderText = "Slot > 0 AND Note IS NOT NULL"
     };
 
-    private readonly TextBlock _filterRowCount = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _filterRowCount = FormBits.Label("");
 
     // Extended Properties page. Edited in memory and written on OK with everything else, so a dialog that
     // is cancelled leaves nothing behind — SSMS writes these as you go, which is a second commit model in
@@ -170,6 +166,7 @@ public sealed class IndexPropertiesView : UserControl
             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
             Margin = new Thickness(0, 12, 0, 0)
         };
+        _status.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(_status, 0);
         Grid.SetColumn(buttons, 1);
         footer.Children.Add(_status);
@@ -305,13 +302,9 @@ public sealed class IndexPropertiesView : UserControl
         _fillFactor.ValueChanged += (_, _) => Revalidate();
 
         var page = FormBits.Page(
-            new TextBlock
-            {
-                Text = "Each setting says when it takes effect. That distinction is invisible in SSMS, and it "
-                    + "is the difference between a metadata change and reading every page of the index.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.75
-            },
+            FormBits.Label(
+                "Each setting says when it takes effect. That distinction is invisible in SSMS, and it "
+                    + "is the difference between a metadata change and reading every page of the index."),
             FormBits.Section("Locking and duplicates"),
             OptionRow(_allowRowLocks, Applies.OnOk,
                 "Lets the engine take row locks on this index. Turning it off pushes contention up to page "
@@ -369,24 +362,32 @@ public sealed class IndexPropertiesView : UserControl
         return row;
     }
 
-    private static Control Pill(Applies applies) => new Border
+    private static Control Pill(Applies applies)
     {
-        Background = new SolidColorBrush(Color.FromArgb(28, 128, 128, 128)),
-        CornerRadius = new CornerRadius(6),
-        Padding = new Thickness(8, 2, 8, 2),
-        VerticalAlignment = VerticalAlignment.Center,
-        Child = new TextBlock
+        var text = new TextBlock
         {
             FontSize = 11,
-            Opacity = 0.8,
             Text = applies switch
             {
                 Applies.OnOk => "on OK",
                 Applies.Rebuild => "rebuilds",
                 _ => "next rebuild"
             }
-        }
-    };
+        };
+        text.Themed(TextBlock.ForegroundProperty, "SETextSecondaryBrush");
+
+        var pill = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 2, 8, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = text
+        };
+        pill.Themed(Border.BackgroundProperty, "SESecondaryBgBrush");
+        pill.Themed(Border.BorderBrushProperty, "SEHairlineBrush");
+        return pill;
+    }
 
     // ── Storage ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -404,21 +405,13 @@ public sealed class IndexPropertiesView : UserControl
         };
 
         return FormBits.Page(
-            new TextBlock
-            {
-                Text = "Where the index lives. Changing it writes the index again, in the destination.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.75
-            },
+            FormBits.Label(
+                "Where the index lives. Changing it writes the index again, in the destination."),
             FormBits.Labelled("Filegroup or partition scheme", _dataSpacePicker),
             FormBits.Labelled("Partition column", _partitionColumnPicker),
-            new TextBlock
-            {
-                Text = "Existing partition schemes only — creating one is a separate piece of work with its "
-                    + "own partition function, and not something to hide behind a dropdown here.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.65
-            });
+            FormBits.Hint(
+                "Existing partition schemes only — creating one is a separate piece of work with its "
+                    + "own partition function, and not something to hide behind a dropdown here."));
     }
 
     // ── Filter ───────────────────────────────────────────────────────────────────────────────────────
@@ -439,37 +432,25 @@ public sealed class IndexPropertiesView : UserControl
         // WHERE is a fixed prefix rather than something to type: typing it makes the predicate invalid, and
         // leaving it out of an empty box makes an unfiltered index look like a mistake.
         var predicate = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
-        var where = new TextBlock
-        {
-            Text = "WHERE",
-            FontWeight = FontWeight.SemiBold,
-            Opacity = 0.7,
-            Margin = new Thickness(0, 6, 10, 0),
-            VerticalAlignment = VerticalAlignment.Top
-        };
+        var where = FormBits.Label("WHERE");
+        where.FontWeight = FontWeight.SemiBold;
+        where.Margin = new Thickness(0, 6, 10, 0);
+        where.VerticalAlignment = VerticalAlignment.Top;
         Grid.SetColumn(where, 0);
         Grid.SetColumn(_filterBox, 1);
         predicate.Children.Add(where);
         predicate.Children.Add(_filterBox);
 
         return FormBits.Page(
-            new TextBlock
-            {
-                Text = "A filtered index covers only the rows matching this predicate — smaller, cheaper to "
+            FormBits.Label(
+                "A filtered index covers only the rows matching this predicate — smaller, cheaper to "
                     + "maintain, and only usable by queries the optimiser can prove fall inside it. Leave it "
-                    + "empty for an ordinary index.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.75
-            },
+                    + "empty for an ordinary index."),
             predicate,
             new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Children = { check, _filterRowCount } },
-            new TextBlock
-            {
-                Text = "Check rows runs a COUNT over the table with this predicate. On a large table that is "
-                    + "a scan, so it runs only when asked — same reason the fragmentation scan is a button.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.65
-            });
+            FormBits.Hint(
+                "Check rows runs a COUNT over the table with this predicate. On a large table that is "
+                    + "a scan, so it runs only when asked — same reason the fragmentation scan is a button."));
     }
 
     private async Task CheckFilterRowsAsync(Button button)
@@ -526,23 +507,15 @@ public sealed class IndexPropertiesView : UserControl
         _ = LoadFragmentationAsync(page, scan, detailed: false);
 
         return FormBits.Page(
-            new TextBlock
-            {
-                Text = "SSMS opens this page on a DETAILED scan, which reads every page of the index. This "
+            FormBits.Label(
+                "SSMS opens this page on a DETAILED scan, which reads every page of the index. This "
                     + "one opens on LIMITED — the parent level of the b-tree — and leaves the rest behind a "
-                    + "button that names what it costs.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.75
-            },
+                    + "button that names what it costs."),
             page.Stack,
             scan,
-            new TextBlock
-            {
-                Text = "Rebuild and Reorganize are on the tree's own menu, on this index and on the table's "
-                    + "Indexes folder — this page reports, it does not act.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.65
-            });
+            FormBits.Hint(
+                "Rebuild and Reorganize are on the tree's own menu, on this index and on the table's "
+                    + "Indexes folder — this page reports, it does not act."));
     }
 
     private async Task LoadFragmentationAsync(PropPage page, Button scan, bool detailed)
@@ -647,13 +620,9 @@ public sealed class IndexPropertiesView : UserControl
         RefreshExtendedProperties();
 
         return FormBits.Page(
-            new TextBlock
-            {
-                Text = "Free-form notes stored against the index itself — what it is for, who added it, the "
-                    + "ticket it came from. Changes are written when you press OK, along with everything else.",
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.75
-            },
+            FormBits.Label(
+                "Free-form notes stored against the index itself — what it is for, who added it, the "
+                    + "ticket it came from. Changes are written when you press OK, along with everything else."),
             _extendedPropertyTable.Control,
             new StackPanel
             {

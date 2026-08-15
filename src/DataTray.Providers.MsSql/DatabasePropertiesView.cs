@@ -69,6 +69,7 @@ public sealed class DatabasePropertiesView : UserControl
             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
             Margin = new Thickness(0, 12, 0, 0)
         };
+        _status.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(_status, 0);
         var buttons = new StackPanel
         {
@@ -92,16 +93,15 @@ public sealed class DatabasePropertiesView : UserControl
 
     private readonly Button _ok = new() { Content = "OK", MinWidth = 96, Classes = { "Accent" } };
 
-    private readonly TextBlock _status = new()
-    {
-        Opacity = 0.75,
-        TextWrapping = TextWrapping.Wrap,
-        VerticalAlignment = VerticalAlignment.Center
-    };
+    // Centred against the buttons it shares the footer with; Label() only carries the colour.
+    private readonly TextBlock _status = FormBits.Label("");
 
-    private readonly CheckBox _rollbackImmediate = new()
+    // A standalone toggle keeps its caption, unlike the ones in a label/value row: there is no label column
+    // out here to say what it does. Same shape the host's settings window uses.
+    private readonly ToggleSwitch _rollbackImmediate = new()
     {
-        Content = "Disconnect other sessions (WITH ROLLBACK IMMEDIATE)"
+        OnContent = "Disconnect other sessions (WITH ROLLBACK IMMEDIATE)",
+        OffContent = "Disconnect other sessions (WITH ROLLBACK IMMEDIATE)"
     };
 
     // The Options page and its state as loaded. Null until the page has been opened once — an untouched
@@ -187,7 +187,9 @@ public sealed class DatabasePropertiesView : UserControl
             };
             // No ScrollViewer here — the host dialog already wraps this whole view in one; nesting a second
             // would leave the inner content unbounded and never scroll.
-            _built[index] = new StackPanel { Margin = new Thickness(16, 0, 8, 8), Spacing = 4, Children = { page } };
+            // Breathing room on all four sides, and clear of the scrollbar on the right — the page used to run
+            // straight into it.
+            _built[index] = new StackPanel { Margin = new Thickness(20, 4, 22, 18), Children = { page } };
         }
 
         _host.Content = _built[index];
@@ -373,7 +375,7 @@ public sealed class DatabasePropertiesView : UserControl
         var maxSize = new NumericUpDown { Minimum = 1, Maximum = 100_000_000, Value = 100, Width = 150, IsEnabled = false };
         maxKind.SelectionChanged += (_, _) => maxSize.IsEnabled = maxKind.SelectedIndex == 1;
 
-        var status = new TextBlock { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+        var status = FormBits.Label("");
 
         var apply = new Button { Content = "Stage change" };
         apply.Click += (_, _) =>
@@ -498,12 +500,20 @@ public sealed class DatabasePropertiesView : UserControl
         };
     }
 
-    private static TextBlock Header(string text) => new()
+    private static TextBlock Header(string text)
     {
-        Text = text,
-        FontWeight = FontWeight.SemiBold,
-        Margin = new Thickness(0, 12, 0, 4)
-    };
+        var block = FormBits.Section(text);
+        block.Margin = new Thickness(0, 16, 0, 6);
+        return block;
+    }
+
+    /// <summary>A closing note under a page's content — the quietest text on the page.</summary>
+    private static TextBlock Note(string text)
+    {
+        var block = FormBits.Hint(text);
+        block.Margin = new Thickness(0, 10, 0, 0);
+        return block;
+    }
 
     private async Task LoadFilegroupsAsync(Table rows, Table filestream, Table memoryOptimized)
     {
@@ -538,11 +548,11 @@ public sealed class DatabasePropertiesView : UserControl
                     switch (reader.GetString(1).Trim())
                     {
                         case "FG":
-                            row.Add([name, files, YesNo(reader.GetBoolean(3)), YesNo(reader.GetBoolean(4)),
-                                autogrowAll ? YesNo(reader.GetBoolean(5)) : "—"]);
+                            row.Add([name, files, Tick(reader.GetBoolean(3)), Tick(reader.GetBoolean(4)),
+                                autogrowAll ? Tick(reader.GetBoolean(5)) : "—"]);
                             break;
                         case "FD":
-                            fs.Add([name, files, YesNo(reader.GetBoolean(3)), YesNo(reader.GetBoolean(4))]);
+                            fs.Add([name, files, Tick(reader.GetBoolean(3)), Tick(reader.GetBoolean(4))]);
                             break;
                         case "FX":
                             mo.Add([name, files]);
@@ -627,16 +637,12 @@ public sealed class DatabasePropertiesView : UserControl
                 p.Stack,
                 Header("Changing the last four needs everyone else out"),
                 _rollbackImmediate,
-                new TextBlock
-                {
-                    Text = "Read-only, restrict access, read-committed snapshot and the broker cannot be "
-                        + "changed while other sessions are connected. SQL Server does not refuse — it waits, "
-                        + "indefinitely, which looks exactly like a hung application. Ticking this adds WITH "
-                        + "ROLLBACK IMMEDIATE, which disconnects those sessions and rolls back whatever they "
-                        + "were doing. Left unticked, those four rows are not written at all.",
-                    TextWrapping = TextWrapping.Wrap,
-                    Opacity = 0.65
-                }
+                FormBits.Hint(
+                    "Read-only, restrict access, read-committed snapshot and the broker cannot be changed "
+                    + "while other sessions are connected. SQL Server does not refuse — it waits, "
+                    + "indefinitely, which looks exactly like a hung application. Turning this on adds WITH "
+                    + "ROLLBACK IMMEDIATE, which disconnects those sessions and rolls back whatever they "
+                    + "were doing. Left off, those four rows are not written at all.")
             }
         };
     }
@@ -648,10 +654,10 @@ public sealed class DatabasePropertiesView : UserControl
 
     private static void Flag(PropPage page, string label, string key)
     {
-        var box = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
-        page.Edit(label, key, box,
-            text => box.IsChecked = text is "True" or "ON",
-            () => box.IsChecked == true ? "ON" : "OFF");
+        var toggle = FormBits.Toggle();
+        page.Edit(label, key, toggle,
+            text => toggle.IsChecked = text is "True" or "ON",
+            () => toggle.IsChecked == true ? "ON" : "OFF");
     }
 
     /// <param name="values">What ALTER DATABASE is given.</param>
@@ -815,14 +821,8 @@ public sealed class DatabasePropertiesView : UserControl
             Children =
             {
                 table.Control,
-                new TextBlock
-                {
-                    Text = "Permissions on the database itself, which is what this dialog is about. Grants on "
-                        + "tables, views and other objects live with those objects.",
-                    TextWrapping = TextWrapping.Wrap,
-                    Opacity = 0.65,
-                    Margin = new Thickness(0, 8, 0, 0)
-                }
+                Note("Permissions on the database itself, which is what this dialog is about. Grants on "
+                    + "tables, views and other objects live with those objects.")
             }
         };
     }
@@ -916,15 +916,9 @@ public sealed class DatabasePropertiesView : UserControl
             Children =
             {
                 p.Stack,
-                new TextBlock
-                {
-                    Text = "Status only. SSMS's page here is a configuration wizard — secondary servers, "
-                        + "backup schedules, a monitor instance — and setting log shipping up is its own "
-                        + "feature rather than a corner of this dialog.",
-                    TextWrapping = TextWrapping.Wrap,
-                    Opacity = 0.65,
-                    Margin = new Thickness(0, 12, 0, 0)
-                }
+                Note("Status only. SSMS's page here is a configuration wizard — secondary servers, backup "
+                    + "schedules, a monitor instance — and setting log shipping up is its own feature "
+                    + "rather than a corner of this dialog.")
             }
         };
     }
@@ -1034,14 +1028,8 @@ public sealed class DatabasePropertiesView : UserControl
                     Margin = new Thickness(0, 8, 0, 0),
                     Children = { name, value, set, remove }
                 },
-                new TextBlock
-                {
-                    Text = "Database-level properties. \"None\" means this database genuinely has none — most "
-                        + "do not. Changes are written when you press OK, with the rest of the dialog.",
-                    TextWrapping = TextWrapping.Wrap,
-                    Opacity = 0.65,
-                    Margin = new Thickness(0, 8, 0, 0)
-                }
+                Note("Database-level properties. \"None\" means this database genuinely has none — most do "
+                    + "not. Changes are written when you press OK, with the rest of the dialog.")
             }
         };
     }
@@ -1101,7 +1089,8 @@ public sealed class DatabasePropertiesView : UserControl
         policy.Row("Total Execution CPU Time (ms)", "policyExecutionCpu");
 
         var usage = new ProgressBar { Minimum = 0, Maximum = 100, Height = 10, Margin = new Thickness(0, 6, 0, 0) };
-        var usageText = new TextBlock { Opacity = 0.8, Margin = new Thickness(0, 4, 0, 0) };
+        var usageText = FormBits.Label("");
+        usageText.Margin = new Thickness(0, 4, 0, 0);
 
         _ = LoadQueryStoreAsync(p, policy, usage, usageText);
 
@@ -1298,7 +1287,20 @@ public sealed class DatabasePropertiesView : UserControl
 
     // ── Formatting helpers ───────────────────────────────────────────────────────────────────────────
 
+    // Feeds both read-only rows and the Options editors, whose writers match on this exact wording — so it
+    // stays "True"/"False" and grid cells get Tick() instead.
     private static string YesNo(bool value) => value ? "True" : "False";
+
+    /// <summary>
+    /// A boolean in a grid cell. A tick scans faster than the word "True" in a column of them.
+    /// </summary>
+    /// <remarks>
+    /// Not a ToggleSwitch, which is what was asked for here: these are read-only facts about a filegroup,
+    /// not settings, and a switch that does not move reads as a broken control rather than as a value.
+    /// Making them genuinely editable — <c>ALTER DATABASE … MODIFY FILEGROUP READ_ONLY / DEFAULT</c> —
+    /// would earn real toggles, and is worth its own ticket rather than being smuggled into a polish pass.
+    /// </remarks>
+    private static string Tick(bool value) => value ? "✓" : "—";
 
     // "SIMPLE" -> "Simple", "READ_ONLY" -> "Read Only" — SSMS shows these desc columns title-cased.
     private static string Titled(string? desc)

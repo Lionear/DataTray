@@ -2,39 +2,105 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace DataTray.Providers.MsSql;
 
-// The two widgets every SSMS-style properties page in this provider is built from. They started nested
-// inside DatabasePropertiesView; Agent job properties (SE-235) needs the same two, and a second copy of a
+// The widgets every SSMS-style properties page in this provider is built from. They started nested inside
+// DatabasePropertiesView; Agent job properties (SE-235) needs the same ones, and a second copy of a
 // grid-building class is exactly the kind of duplication that drifts.
+//
+// Colours come from the host theme by DynamicResource, never from a hardcoded grey or an Opacity guess.
+// That is not only about dark/light switching: a page built from ad-hoc opacities sits next to the rest of
+// the app looking almost right, which reads worse than looking different. plugins/Tools.CopyTable is the
+// reference for how a code-built plugin view is supposed to do this.
+
+/// <summary>The shared metrics, so every page in this provider has one rhythm rather than one per author.</summary>
+internal static class PropMetrics
+{
+    /// <summary>Width of the label column. Fits "Auto Update Statistics Asynchronously" on two lines.</summary>
+    public const double LabelWidth = 250;
+
+    /// <summary>Minimum height of a property row. Set so a row holding text and a row holding a control are
+    /// the same height — otherwise a page alternates between tight and loose as the control types change,
+    /// which is most of what made the first version look unfinished.</summary>
+    public const double RowHeight = 32;
+
+    public static T Themed<T>(this T control, AvaloniaProperty property, string resource) where T : AvaloniaObject
+    {
+        control[!property] = new DynamicResourceExtension(resource);
+        return control;
+    }
+}
 
 /// <summary>Label/value property page (SSMS' left-label, right-value grid), grouped into sections.</summary>
 internal sealed class PropPage
 {
-    public StackPanel Stack { get; } = new() { Spacing = 2 };
+    private readonly TextBlock _noticeText = new()
+    {
+        TextWrapping = TextWrapping.Wrap,
+        FontSize = 12
+    };
+
+    private readonly TextBlock _noticeDetail = new()
+    {
+        TextWrapping = TextWrapping.Wrap,
+        FontSize = 11,
+        Margin = new Thickness(0, 3, 0, 0)
+    };
+
+    private readonly Border _notice;
+
+    public PropPage()
+    {
+        _noticeText.Themed(TextBlock.ForegroundProperty, "SETextPrimaryBrush");
+        _noticeDetail.Themed(TextBlock.ForegroundProperty, "SETextFaintBrush");
+
+        _notice = new Border
+        {
+            IsVisible = false,
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12, 9),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = new StackPanel { Children = { _noticeText, _noticeDetail } }
+        };
+        _notice.Themed(Border.BackgroundProperty, "SESecondaryBgBrush");
+        _notice.Themed(Border.BorderBrushProperty, "SEHairlineBrush");
+
+        Stack.Children.Add(_notice);
+    }
+
+    public StackPanel Stack { get; } = new();
     public Dictionary<string, TextBlock> Values { get; } = new();
 
-    public void Section(string header) => Stack.Children.Add(new TextBlock
+    public void Section(string header)
     {
-        Text = header,
-        FontWeight = FontWeight.SemiBold,
-        Margin = new Thickness(0, Stack.Children.Count == 0 ? 0 : 12, 0, 4)
-    });
+        var text = new TextBlock
+        {
+            Text = header,
+            FontWeight = FontWeight.SemiBold,
+            FontSize = 13,
+            // The notice occupies index 0 whether or not it is showing, so "first section" is 1, not 0.
+            Margin = new Thickness(0, Stack.Children.Count <= 1 ? 0 : 20, 0, 8)
+        };
+        text.Themed(TextBlock.ForegroundProperty, "SETextPrimaryBrush");
+        Stack.Children.Add(text);
+    }
 
     public void Row(string label, string key)
     {
-        var value = new TextBlock { Text = "…", TextWrapping = TextWrapping.Wrap, Opacity = 0.9 };
+        var value = new TextBlock
+        {
+            Text = "…",
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        value.Themed(TextBlock.ForegroundProperty, "SETextPrimaryBrush");
         Values[key] = value;
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("240,*"), Margin = new Thickness(0, 1, 0, 1) };
-        var name = new TextBlock { Text = label, Opacity = 0.65, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) };
-        Grid.SetColumn(name, 0);
-        Grid.SetColumn(value, 1);
-        row.Children.Add(name);
-        row.Children.Add(value);
-        Stack.Children.Add(row);
+        Stack.Children.Add(BuildRow(label, value));
     }
 
     /// <summary>
@@ -50,20 +116,35 @@ internal sealed class PropPage
     public void Edit(string label, string key, Control editor, Action<string> write, Func<string> read)
     {
         Editors[key] = (write, read);
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("240,*"), Margin = new Thickness(0, 2, 0, 2) };
+        editor.HorizontalAlignment = HorizontalAlignment.Left;
+        editor.VerticalAlignment = VerticalAlignment.Center;
+        Stack.Children.Add(BuildRow(label, editor));
+    }
+
+    // One row shape for text and controls alike: same height, same label column, both halves centred against
+    // each other. A label that top-aligns beside a centred control is the tell that a form was assembled
+    // rather than laid out.
+    private static Control BuildRow(string label, Control value)
+    {
         var name = new TextBlock
         {
             Text = label,
-            Opacity = 0.65,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 12, 0),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 16, 0)
+        };
+        name.Themed(TextBlock.ForegroundProperty, "SETextSecondaryBrush");
+
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions($"{PropMetrics.LabelWidth},*"),
+            MinHeight = PropMetrics.RowHeight
         };
         Grid.SetColumn(name, 0);
-        Grid.SetColumn(editor, 1);
+        Grid.SetColumn(value, 1);
         row.Children.Add(name);
-        row.Children.Add(editor);
-        Stack.Children.Add(row);
+        row.Children.Add(value);
+        return row;
     }
 
     public Dictionary<string, (Action<string> Write, Func<string> Read)> Editors { get; } = new();
@@ -87,7 +168,20 @@ internal sealed class PropPage
         }
     }
 
-    public void Fail(Exception ex)
+    /// <summary>
+    /// The page could not read its data. Every row degrades to an em dash and the reason goes in a notice at
+    /// the top of the page.
+    /// </summary>
+    /// <remarks>
+    /// This used to write <c>"(unavailable: {message})"</c> into the <em>first row of the page</em>, which is
+    /// how a SQL Server column-name error ended up rendered as a database's collation — a raw server message
+    /// sitting where a value belongs, blaming whichever row happened to be declared first. Now the page says
+    /// what happened in its own voice and keeps the server's wording underneath in faint text, where it is
+    /// still there to diagnose with and no longer pretending to be a setting.
+    /// </remarks>
+    public void Fail(Exception ex) => Fail("Some of these settings could not be read.", ex.Message);
+
+    public void Fail(string message, string? detail = null) => Dispatcher.UIThread.Post(() =>
     {
         foreach (var (key, tb) in Values)
         {
@@ -96,12 +190,12 @@ internal sealed class PropPage
                 Set(key, "—");
             }
         }
-        var first = Values.Keys.FirstOrDefault();
-        if (first is not null)
-        {
-            Set(first, $"(unavailable: {ex.Message})");
-        }
-    }
+
+        _noticeText.Text = message;
+        _noticeDetail.Text = detail ?? "";
+        _noticeDetail.IsVisible = !string.IsNullOrWhiteSpace(detail);
+        _notice.IsVisible = true;
+    });
 }
 
 /// <summary>Read-only tabular page built from a header row plus dynamically added value rows. Columns
@@ -130,28 +224,41 @@ internal sealed class Table
             {
                 Text = headers[c],
                 FontWeight = FontWeight.SemiBold,
+                FontSize = 11.5,
                 TextWrapping = TextWrapping.NoWrap,
-                Margin = new Thickness(0, 0, 12, 6)
+                Margin = new Thickness(10, 7, 12, 7)
             };
+            header.Themed(TextBlock.ForegroundProperty, "SETextSecondaryBrush");
             Grid.SetColumn(header, c);
             Grid.SetRow(header, 0);
             _grid.Children.Add(header);
         }
 
-        _status = new TextBlock { Text = "…", Opacity = 0.7, Margin = new Thickness(0, 8, 0, 0) };
-        Control = new StackPanel
+        _status = new TextBlock { Text = "…", Margin = new Thickness(10, 8, 10, 8) };
+        _status.Themed(TextBlock.ForegroundProperty, "SETextFaintBrush");
+
+        // A bordered container rather than a bare grid: on a page that also holds label/value rows, an
+        // unframed grid reads as more rows rather than as a table.
+        var frame = new Border
         {
-            Children =
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Child = new StackPanel
             {
-                new ScrollViewer
+                Children =
                 {
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                    Content = _grid
-                },
-                _status
+                    new ScrollViewer
+                    {
+                        HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                        VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                        Content = _grid
+                    },
+                    _status
+                }
             }
         };
+        frame.Themed(Border.BorderBrushProperty, "SEHairlineBrush");
+        Control = frame;
     }
 
     public void Fill(IReadOnlyList<string[]> rows) => Dispatcher.UIThread.Post(() =>
@@ -180,10 +287,10 @@ internal sealed class Table
                 var cell = new TextBlock
                 {
                     Text = c < rows[r].Length ? rows[r][c] : "",
-                    Opacity = 0.9,
                     TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 1, 12, 1)
+                    Margin = new Thickness(10, 5, 12, 5)
                 };
+                cell.Themed(TextBlock.ForegroundProperty, "SETextPrimaryBrush");
                 Grid.SetColumn(cell, c);
                 Grid.SetRow(cell, r + 1);
                 _grid.Children.Add(cell);
@@ -211,18 +318,47 @@ internal static class FormBits
     /// <summary>Half a column, for two short fields side by side.</summary>
     private const double HalfWidth = (ColumnWidth - 16) / 2;
 
-    public static TextBlock Section(string header) => new()
+    public static TextBlock Section(string header)
     {
-        Text = header,
-        FontWeight = FontWeight.SemiBold,
-        Margin = new Thickness(0, 6, 0, 0)
-    };
+        var text = new TextBlock
+        {
+            Text = header,
+            FontWeight = FontWeight.SemiBold,
+            FontSize = 13,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        return text.Themed(TextBlock.ForegroundProperty, "SETextPrimaryBrush");
+    }
+
+    /// <summary>A field label — secondary text, so the value beside it is what the eye lands on.</summary>
+    public static TextBlock Label(string text)
+    {
+        var block = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
+        return block.Themed(TextBlock.ForegroundProperty, "SETextSecondaryBrush");
+    }
+
+    /// <summary>Explanatory text under a control — quieter again than a label.</summary>
+    public static TextBlock Hint(string text)
+    {
+        var block = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = 11.5 };
+        return block.Themed(TextBlock.ForegroundProperty, "SETextFaintBrush");
+    }
+
+    /// <summary>A boolean setting. A ToggleSwitch, never a CheckBox, and with no On/Off caption — the row's
+    /// own label says what it is, and the caption flipping between two words as you click is noise. Same
+    /// call the host's tool dialog and settings window make.</summary>
+    public static ToggleSwitch Toggle() => new() { OnContent = "", OffContent = "" };
+
+    /// <summary>A boolean setting that carries its own caption, for use outside a label/value row. The
+    /// caption is the same in both states: it names the setting, it does not report the state — the switch
+    /// already does that, and a word that changes as you click is one more thing to read.</summary>
+    public static ToggleSwitch Toggle(string label) => new() { OnContent = label, OffContent = label };
 
     /// <summary>A label above its editor.</summary>
     public static Control Labelled(string label, Control editor) => new StackPanel
     {
         Spacing = 3,
-        Children = { new TextBlock { Text = label, Opacity = 0.65 }, editor }
+        Children = { Label(label), editor }
     };
 
     /// <summary>A label above a run of controls that belong together (a number and its unit, say).</summary>
@@ -281,7 +417,7 @@ internal sealed class SelectTable
     private readonly Grid _grid = new();
     // One entry per row, holding that row's cell borders — the highlight covers the whole width.
     private readonly List<List<Border>> _rows = [];
-    private readonly TextBlock _empty = new() { Opacity = 0.7, Margin = new Thickness(9, 8, 0, 0) };
+    private readonly TextBlock _empty = new() { Margin = new Thickness(9, 8, 0, 0) };
     private readonly int _columns;
 
     private int _selected = -1;
@@ -303,18 +439,18 @@ internal sealed class SelectTable
             {
                 Text = headers[c],
                 FontWeight = FontWeight.SemiBold,
-                Opacity = 0.75,
-                Margin = new Thickness(9, 4, 9, 5)
+                FontSize = 11.5,
+                Margin = new Thickness(9, 6, 9, 6)
             };
+            header.Themed(TextBlock.ForegroundProperty, "SETextSecondaryBrush");
             Grid.SetColumn(header, c);
             _grid.Children.Add(header);
         }
 
-        Control = new Border
+        var frame = new Border
         {
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(40, 128, 128, 128)),
-            CornerRadius = new CornerRadius(4),
+            CornerRadius = new CornerRadius(6),
             Height = height,
             Child = new ScrollViewer
             {
@@ -322,6 +458,8 @@ internal sealed class SelectTable
                 Content = new StackPanel { Children = { _grid, _empty } }
             }
         };
+        frame.Themed(Border.BorderBrushProperty, "SEHairlineBrush");
+        Control = frame;
     }
 
     public Control Control { get; }
@@ -334,12 +472,19 @@ internal sealed class SelectTable
             _selected = value;
             for (var i = 0; i < _rows.Count; i++)
             {
-                IBrush brush = i == value
-                    ? new SolidColorBrush(Color.FromArgb(60, 90, 140, 240))
-                    : Brushes.Transparent;
                 foreach (var cell in _rows[i])
                 {
-                    cell.Background = brush;
+                    if (i == value)
+                    {
+                        cell.Themed(Border.BackgroundProperty, "SESelectionBgBrush");
+                    }
+                    else
+                    {
+                        // Clearing the binding as well as the value: leaving it bound would keep repainting
+                        // the row selected the next time the theme changed.
+                        cell.ClearValue(Border.BackgroundProperty);
+                        cell.Background = Brushes.Transparent;
+                    }
                 }
             }
 
