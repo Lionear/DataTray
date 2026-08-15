@@ -65,6 +65,16 @@ internal sealed record IndexDefinition
         && Columns.SequenceEqual(other.Columns);
 }
 
+/// <summary>
+/// The two options that are not settings of an index at all — they steer the one operation that is about to
+/// run and are stored nowhere, so there is nothing to read back and nothing to diff. SSMS shows them on the
+/// Options page beside settings that persist, which is exactly why the dialog labels them differently.
+/// Kept out of <see cref="IndexDefinition"/> deliberately: putting them there would make "the user typed a
+/// MAXDOP" look like a changed index and rebuild one that nobody asked to change.
+/// </summary>
+/// <param name="MaxDop">0 means "no MAXDOP hint", which is not the same as 1.</param>
+internal sealed record RebuildOptions(int MaxDop = 0, bool SortInTempDb = false);
+
 /// <summary>Builds the T-SQL behind the Index Properties dialog — both what OK runs and what Script shows.</summary>
 internal static class IndexScript
 {
@@ -80,12 +90,17 @@ internal static class IndexScript
     /// <para>Changing clustered to nonclustered or back is DROP + CREATE rather than DROP_EXISTING, which
     /// refuses some of those conversions. Dropping a clustered index rebuilds the table, but that cost is
     /// inherent to the change being asked for — and the alternative is a statement the server rejects.</para>
+    /// <para>When only the options that <c>ALTER INDEX … SET</c> accepts have changed, that is what runs:
+    /// rebuilding an index to flip ALLOW_PAGE_LOCKS would read every page of it for a metadata change. Note
+    /// the asymmetry that makes this safe — SET touches only what it names, where DROP_EXISTING resets
+    /// everything it is not told.</para>
     /// </remarks>
-    public static IReadOnlyList<string> Alter(ISqlDialect dialect, IndexDefinition? original, IndexDefinition wanted)
+    public static IReadOnlyList<string> Alter(
+        ISqlDialect dialect, IndexDefinition? original, IndexDefinition wanted, RebuildOptions? rebuild = null)
     {
         if (original is null)
         {
-            return [Create(dialect, wanted, dropExisting: false)];
+            return [Create(dialect, wanted, dropExisting: false, rebuild)];
         }
 
         var statements = new List<string>();
@@ -103,14 +118,68 @@ internal static class IndexScript
         if (original.Clustered != wanted.Clustered)
         {
             statements.Add($"DROP INDEX {dialect.QuoteIdentifier(wanted.Name)} ON {Qualified(dialect, wanted)}");
-            statements.Add(Create(dialect, wanted, dropExisting: false));
+            statements.Add(Create(dialect, wanted, dropExisting: false, rebuild));
+        }
+        else if (NeedsRebuild(original, wanted))
+        {
+            statements.Add(Create(dialect, wanted, dropExisting: true, rebuild));
         }
         else
         {
-            statements.Add(Create(dialect, wanted, dropExisting: true));
+            statements.Add(Set(dialect, original, wanted));
         }
 
         return statements;
+    }
+
+    /// <summary>
+    /// Whether the difference between these two can only be made by writing the index again. The structural
+    /// half is obvious — columns, uniqueness, the filter, the filegroup. Fill factor and pad index are the
+    /// unobvious half: <c>ALTER INDEX … SET</c> rejects FILLFACTOR at <em>parse</em> time (Msg 155), so a
+    /// batch containing it fails wholesale rather than falling back.
+    /// </summary>
+    private static bool NeedsRebuild(IndexDefinition a, IndexDefinition b) =>
+        !a.Columns.SequenceEqual(b.Columns)
+        || a.Unique != b.Unique
+        || a.Filter != b.Filter
+        || a.DataSpace != b.DataSpace
+        || a.PartitionColumn != b.PartitionColumn
+        || a.PadIndex != b.PadIndex
+        || a.FillFactor != b.FillFactor;
+
+    // Only the options that actually changed — unlike a rebuild, SET leaves alone what it does not name, so
+    // restating the unchanged ones would only make the script harder to read.
+    private static string Set(ISqlDialect dialect, IndexDefinition original, IndexDefinition wanted)
+    {
+        var changes = new List<string>();
+        if (original.AllowRowLocks != wanted.AllowRowLocks)
+        {
+            changes.Add($"ALLOW_ROW_LOCKS = {OnOff(wanted.AllowRowLocks)}");
+        }
+
+        if (original.AllowPageLocks != wanted.AllowPageLocks)
+        {
+            changes.Add($"ALLOW_PAGE_LOCKS = {OnOff(wanted.AllowPageLocks)}");
+        }
+
+        if (original.IgnoreDupKey != wanted.IgnoreDupKey)
+        {
+            changes.Add($"IGNORE_DUP_KEY = {OnOff(wanted.Unique && wanted.IgnoreDupKey)}");
+        }
+
+        if (original.StatisticsNoRecompute != wanted.StatisticsNoRecompute)
+        {
+            changes.Add($"STATISTICS_NORECOMPUTE = {OnOff(wanted.StatisticsNoRecompute)}");
+        }
+
+        if (original.OptimizeForSequentialKey != wanted.OptimizeForSequentialKey
+            && wanted.OptimizeForSequentialKey is { } optimize)
+        {
+            changes.Add($"OPTIMIZE_FOR_SEQUENTIAL_KEY = {OnOff(optimize)}");
+        }
+
+        return $"ALTER INDEX {dialect.QuoteIdentifier(wanted.Name)} ON {Qualified(dialect, wanted)} " +
+            $"SET ({string.Join(", ", changes)})";
     }
 
     /// <summary>
@@ -119,9 +188,10 @@ internal static class IndexScript
     /// computed columns that mentions no filter — SqlClient sets it, so what OK runs needs no preamble, but
     /// a script that lands in sqlcmd or a scheduled job does.
     /// </summary>
-    public static string Script(ISqlDialect dialect, IndexDefinition? original, IndexDefinition wanted)
+    public static string Script(
+        ISqlDialect dialect, IndexDefinition? original, IndexDefinition wanted, RebuildOptions? rebuild = null)
     {
-        var statements = Alter(dialect, original, wanted);
+        var statements = Alter(dialect, original, wanted, rebuild);
         if (statements.Count == 0)
         {
             return "-- Nothing to change.";
@@ -134,7 +204,8 @@ internal static class IndexScript
         return preamble + string.Join("\r\nGO\r\n\r\n", statements) + "\r\nGO\r\n";
     }
 
-    public static string Create(ISqlDialect dialect, IndexDefinition index, bool dropExisting)
+    public static string Create(
+        ISqlDialect dialect, IndexDefinition index, bool dropExisting, RebuildOptions? rebuild = null)
     {
         var keys = index.Keys.ToList();
         if (keys.Count == 0)
@@ -165,7 +236,7 @@ internal static class IndexScript
             sql.Append($" WHERE {filter}");
         }
 
-        sql.Append($" WITH ({string.Join(", ", Options(index, dropExisting))})");
+        sql.Append($" WITH ({string.Join(", ", Options(index, dropExisting, rebuild))})");
 
         if (index.DataSpace is { Length: > 0 } space)
         {
@@ -182,7 +253,7 @@ internal static class IndexScript
     // Always the complete set, in the order SSMS scripts them. See the note on IndexDefinition's options:
     // anything left out here is reset by DROP_EXISTING, so "unchanged" options are exactly the ones that
     // must be restated.
-    private static IEnumerable<string> Options(IndexDefinition index, bool dropExisting)
+    private static IEnumerable<string> Options(IndexDefinition index, bool dropExisting, RebuildOptions? rebuild)
     {
         yield return $"PAD_INDEX = {OnOff(index.PadIndex)}";
         yield return $"STATISTICS_NORECOMPUTE = {OnOff(index.StatisticsNoRecompute)}";
@@ -205,6 +276,18 @@ internal static class IndexScript
         {
             yield return "DROP_EXISTING = ON";
         }
+
+        // Operation-only, and last for that reason: these steer this one build and are stored nowhere, so
+        // re-reading the index afterwards will not show them.
+        if (rebuild?.SortInTempDb == true)
+        {
+            yield return "SORT_IN_TEMPDB = ON";
+        }
+
+        if (rebuild is { MaxDop: > 0 } options)
+        {
+            yield return $"MAXDOP = {options.MaxDop}";
+        }
     }
 
     // sp_rename takes its arguments as text, so the object is named as a three-part string rather than as
@@ -218,6 +301,33 @@ internal static class IndexScript
         string.IsNullOrEmpty(index.Schema)
             ? dialect.QuoteIdentifier(index.Table)
             : $"{dialect.QuoteIdentifier(index.Schema)}.{dialect.QuoteIdentifier(index.Table)}";
+
+    /// <summary>
+    /// A filter as the user typed it, from the form <c>sys.indexes</c> stores. The server normalises
+    /// "Slot &gt; 0" to "([Slot]&gt;(0))"; the outer pair is its own, and leaving it on means the Filter box
+    /// shows a predicate the user did not write and — worse — every reopen would compare as changed.
+    /// </summary>
+    public static string? StripOuterParentheses(string? filter)
+    {
+        if (filter is not { Length: > 1 } || filter[0] != '(' || filter[^1] != ')')
+        {
+            return filter;
+        }
+
+        // Only when the opening bracket is the one the final bracket closes: "(a) AND (b)" also starts with
+        // "(" and ends with ")", and stripping it would produce "a) AND (b".
+        var depth = 0;
+        for (var i = 0; i < filter.Length; i++)
+        {
+            depth += filter[i] switch { '(' => 1, ')' => -1, _ => 0 };
+            if (depth == 0 && i < filter.Length - 1)
+            {
+                return filter;
+            }
+        }
+
+        return filter[1..^1];
+    }
 
     private static string OnOff(bool value) => value ? "ON" : "OFF";
 
