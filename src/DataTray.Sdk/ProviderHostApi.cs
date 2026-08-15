@@ -151,7 +151,21 @@ public static class ProviderHostApi
     //                   create databases, schemas, tables and columns but had no path to a CREATE INDEX at
     //                   all. Purely additive: the new spec members carry defaults, and a provider that omits
     //                   the CreateCapability keeps the menu item hidden and is never handed the new kind.
-    public const int Version = 29;
+    // v30 (2026-08-15): SQL Server's Index Properties dialog (SE-252). New Route-B seam ICustomCreateUi —
+    //                   a provider replaces the host's generic "New …" dialog for a DbObjectKind it owns,
+    //                   because included columns, per-column sort order and filters are not things
+    //                   CreateObjectSpec models and would not be worth modelling for one engine.
+    //                   NodeInfoContext also gains NodePath/Ancestor() (an "Indexes" folder is called that
+    //                   under every table, so Node alone does not identify what the view describes — the
+    //                   same gap ToolExecutionContext.NodePath closed for tools) and OpenQueryEditor (a
+    //                   Script button), plus ICustomNodeInfoUi.InfoViewOwnsActionBar for a properties view
+    //                   that writes and brings its own OK/Cancel.
+    //                   Bumped rather than folded in, even though everything but ICustomCreateUi is a
+    //                   default member or a record property: ICustomCreateUi is a new *type*, and a plugin
+    //                   declaring 29 while implementing it would load on a v29 host and then die in
+    //                   GetTypes() with ReflectionTypeLoadException, taking the whole provider with it.
+    //                   That — new types, not "has this number shipped" — is the test for a bump.
+    public const int Version = 30;
 
     /// <summary>Oldest plugin ABI this host still loads. Additive bumps (v11→v22 style) keep this fixed;
     /// only a breaking change raises it. Raised to 23 by the v23 BuildNodeQuery signature change above —

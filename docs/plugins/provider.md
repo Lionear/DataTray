@@ -193,9 +193,48 @@ own engine before you assume the defaults hold:
 and nullability expressed as `Nullable(T)` rather than a `NOT NULL` suffix — a
 reminder that the `CreateObjectSpec` → DDL mapping is genuinely per-engine.
 
+#### Owning a "New …" dialog (`ICustomCreateUi`, host API v30)
+
+`CreateCapabilities` gets you the host's generic Create dialog: it collects a
+`CreateObjectSpec`, hands it to `BuildCreateStatement`, previews the SQL and runs
+it. That is the right trade for most objects — one dialog, every engine.
+
+When it is not, `ICustomCreateUi` lets a provider replace it for a single
+`DbObjectKind` and keep the rest:
+
+```csharp
+public bool HasCreateUiFor(DbObjectKind kind) => kind == DbObjectKind.Index;
+public string CreateTitle(DbObjectKind kind) => "New Index";
+public Control BuildCreateView(DbObjectKind kind, NodeInfoContext context) => new MyIndexView(context);
+```
+
+SQL Server is the first user: included columns, per-column sort order, filters
+and filegroups are not things `CreateObjectSpec` models, and modelling them for
+one engine would grow controls the other three cannot honour. PostgreSQL, MySQL
+and SQLite answer `false` and keep the generic dialog untouched.
+
+Unlike the generic flow there is no spec and no returned SQL — the view runs its
+own DDL through `context.Provider` and closes itself, exactly as an
+`ICustomSecurityUi` view does. The host reloads the node afterwards either way.
+
+`NodeInfoContext` is shared with `ICustomNodeInfoUi` rather than duplicated, and
+carries what a view opened on a node actually needs:
+
+- **`NodePath` / `Ancestor(kind)`** — the ancestry. `Node` alone does not identify
+  an object: an index is named within its table, and an "Indexes" folder is called
+  "Indexes" under every table. Same gap `ToolExecutionContext.NodePath` closed for
+  tools. Empty on an older host, so read it and say what is missing rather than
+  guess.
+- **`OpenQueryEditor`** — hand SQL to a new query tab, for a Script button. Null
+  on an older host; check before showing the button.
+- **`ICustomNodeInfoUi.InfoViewOwnsActionBar(node)`** — return true when the view
+  brings its own footer. The host then leaves off its Close row (two rows of
+  buttons read as two different ways out) and refreshes the node's parent when the
+  dialog closes, since a view that writes may have changed what the tree shows.
+
 ### Host API versioning
 
-`ProviderHostApi.Version` (currently `29`) is the contract version. Every
+`ProviderHostApi.Version` (currently `30`) is the contract version. Every
 plugin declares the version it was built against in its manifest
 (`hostApiVersion`); the loader accepts any version in `[MinimumSupported,
 Version]` — additive bumps (new default-interface members, enum values, DTOs)
