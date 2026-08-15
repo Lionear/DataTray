@@ -313,6 +313,94 @@ public class IndexScriptTests
         Assert.Equal("", IndexScript.StripOuterParentheses(""));
     }
 
+    // ── Fragmentation and extended properties (phase 3) ──────────────────────────────────────────────
+
+    [Fact]
+    public void Fragmentation_opens_on_the_cheap_scan_and_upgrades_only_on_request()
+    {
+        Assert.Contains("'LIMITED'", IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", detailed: false));
+        Assert.Contains("'DETAILED'", IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", detailed: true));
+    }
+
+    [Fact]
+    public void Fragmentation_reads_the_leaf_level_only()
+    {
+        // DETAILED returns one row per b-tree level. Without the filter the page shows an intermediate
+        // level's numbers, which look plausible and are about something else.
+        Assert.Contains("ps.index_level = 0", IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", true));
+    }
+
+    [Fact]
+    public void Fragmentation_folds_a_partitioned_index_into_one_row()
+    {
+        var sql = IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", detailed: false);
+
+        Assert.Contains("MAX(ps.avg_fragmentation_in_percent)", sql);
+        Assert.Contains("SUM(ps.page_count)", sql);
+    }
+
+    [Fact]
+    public void Fragmentation_quotes_names_inside_the_literal_OBJECT_ID_reads()
+    {
+        // OBJECT_ID takes text, so a quote in a name must not end the literal early.
+        var sql = IndexScript.Fragmentation(Dialect, "app", "O'Brien", "IX_A'B", detailed: false);
+
+        Assert.Contains("N'[app].[O''Brien]'", sql);
+        Assert.Contains("N'IX_A''B'", sql);
+    }
+
+    [Fact]
+    public void A_new_extended_property_is_added_and_a_changed_one_updated()
+    {
+        // SQL Server has no upsert here: add on an existing name fails rather than replacing.
+        var statements = IndexScript.ExtendedProperties("app", "Fitting", "IX_A",
+            original: new Dictionary<string, string> { ["Owner"] = "team-a" },
+            wanted: new Dictionary<string, string> { ["Owner"] = "team-b", ["Ticket"] = "SE-252" });
+
+        Assert.Contains(statements, s => s.StartsWith("EXEC sp_updateextendedproperty") && s.Contains("N'Owner'"));
+        Assert.Contains(statements, s => s.StartsWith("EXEC sp_addextendedproperty") && s.Contains("N'Ticket'"));
+    }
+
+    [Fact]
+    public void A_removed_extended_property_is_dropped()
+    {
+        var statements = IndexScript.ExtendedProperties("app", "Fitting", "IX_A",
+            original: new Dictionary<string, string> { ["Owner"] = "team-a" },
+            wanted: new Dictionary<string, string>());
+
+        Assert.Equal(
+            ["EXEC sp_dropextendedproperty @name = N'Owner', @level0type = N'SCHEMA', @level0name = N'app', "
+                + "@level1type = N'TABLE', @level1name = N'Fitting', @level2type = N'INDEX', @level2name = N'IX_A'"],
+            statements);
+    }
+
+    [Fact]
+    public void An_unchanged_extended_property_produces_nothing()
+    {
+        var same = new Dictionary<string, string> { ["Owner"] = "team-a" };
+
+        Assert.Empty(IndexScript.ExtendedProperties("app", "Fitting", "IX_A", same, same));
+    }
+
+    [Fact]
+    public void An_index_on_an_unqualified_table_hangs_its_properties_off_dbo()
+    {
+        // All three levels have to be named, and an unqualified table is in dbo.
+        var statements = IndexScript.ExtendedProperties(null, "Fitting", "IX_A",
+            original: new Dictionary<string, string>(),
+            wanted: new Dictionary<string, string> { ["Owner"] = "team-a" });
+
+        Assert.Contains("@level0name = N'dbo'", statements.Single());
+    }
+
+    [Fact]
+    public void A_script_of_pre_built_statements_still_gets_the_filtered_index_preamble()
+    {
+        Assert.StartsWith("SET QUOTED_IDENTIFIER ON;", IndexScript.Script(["CREATE INDEX …"], filtered: true));
+        Assert.StartsWith("CREATE INDEX", IndexScript.Script(["CREATE INDEX …"], filtered: false));
+        Assert.Equal("-- Nothing to change.", IndexScript.Script([], filtered: false));
+    }
+
     [Fact]
     public void SQL_Server_owns_the_New_Index_dialog_and_leaves_the_other_kinds_to_the_host()
     {
