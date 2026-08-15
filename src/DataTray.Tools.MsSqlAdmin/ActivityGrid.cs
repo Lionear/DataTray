@@ -65,7 +65,7 @@ internal sealed class GridRow(string[] cells)
 
 /// <summary>
 /// A collapsible section of the Activity Monitor: SSMS's header bar that folds the whole grid away, a
-/// filter over one column or all of them, and the grid itself.
+/// Database dropdown, a filter over one column or all of them, and the grid itself.
 /// </summary>
 /// <remarks>
 /// Sorting is done here rather than by the DataGrid, the same way the host's own result grid does it: the
@@ -77,12 +77,17 @@ internal sealed class GridRow(string[] cells)
 /// </remarks>
 internal sealed class ActivityGrid
 {
+    private readonly IPluginLocalizer _loc;
     private readonly string[] _headers;
     private readonly DataGrid _grid;
     private readonly ObservableCollection<GridRow> _rows = [];
+    private readonly ComboBox _database = new() { MinWidth = 140, FontSize = 12 };
     private readonly ComboBox _filterColumn = new() { MinWidth = 150, FontSize = 12 };
     private readonly TextBox _filterText = new() { Width = 200, FontSize = 12 };
     private readonly TextBlock _count = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7, FontSize = 12 };
+
+    private readonly int _databaseColumn;
+    private readonly int _fullTextColumn;
 
     private IReadOnlyList<string[]> _all = [];
     private int _sortColumn = -1;
@@ -92,16 +97,28 @@ internal sealed class ActivityGrid
     /// <paramref name="filterText"/> what it starts filtering for. The Processes grid opens filtered to
     /// user processes, as SSMS does: sixty background tasks above the four sessions you came to look at is
     /// not a monitor, and the filter is in plain sight to be cleared.</param>
+    /// <param name="databaseColumn">Header index of the grid's Database column, or -1 for a grid that has
+    /// none. It gets a dropdown of its own beside the free-text filter, because picking one of the databases
+    /// that actually have rows is the question this tab is opened with, and it is a different question from
+    /// the one the text box answers — the two stack.</param>
+    /// <param name="fullTextColumn">Row index holding the untruncated text a double-click shows in a window
+    /// (<see cref="ActivityTables.FullTextColumn"/>), or -1 for a grid whose cells are all short enough to
+    /// read where they are.</param>
     public ActivityGrid(
+        IPluginLocalizer loc,
         string title,
         string[] headers,
         double[] widths,
-        string filterAllLabel,
         double height = 220,
         int filterColumn = -1,
-        string filterText = "")
+        string filterText = "",
+        int databaseColumn = -1,
+        int fullTextColumn = -1)
     {
+        _loc = loc;
         _headers = headers;
+        _databaseColumn = databaseColumn;
+        _fullTextColumn = fullTextColumn;
 
         _grid = new DataGrid
         {
@@ -136,19 +153,32 @@ internal sealed class ActivityGrid
         }
 
         _grid.Sorting += OnSorting;
+        _grid.DoubleTapped += async (_, _) => await ShowFullTextAsync();
 
-        _filterColumn.ItemsSource = new[] { filterAllLabel }.Concat(headers).ToList();
+        _filterColumn.ItemsSource = new[] { loc.Get("activity.filterAll") }.Concat(headers).ToList();
         _filterColumn.SelectedIndex = filterColumn >= 0 ? filterColumn + 1 : 0;
         _filterText.Text = filterText;
         _filterColumn.SelectionChanged += (_, _) => Render();
         _filterText.TextChanged += (_, _) => Render();
+
+        _database.IsVisible = databaseColumn >= 0;
+        _database.SelectionChanged += (_, _) => Render();
+        RefreshDatabases();
+
+        var label = new TextBlock
+        {
+            Text = _loc.Get("activity.database"),
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 12,
+            IsVisible = databaseColumn >= 0
+        };
 
         var bar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 6,
             Margin = new Thickness(0, 0, 0, 6),
-            Children = { _filterColumn, _filterText, _count }
+            Children = { label, _database, _filterColumn, _filterText, _count }
         };
 
         Section = new Expander
@@ -174,7 +204,47 @@ internal sealed class ActivityGrid
     public void Update(IReadOnlyList<string[]> rows)
     {
         _all = rows;
+        RefreshDatabases();
         Render();
+    }
+
+    // The dropdown lists the databases in the whole snapshot, not in what the text filter left — the two
+    // filters are independent, so narrowing one must not take the other's choices away. Rewritten only when
+    // the set actually changes, or a refresh every ten seconds would drop the list open under the pointer.
+    private void RefreshDatabases()
+    {
+        if (_databaseColumn < 0)
+        {
+            return;
+        }
+
+        var names = ActivityTables.Databases(_all, _databaseColumn, _loc.Get("activity.allDatabases"));
+        if (_database.ItemsSource is IReadOnlyList<string> current && names.SequenceEqual(current))
+        {
+            return;
+        }
+
+        // A database that no longer has rows falls back to "(all databases)" rather than filtering
+        // everything away — the selection is only worth keeping while it can still match something.
+        var selected = _database.SelectedItem as string;
+        _database.ItemsSource = names;
+        _database.SelectedIndex = selected is not null ? Math.Max(names.ToList().IndexOf(selected), 0) : 0;
+    }
+
+    // Double-click a row to read the whole thing: the query column is one line of collapsed whitespace
+    // clipped to its column width, which is enough to recognise a statement and not enough to read one.
+    private async Task ShowFullTextAsync()
+    {
+        if (_fullTextColumn < 0 ||
+            SelectedCells is not { } cells ||
+            _fullTextColumn >= cells.Length ||
+            cells[_fullTextColumn].Length == 0 ||
+            TopLevel.GetTopLevel(_grid) is not Window owner)
+        {
+            return;
+        }
+
+        await QueryTextWindow.ShowAsync(owner, _loc, cells[_fullTextColumn]);
     }
 
     /// <summary>Show a failure in place of the rows, so one broken section says why instead of the tab
@@ -215,6 +285,14 @@ internal sealed class ActivityGrid
         var column = _filterColumn.SelectedIndex - 1;
 
         IEnumerable<string[]> rows = _all;
+        // Index 0 is "(all databases)"; anything below it is an exact database, not a substring, because the
+        // dropdown offers names that exist and "db" matching "db_archive" would be a different feature.
+        if (_databaseColumn >= 0 && _database.SelectedIndex > 0 && _database.SelectedItem is string database)
+        {
+            rows = rows.Where(r => string.Equals(
+                Cell(r, _databaseColumn), database, StringComparison.CurrentCultureIgnoreCase));
+        }
+
         if (!string.IsNullOrWhiteSpace(filter))
         {
             rows = column >= 0
