@@ -512,15 +512,22 @@ public sealed class DatabasePropertiesView : UserControl
             await using var connection = await OpenAsync();
             List<string[]> row = [], fs = [], mo = [];
 
+            // is_autogrow_all_files arrived in SQL Server 2016. Asked for unconditionally it would fail the
+            // whole page on an older server — one unavailable column costing every filegroup, which is
+            // exactly how the FILESTREAM rows took out the Options page. Probed instead, and its absence
+            // costs one cell.
+            var autogrowAll = await SupportsColumnAsync(connection, "sys.filegroups", "is_autogrow_all_files");
+            var autogrowColumn = autogrowAll ? "fg.is_autogrow_all_files" : "CAST(0 AS bit)";
+
             // One pass over every data space type rather than three queries: they differ only in which
             // columns mean anything, and is_autogrow_all_files does not exist on a FILESTREAM filegroup.
             await RunAsync(connection,
-                """
+                $"""
                 SELECT fg.name, fg.type, COUNT(df.file_id), fg.is_read_only, fg.is_default,
-                       fg.is_autogrow_all_files
+                       {autogrowColumn}
                 FROM sys.filegroups fg
                 LEFT JOIN sys.database_files df ON df.data_space_id = fg.data_space_id
-                GROUP BY fg.name, fg.type, fg.is_read_only, fg.is_default, fg.is_autogrow_all_files
+                GROUP BY fg.name, fg.type, fg.is_read_only, fg.is_default, {autogrowColumn}
                 ORDER BY fg.name
                 """,
                 _ => { },
@@ -532,7 +539,7 @@ public sealed class DatabasePropertiesView : UserControl
                     {
                         case "FG":
                             row.Add([name, files, YesNo(reader.GetBoolean(3)), YesNo(reader.GetBoolean(4)),
-                                YesNo(reader.GetBoolean(5))]);
+                                autogrowAll ? YesNo(reader.GetBoolean(5)) : "—"]);
                             break;
                         case "FD":
                             fs.Add([name, files, YesNo(reader.GetBoolean(3)), YesNo(reader.GetBoolean(4))]);
@@ -688,8 +695,7 @@ public sealed class DatabasePropertiesView : UserControl
                        is_arithabort_on, is_concat_null_yields_null_on, is_numeric_roundabort_on,
                        is_quoted_identifier_on, is_recursive_triggers_on, is_trustworthy_on,
                        is_date_correlation_on, is_parameterization_forced, delayed_durability_desc,
-                       is_honor_broker_priority_on, service_broker_guid, state_desc,
-                       is_filestream_non_transacted_access_desc, filestream_directory_name
+                       is_honor_broker_priority_on, service_broker_guid, state_desc
                 FROM sys.databases WHERE name = @db
                 """,
                 cmd => cmd.Parameters.AddWithValue("@db", _database),
@@ -732,9 +738,9 @@ public sealed class DatabasePropertiesView : UserControl
                     p.Set("brokerPriority", YesNo(reader.GetBoolean(33)));
                     p.Set("brokerGuid", reader.IsDBNull(34) ? "—" : reader.GetGuid(34).ToString());
                     p.Set("state", Titled(Str(reader, 35)));
-                    p.Set("filestreamAccess", Titled(Str(reader, 36)));
-                    p.Set("filestreamDirectory", Str(reader, 37));
                 });
+
+            await LoadFilestreamOptionsAsync(connection, p);
 
             // After the loaded values have reached the editors, not before: Set posts to the UI thread, so
             // snapshotting here would capture the defaults and make every row look changed.
@@ -1178,6 +1184,48 @@ public sealed class DatabasePropertiesView : UserControl
                 : $"{currentMb:N0} MB used; no maximum set.";
         });
 
+    /// <summary>
+    /// The two FILESTREAM rows. They are not columns of <c>sys.databases</c> — they live in
+    /// <c>sys.database_filestream_options</c>, one row per database — and asking sys.databases for them
+    /// failed the entire Options page, not just those two rows, because the whole load shares one try.
+    /// </summary>
+    /// <remarks>
+    /// Its own query with its own try for the same reason the Query Store capture policy has one: a page
+    /// that reads twenty settings should not lose all of them because the twenty-first is unavailable.
+    /// </remarks>
+    private static async Task LoadFilestreamOptionsAsync(SqlConnection connection, PropPage p)
+    {
+        try
+        {
+            var found = false;
+            await RunAsync(connection,
+                """
+                SELECT directory_name, non_transacted_access_desc
+                FROM sys.database_filestream_options
+                WHERE database_id = DB_ID()
+                """,
+                _ => { },
+                reader =>
+                {
+                    found = true;
+                    p.Set("filestreamDirectory", Str(reader, 0));
+                    p.Set("filestreamAccess", Titled(Str(reader, 1)));
+                });
+
+            if (!found)
+            {
+                p.Set("filestreamDirectory", "—");
+                p.Set("filestreamAccess", "—");
+            }
+        }
+        catch
+        {
+            // The view arrived in SQL Server 2012 with FILESTREAM itself.
+            p.Set("filestreamDirectory", "—");
+            p.Set("filestreamAccess", "Not available on this server");
+        }
+    }
+
     private async Task LoadCapturePolicyAsync(SqlConnection connection, PropPage policy)
     {
         var keys = new[] { "policyExecutions", "policyStale", "policyCompileCpu", "policyExecutionCpu" };
@@ -1210,6 +1258,15 @@ public sealed class DatabasePropertiesView : UserControl
     }
 
     // ── Data access helpers ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Whether a catalog view has a column, so a page can ask for it only where it exists. Cheaper
+    /// and more honest than comparing server versions: the question is "can I select this", and that is what
+    /// COL_LENGTH answers.</summary>
+    private static async Task<bool> SupportsColumnAsync(SqlConnection connection, string view, string column)
+    {
+        await using var command = new SqlCommand($"SELECT COL_LENGTH('{view}', '{column}')", connection);
+        return await command.ExecuteScalarAsync() is int;
+    }
 
     private async Task<SqlConnection> OpenAsync()
     {
