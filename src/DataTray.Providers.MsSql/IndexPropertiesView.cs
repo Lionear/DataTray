@@ -31,10 +31,13 @@ namespace DataTray.Providers.MsSql;
 /// </remarks>
 public sealed class IndexPropertiesView : UserControl
 {
-    // Phase 1 ships General alone; Options/Storage/Filter (phase 2) and Fragmentation/Extended Properties
-    // (phase 3) join it here. The rail hides itself while there is only one page — a rail with a single
-    // entry is chrome that cannot do anything.
-    private static readonly string[] Pages = ["General"];
+    // Creating an index, the Fragmentation page has nothing to report on — a rail entry that can never do
+    // anything is noise, so it only exists on the Properties entry point.
+    private static readonly string[] CreatePages =
+        ["General", "Options", "Storage", "Filter", "Extended Properties"];
+
+    private static readonly string[] EditPages =
+        ["General", "Options", "Storage", "Filter", "Fragmentation", "Extended Properties"];
 
     /// <summary>A table column as the picker and the grids show it.</summary>
     private sealed record TableColumn(string Name, string Type, bool Nullable, bool Identity);
@@ -45,7 +48,8 @@ public sealed class IndexPropertiesView : UserControl
     private readonly bool _creating;
 
     private readonly ContentControl _host = new();
-    private readonly Control?[] _built = new Control?[Pages.Length];
+    private readonly string[] _pages;
+    private readonly Control?[] _built;
 
     private readonly TextBlock _status = new()
     {
@@ -64,6 +68,42 @@ public sealed class IndexPropertiesView : UserControl
     private readonly SelectTable _keys = new(["Name", "Sort order", "Data type", "Nullable"], [0, 110, 140, 80]);
     private readonly SelectTable _included = new(["Name", "Data type", "Nullable"], [0, 140, 80]);
     private readonly ComboBox _addColumn = new() { Width = 220, PlaceholderText = "Add a column…" };
+
+    // Options page. Grouped by what actually happens when OK is pressed, which is the distinction SSMS
+    // renders identically and that this dialog makes visible with a pill per row.
+    private readonly CheckBox _allowRowLocks = new() { Content = "Allow row locks", IsChecked = true };
+    private readonly CheckBox _allowPageLocks = new() { Content = "Allow page locks", IsChecked = true };
+    private readonly CheckBox _ignoreDupKey = new() { Content = "Ignore duplicate values" };
+    private readonly CheckBox _autoRecompute = new() { Content = "Automatically recompute statistics", IsChecked = true };
+    private readonly CheckBox _optimizeSequentialKey = new() { Content = "Optimize for sequential key" };
+    private readonly CheckBox _padIndex = new() { Content = "Pad index" };
+    private readonly NumericUpDown _fillFactor = new() { Minimum = 0, Maximum = 100, Increment = 5, Value = 0, Width = 120 };
+    private readonly NumericUpDown _maxDop = new() { Minimum = 0, Maximum = 64, Value = 0, Width = 120 };
+    private readonly CheckBox _sortInTempDb = new() { Content = "Sort results in tempdb" };
+    private readonly TextBlock _optionDescription = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.75 };
+
+    // Storage page.
+    private readonly ComboBox _dataSpacePicker = new() { Width = 260, PlaceholderText = "Default filegroup" };
+    private readonly ComboBox _partitionColumnPicker = new() { Width = 260, IsEnabled = false };
+    private readonly List<string> _partitionSchemes = [];
+
+    // Filter page.
+    private readonly TextBox _filterBox = new()
+    {
+        AcceptsReturn = true,
+        MinHeight = 90,
+        TextWrapping = TextWrapping.Wrap,
+        PlaceholderText = "Slot > 0 AND Note IS NOT NULL"
+    };
+
+    private readonly TextBlock _filterRowCount = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+
+    // Extended Properties page. Edited in memory and written on OK with everything else, so a dialog that
+    // is cancelled leaves nothing behind — SSMS writes these as you go, which is a second commit model in
+    // one dialog.
+    private readonly SelectTable _extendedPropertyTable = new(["Name", "Value"], [220, 0]);
+    private readonly Dictionary<string, string> _originalExtendedProperties = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _extendedProperties = new(StringComparer.Ordinal);
 
     private readonly List<TableColumn> _tableColumns = [];
     private readonly List<IndexColumn> _columns = [];
@@ -91,13 +131,15 @@ public sealed class IndexPropertiesView : UserControl
             _name.Text = context.Node.Name;
         }
 
+        _pages = creating ? CreatePages : EditPages;
+        _built = new Control?[_pages.Length];
+
         var rail = new ListBox
         {
             Width = 170,
-            ItemsSource = Pages,
+            ItemsSource = _pages,
             SelectedIndex = 0,
-            Background = Brushes.Transparent,
-            IsVisible = Pages.Length > 1
+            Background = Brushes.Transparent
         };
         ScrollViewer.SetHorizontalScrollBarVisibility(rail, ScrollBarVisibility.Disabled);
         rail.SelectionChanged += (_, _) => ShowPage(rail.SelectedIndex);
@@ -151,7 +193,18 @@ public sealed class IndexPropertiesView : UserControl
             return;
         }
 
-        _built[index] ??= BuildGeneral();
+        // Dispatched by name rather than by ordinal: the rail is one entry shorter when creating, and an
+        // index-based switch would then build the wrong page for everything after Filter.
+        _built[index] ??= _pages[index] switch
+        {
+            "General" => BuildGeneral(),
+            "Options" => BuildOptions(),
+            "Storage" => BuildStorage(),
+            "Filter" => BuildFilter(),
+            "Fragmentation" => BuildFragmentation(),
+            _ => BuildExtendedProperties()
+        };
+
         _host.Content = _built[index];
     }
 
@@ -229,6 +282,412 @@ public sealed class IndexPropertiesView : UserControl
 
     private bool _includedTabSelected;
 
+    // ── Options ──────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>What pressing OK actually does with a row's value. SSMS renders all three identically,
+    /// which is why people are surprised that a fill factor costs a rebuild and a MAXDOP is never saved.</summary>
+    private enum Applies
+    {
+        /// <summary>In place, via <c>ALTER INDEX … SET</c> — no data is read or written.</summary>
+        OnOk,
+
+        /// <summary>Only by writing the index again. <c>SET</c> rejects FILLFACTOR at parse time.</summary>
+        Rebuild,
+
+        /// <summary>Steers the next rebuild and is stored nowhere, so it reads back as nothing.</summary>
+        NextRebuild
+    }
+
+    private Control BuildOptions()
+    {
+        _ignoreDupKey.IsCheckedChanged += (_, _) => Revalidate();
+        _padIndex.IsCheckedChanged += (_, _) => Revalidate();
+        _fillFactor.ValueChanged += (_, _) => Revalidate();
+
+        var page = FormBits.Page(
+            new TextBlock
+            {
+                Text = "Each setting says when it takes effect. That distinction is invisible in SSMS, and it "
+                    + "is the difference between a metadata change and reading every page of the index.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            },
+            FormBits.Section("Locking and duplicates"),
+            OptionRow(_allowRowLocks, Applies.OnOk,
+                "Lets the engine take row locks on this index. Turning it off pushes contention up to page "
+                + "or table level — occasionally what a hot index wants, usually not."),
+            OptionRow(_allowPageLocks, Applies.OnOk,
+                "Lets the engine take page locks. Off also rules out page-level lock escalation, and stops "
+                + "REORGANIZE from doing anything useful."),
+            OptionRow(_ignoreDupKey, Applies.OnOk,
+                "On a unique index, a multi-row INSERT that hits a duplicate skips that row and keeps the "
+                + "rest, instead of failing the whole statement. Only meaningful on a unique index."),
+
+            FormBits.Section("Statistics"),
+            OptionRow(_autoRecompute, Applies.OnOk,
+                "Lets the engine refresh this index's statistics as the data changes. Off (STATISTICS_"
+                + "NORECOMPUTE = ON) freezes them until someone runs UPDATE STATISTICS by hand."),
+            OptionRow(_optimizeSequentialKey, Applies.OnOk,
+                "Reduces the last-page insert contention an ever-increasing key causes. SQL Server 2019 and "
+                + "later only — on an older server the option is hidden, because it does not parse there."),
+
+            FormBits.Section("Storage density"),
+            OptionRow(FormBits.Row("Fill factor (%) — 0 means the server default", _fillFactor), Applies.Rebuild,
+                "How full each leaf page is packed when the index is built. Lower leaves room for inserts "
+                + "and costs space and reads. Changing it rebuilds the index — ALTER INDEX … SET refuses "
+                + "FILLFACTOR at parse time, so it cannot be applied any other way."),
+            OptionRow(_padIndex, Applies.Rebuild,
+                "Applies the fill factor to the intermediate levels of the b-tree too, not just the leaves. "
+                + "Meaningless without a fill factor, and rebuilds for the same reason."),
+
+            FormBits.Section("This rebuild only"),
+            OptionRow(FormBits.Row("Maximum degree of parallelism — 0 means the server default", _maxDop),
+                Applies.NextRebuild,
+                "Caps the processors this one build uses. Nothing is stored: reopen the dialog and it reads "
+                + "0 again, because there is no such property on an index."),
+            OptionRow(_sortInTempDb, Applies.NextRebuild,
+                "Sorts the intermediate results in tempdb rather than in the destination filegroup. Trades "
+                + "tempdb space for a shorter build. Also stored nowhere."),
+
+            FormBits.Section("What this row does"),
+            _optionDescription);
+
+        _optionDescription.Text = "Focus a setting to see what it does and when it takes effect.";
+        return page;
+    }
+
+    private Control OptionRow(Control editor, Applies applies, string description)
+    {
+        editor.GotFocus += (_, _) => _optionDescription.Text = description;
+        // A checkbox's own label is the row label, so there is no separate label column to fill.
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 2, 0, 2) };
+        Grid.SetColumn(editor, 0);
+        var pill = Pill(applies);
+        Grid.SetColumn(pill, 1);
+        row.Children.Add(editor);
+        row.Children.Add(pill);
+        return row;
+    }
+
+    private static Control Pill(Applies applies) => new Border
+    {
+        Background = new SolidColorBrush(Color.FromArgb(28, 128, 128, 128)),
+        CornerRadius = new CornerRadius(6),
+        Padding = new Thickness(8, 2, 8, 2),
+        VerticalAlignment = VerticalAlignment.Center,
+        Child = new TextBlock
+        {
+            FontSize = 11,
+            Opacity = 0.8,
+            Text = applies switch
+            {
+                Applies.OnOk => "on OK",
+                Applies.Rebuild => "rebuilds",
+                _ => "next rebuild"
+            }
+        }
+    };
+
+    // ── Storage ──────────────────────────────────────────────────────────────────────────────────────
+
+    private Control BuildStorage()
+    {
+        _dataSpacePicker.SelectionChanged += (_, _) =>
+        {
+            // A partition scheme has to name the column it partitions on; a filegroup has nothing to pick.
+            var scheme = _dataSpacePicker.SelectedItem is string name && _partitionSchemes.Contains(name);
+            _partitionColumnPicker.IsEnabled = scheme;
+            _partitionColumnPicker.ItemsSource = scheme
+                ? _columns.Where(c => !c.Included).Select(c => c.Name).ToList()
+                : (IEnumerable<string>)[];
+            Revalidate();
+        };
+
+        return FormBits.Page(
+            new TextBlock
+            {
+                Text = "Where the index lives. Changing it writes the index again, in the destination.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            },
+            FormBits.Labelled("Filegroup or partition scheme", _dataSpacePicker),
+            FormBits.Labelled("Partition column", _partitionColumnPicker),
+            new TextBlock
+            {
+                Text = "Existing partition schemes only — creating one is a separate piece of work with its "
+                    + "own partition function, and not something to hide behind a dropdown here.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.65
+            });
+    }
+
+    // ── Filter ───────────────────────────────────────────────────────────────────────────────────────
+
+    private Control BuildFilter()
+    {
+        _filterBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBox.TextProperty)
+            {
+                Revalidate();
+            }
+        };
+
+        var check = new Button { Content = "Check rows" };
+        check.Click += async (_, _) => await CheckFilterRowsAsync(check);
+
+        // WHERE is a fixed prefix rather than something to type: typing it makes the predicate invalid, and
+        // leaving it out of an empty box makes an unfiltered index look like a mistake.
+        var predicate = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        var where = new TextBlock
+        {
+            Text = "WHERE",
+            FontWeight = FontWeight.SemiBold,
+            Opacity = 0.7,
+            Margin = new Thickness(0, 6, 10, 0),
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        Grid.SetColumn(where, 0);
+        Grid.SetColumn(_filterBox, 1);
+        predicate.Children.Add(where);
+        predicate.Children.Add(_filterBox);
+
+        return FormBits.Page(
+            new TextBlock
+            {
+                Text = "A filtered index covers only the rows matching this predicate — smaller, cheaper to "
+                    + "maintain, and only usable by queries the optimiser can prove fall inside it. Leave it "
+                    + "empty for an ordinary index.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            },
+            predicate,
+            new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Children = { check, _filterRowCount } },
+            new TextBlock
+            {
+                Text = "Check rows runs a COUNT over the table with this predicate. On a large table that is "
+                    + "a scan, so it runs only when asked — same reason the fragmentation scan is a button.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.65
+            });
+    }
+
+    private async Task CheckFilterRowsAsync(Button button)
+    {
+        button.IsEnabled = false;
+        _filterRowCount.Text = "Counting…";
+        try
+        {
+            var filter = _filterBox.Text?.Trim();
+            var sql = $"SELECT COUNT_BIG(*) FROM {Qualified}"
+                + (string.IsNullOrEmpty(filter) ? "" : $" WHERE {filter}");
+
+            await using var connection = new SqlConnection(_context.Profile.ConnectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            var matched = Convert.ToInt64(await command.ExecuteScalarAsync());
+
+            _filterRowCount.Text = string.IsNullOrEmpty(filter)
+                ? $"{matched:N0} rows in the table."
+                : $"{matched:N0} rows match.";
+        }
+        catch (Exception ex)
+        {
+            // The predicate is the user's own SQL, so a syntax error here is feedback, not a failure.
+            _filterRowCount.Text = ex.Message;
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
+    // ── Fragmentation ────────────────────────────────────────────────────────────────────────────────
+
+    private Control BuildFragmentation()
+    {
+        var page = new PropPage();
+        page.Section("From the cheap scan");
+        page.Row("Fragmentation (%)", "fragmentation");
+        page.Row("Pages", "pages");
+        page.Row("Size", "size");
+        page.Row("Fragments", "fragments");
+        page.Row("Average fragment size (pages)", "fragmentSize");
+
+        page.Section("Needs the detailed scan");
+        page.Row("Page fullness (%)", "fullness");
+        page.Row("Rows", "rows");
+        page.Row("Ghost rows", "ghosts");
+        page.Row("Average row size (bytes)", "rowSize");
+
+        var scan = new Button { Content = "Run detailed scan" };
+        scan.Click += async (_, _) => await LoadFragmentationAsync(page, scan, detailed: true);
+
+        _ = LoadFragmentationAsync(page, scan, detailed: false);
+
+        return FormBits.Page(
+            new TextBlock
+            {
+                Text = "SSMS opens this page on a DETAILED scan, which reads every page of the index. This "
+                    + "one opens on LIMITED — the parent level of the b-tree — and leaves the rest behind a "
+                    + "button that names what it costs.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            },
+            page.Stack,
+            scan,
+            new TextBlock
+            {
+                Text = "Rebuild and Reorganize are on the tree's own menu, on this index and on the table's "
+                    + "Indexes folder — this page reports, it does not act.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.65
+            });
+    }
+
+    private async Task LoadFragmentationAsync(PropPage page, Button scan, bool detailed)
+    {
+        scan.IsEnabled = false;
+        try
+        {
+            var sql = IndexScript.Fragmentation(
+                _context.Provider.Dialect, _schema, _table, _context.Node.Name, detailed);
+
+            await using var connection = new SqlConnection(_context.Profile.ConnectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            // A DETAILED scan of a large index is not a 30-second question.
+            command.CommandTimeout = detailed ? 0 : 30;
+            await using var reader = await command.ExecuteReaderAsync();
+
+            if (!await reader.ReadAsync())
+            {
+                page.Set("fragmentation", "(no rows — the index may be disabled or empty)");
+                return;
+            }
+
+            page.Set("fragmentation", Num(reader, 0));
+            page.Set("pages", Num(reader, 1));
+            page.Set("fragments", Num(reader, 2));
+            page.Set("fragmentSize", Num(reader, 3));
+
+            // LIMITED returns NULL for all four of these, which is most of this page — hence saying so
+            // rather than showing four blank rows that look like a failed load.
+            var missing = detailed ? "—" : "— not scanned";
+            page.Set("fullness", reader.IsDBNull(4) ? missing : Num(reader, 4));
+            page.Set("rows", reader.IsDBNull(5) ? missing : Num(reader, 5));
+            page.Set("ghosts", reader.IsDBNull(6) ? missing : Num(reader, 6));
+            page.Set("rowSize", reader.IsDBNull(7) ? missing : Num(reader, 7));
+
+            if (!reader.IsDBNull(1))
+            {
+                var pages = Convert.ToInt64(reader.GetValue(1));
+                page.Set("size", $"{pages * 8d / 1024:N1} MB");
+                Dispatcher.UIThread.Post(() => scan.Content = detailed
+                    ? "Re-run detailed scan"
+                    : $"Run detailed scan (reads {pages:N0} pages, {pages * 8d / 1024:N1} MB)");
+            }
+        }
+        catch (Exception ex)
+        {
+            // VIEW DATABASE STATE is separable from ALTER on the table, so a missing DMV permission is not a
+            // reason for the rest of the dialog to stop working.
+            page.Fail(ex);
+        }
+        finally
+        {
+            Dispatcher.UIThread.Post(() => scan.IsEnabled = true);
+        }
+    }
+
+    // Every column here comes back as a decimal or a bigint and NULL is normal, so no Convert.ToX: it
+    // throws on DBNull rather than answering.
+    private static string Num(SqlDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? "—" : Convert.ToDecimal(reader.GetValue(ordinal)).ToString("N2").TrimEnd('0').TrimEnd('.', ',');
+
+    // ── Extended Properties ──────────────────────────────────────────────────────────────────────────
+
+    private Control BuildExtendedProperties()
+    {
+        var name = new TextBox { Width = 220, PlaceholderText = "Name" };
+        var value = new TextBox { Width = 320, PlaceholderText = "Value" };
+
+        var set = new Button { Content = "Add / update" };
+        set.Click += (_, _) =>
+        {
+            if (name.Text is { Length: > 0 } key)
+            {
+                _extendedProperties[key] = value.Text ?? "";
+                name.Text = value.Text = "";
+                RefreshExtendedProperties();
+            }
+        };
+
+        var remove = new Button { Content = "Remove" };
+        remove.Click += (_, _) =>
+        {
+            var keys = _extendedProperties.Keys.ToList();
+            if (_extendedPropertyTable.SelectedIndex is var i and >= 0 && i < keys.Count)
+            {
+                _extendedProperties.Remove(keys[i]);
+                RefreshExtendedProperties();
+            }
+        };
+
+        _extendedPropertyTable.SelectionChanged += () =>
+        {
+            var keys = _extendedProperties.Keys.ToList();
+            if (_extendedPropertyTable.SelectedIndex is var i and >= 0 && i < keys.Count)
+            {
+                name.Text = keys[i];
+                value.Text = _extendedProperties[keys[i]];
+            }
+        };
+
+        RefreshExtendedProperties();
+
+        return FormBits.Page(
+            new TextBlock
+            {
+                Text = "Free-form notes stored against the index itself — what it is for, who added it, the "
+                    + "ticket it came from. Changes are written when you press OK, along with everything else.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            },
+            _extendedPropertyTable.Control,
+            new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 8, 0, 0),
+                Children = { name, value, set, remove }
+            });
+    }
+
+    private void RefreshExtendedProperties() => _extendedPropertyTable.Fill(
+        [.. _extendedProperties.Select(p => new[] { new Cell(p.Key), new Cell(p.Value) })],
+        "None.");
+
+    private async Task LoadExtendedPropertiesAsync(SqlConnection connection)
+    {
+        const string sql = """
+            SELECT CAST(name AS nvarchar(128)), CAST(value AS nvarchar(max))
+            FROM fn_listextendedproperty(NULL, 'SCHEMA', @schema, 'TABLE', @table, 'INDEX', @index)
+            """;
+
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@schema", string.IsNullOrEmpty(_schema) ? "dbo" : _schema);
+        command.Parameters.AddWithValue("@table", _table);
+        command.Parameters.AddWithValue("@index", _context.Node.Name);
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var value = reader.IsDBNull(1) ? "" : reader.GetString(1);
+            _originalExtendedProperties[reader.GetString(0)] = value;
+            _extendedProperties[reader.GetString(0)] = value;
+        }
+    }
+
     // ── Load ─────────────────────────────────────────────────────────────────────────────────────────
 
     private async Task LoadAsync()
@@ -239,17 +698,23 @@ public sealed class IndexPropertiesView : UserControl
             await connection.OpenAsync();
 
             await LoadTableColumnsAsync(connection);
+            await LoadDataSpacesAsync(connection);
             _optimizeForSequentialKeySupported = await SupportsOptimizeForSequentialKeyAsync(connection);
 
             if (!_creating)
             {
                 await LoadIndexAsync(connection);
+                await LoadExtendedPropertiesAsync(connection);
             }
 
             Dispatcher.UIThread.Post(() =>
             {
+                // Hidden rather than disabled on a pre-2019 server: there is nothing the user could do to
+                // make it available, and the option does not parse there at all.
+                _optimizeSequentialKey.IsVisible = _optimizeForSequentialKeySupported;
                 RefreshGrids();
                 RefreshPicker();
+                RefreshExtendedProperties();
                 Revalidate();
             });
         }
@@ -280,6 +745,31 @@ public sealed class IndexPropertiesView : UserControl
                 reader.GetBoolean(5),
                 reader.GetBoolean(6)));
         }
+    }
+
+    // The filegroups and partition schemes an index can be built on. Both are data spaces, and SSMS offers
+    // them in one dropdown, so they are read as one list with the schemes remembered separately — only they
+    // need a partitioning column naming.
+    private async Task LoadDataSpacesAsync(SqlConnection connection)
+    {
+        const string sql = """
+            SELECT name, type FROM sys.data_spaces WHERE type IN ('FG', 'PS') ORDER BY type DESC, name
+            """;
+
+        var spaces = new List<string>();
+        await using var command = new SqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var name = reader.GetString(0);
+            spaces.Add(name);
+            if (reader.GetString(1).Trim() == "PS")
+            {
+                _partitionSchemes.Add(name);
+            }
+        }
+
+        Dispatcher.UIThread.Post(() => _dataSpacePicker.ItemsSource = spaces);
     }
 
     // OPTIMIZE_FOR_SEQUENTIAL_KEY arrived in SQL Server 2019 and does not parse before it, so emitting it
@@ -332,7 +822,9 @@ public sealed class IndexPropertiesView : UserControl
             ignoreDup = reader.GetBoolean(4);
             rowLocks = reader.GetBoolean(5);
             pageLocks = reader.GetBoolean(6);
-            _filter = reader.IsDBNull(7) ? null : reader.GetString(7);
+            // Stripped here rather than only for display, so the definition the dialog diffs against is the
+            // same text the Filter box holds — otherwise every OK would look like a changed filter.
+            _filter = reader.IsDBNull(7) ? null : IndexScript.StripOuterParentheses(reader.GetString(7));
             _dataSpace = reader.GetString(8);
             partitioned = reader.GetString(9).Trim() == "PS";
             noRecompute = reader.GetBoolean(10);
@@ -368,8 +860,20 @@ public sealed class IndexPropertiesView : UserControl
         {
             _type.SelectedIndex = clustered ? 1 : 0;
             _unique.IsChecked = unique;
+            _padIndex.IsChecked = padded;
+            _fillFactor.Value = fillFactor;
+            _ignoreDupKey.IsChecked = ignoreDup;
+            // SSMS words this the other way round from the catalog, and the positive reading is the one
+            // people get right: "automatically recompute" is NOT no_recompute.
+            _autoRecompute.IsChecked = !noRecompute;
+            _allowRowLocks.IsChecked = rowLocks;
+            _allowPageLocks.IsChecked = pageLocks;
+            _optimizeSequentialKey.IsChecked = optimize == true;
+            _filterBox.Text = _filter;
+            _dataSpacePicker.SelectedItem = _dataSpace;
         });
     }
+
 
     private async Task LoadIndexColumnsAsync(SqlConnection connection, bool partitioned)
     {
@@ -510,30 +1014,68 @@ public sealed class IndexPropertiesView : UserControl
 
     // ── Apply ────────────────────────────────────────────────────────────────────────────────────────
 
-    private IndexDefinition Wanted() => new()
+    private IndexDefinition Wanted()
     {
-        Schema = _schema,
-        Table = _table,
-        Name = _name.Text?.Trim() ?? "",
-        Clustered = _type.SelectedIndex == 1,
-        Unique = _unique.IsChecked == true,
-        Columns = [.. _columns],
-        PadIndex = _original?.PadIndex ?? false,
-        FillFactor = _original?.FillFactor ?? 0,
-        IgnoreDupKey = _original?.IgnoreDupKey ?? false,
-        StatisticsNoRecompute = _original?.StatisticsNoRecompute ?? false,
-        AllowRowLocks = _original?.AllowRowLocks ?? true,
-        AllowPageLocks = _original?.AllowPageLocks ?? true,
-        // A new index gets the option only where the server has it; an existing one keeps what it read.
-        OptimizeForSequentialKey = _original?.OptimizeForSequentialKey
-            ?? (_optimizeForSequentialKeySupported ? false : null),
-        Filter = _filter,
-        DataSpace = _dataSpace,
-        PartitionColumn = _partitionColumn
-    };
+        var space = _dataSpacePicker.SelectedItem as string;
+        var partitioned = space is not null && _partitionSchemes.Contains(space);
+
+        return new IndexDefinition
+        {
+            Schema = _schema,
+            Table = _table,
+            Name = _name.Text?.Trim() ?? "",
+            Clustered = _type.SelectedIndex == 1,
+            Unique = _unique.IsChecked == true,
+            Columns = [.. _columns],
+            PadIndex = _padIndex.IsChecked == true,
+            FillFactor = (int)(_fillFactor.Value ?? 0),
+            IgnoreDupKey = _ignoreDupKey.IsChecked == true,
+            StatisticsNoRecompute = _autoRecompute.IsChecked != true,
+            AllowRowLocks = _allowRowLocks.IsChecked == true,
+            AllowPageLocks = _allowPageLocks.IsChecked == true,
+            // Null where the server cannot parse the option at all, which is not the same as OFF.
+            OptimizeForSequentialKey = _optimizeForSequentialKeySupported
+                ? _optimizeSequentialKey.IsChecked == true
+                : null,
+            Filter = string.IsNullOrWhiteSpace(_filterBox.Text) ? null : _filterBox.Text.Trim(),
+            DataSpace = space,
+            PartitionColumn = partitioned ? _partitionColumnPicker.SelectedItem as string : null
+        };
+    }
+
+    private RebuildOptions Rebuild() =>
+        new((int)(_maxDop.Value ?? 0), _sortInTempDb.IsChecked == true);
+
+    /// <summary>Everything OK runs, in order. The extended properties come last because they address the
+    /// index by name: on a create it does not exist until the CREATE has run, and after a rename the name
+    /// they would have used is gone.</summary>
+    private IReadOnlyList<string> AllStatements()
+    {
+        var wanted = Wanted();
+
+        return
+        [
+            .. IndexScript.Alter(_context.Provider.Dialect, _original, wanted, Rebuild()),
+            .. IndexScript.ExtendedProperties(
+                _schema, _table, wanted.Name, _originalExtendedProperties, _extendedProperties)
+        ];
+    }
 
     private void Revalidate()
     {
+        // Disabled with a reason rather than hidden: a checkbox that vanishes when you clear Unique looks
+        // like a bug, where a greyed one with an explanation is an answer.
+        var unique = _unique.IsChecked == true;
+        _ignoreDupKey.IsEnabled = unique;
+        ToolTip.SetTip(_ignoreDupKey, unique ? null : "Only a unique index can ignore duplicate values.");
+
+        var padded = _padIndex.IsChecked == true;
+        var hasFillFactor = (_fillFactor.Value ?? 0) > 0;
+        ToolTip.SetTip(_padIndex, padded && !hasFillFactor
+            ? "Pad index does nothing without a fill factor — it applies the same density to the b-tree's "
+                + "intermediate levels."
+            : null);
+
         var ready = !string.IsNullOrWhiteSpace(_name.Text) && _columns.Any(c => !c.Included);
         _ok.IsEnabled = ready;
         _script.IsEnabled = ready;
@@ -544,7 +1086,7 @@ public sealed class IndexPropertiesView : UserControl
         _ok.IsEnabled = false;
         try
         {
-            var statements = IndexScript.Alter(_context.Provider.Dialect, _original, Wanted());
+            var statements = AllStatements();
             if (statements.Count == 0)
             {
                 Close();
@@ -570,7 +1112,9 @@ public sealed class IndexPropertiesView : UserControl
     {
         try
         {
-            _context.OpenQueryEditor?.Invoke(IndexScript.Script(_context.Provider.Dialect, _original, Wanted()));
+            var filtered = Wanted().Filter is { Length: > 0 } || _original?.Filter is { Length: > 0 };
+
+            _context.OpenQueryEditor?.Invoke(IndexScript.Script(AllStatements(), filtered));
         }
         catch (Exception ex)
         {

@@ -210,6 +210,197 @@ public class IndexScriptTests
         Assert.Equal("-- Nothing to change.", IndexScript.Script(Dialect, Index(), Index()));
     }
 
+    // ── The three kinds of option (phase 2) ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void An_option_that_ALTER_INDEX_SET_accepts_does_not_rebuild_the_index()
+    {
+        // Reading every page of an index to flip a metadata bit is the thing this branch exists to avoid.
+        var statements = IndexScript.Alter(Dialect, Index(), Index() with { AllowPageLocks = false });
+
+        Assert.Equal(
+            ["ALTER INDEX [IX_Fitting_Name] ON [app].[Fitting] SET (ALLOW_PAGE_LOCKS = OFF)"],
+            statements);
+    }
+
+    [Fact]
+    public void SET_names_only_what_changed_because_unlike_a_rebuild_it_leaves_the_rest_alone()
+    {
+        var wanted = Index() with { AllowRowLocks = false, StatisticsNoRecompute = true };
+
+        var sql = IndexScript.Alter(Dialect, Index(), wanted).Single();
+
+        Assert.Contains("ALLOW_ROW_LOCKS = OFF", sql);
+        Assert.Contains("STATISTICS_NORECOMPUTE = ON", sql);
+        Assert.DoesNotContain("ALLOW_PAGE_LOCKS", sql);
+        Assert.DoesNotContain("IGNORE_DUP_KEY", sql);
+    }
+
+    [Fact]
+    public void Fill_factor_rebuilds_because_SET_refuses_FILLFACTOR_at_parse_time()
+    {
+        // Msg 155. A batch containing it fails wholesale, so this must never be routed through SET.
+        var sql = IndexScript.Alter(Dialect, Index(), Index() with { FillFactor = 80 }).Single();
+
+        Assert.Contains("DROP_EXISTING = ON", sql);
+        Assert.Contains("FILLFACTOR = 80", sql);
+    }
+
+    [Fact]
+    public void Pad_index_rebuilds_for_the_same_reason()
+    {
+        Assert.Contains("DROP_EXISTING = ON",
+            IndexScript.Alter(Dialect, Index(), Index() with { PadIndex = true }).Single());
+    }
+
+    [Fact]
+    public void Changing_the_filter_or_the_filegroup_rebuilds()
+    {
+        Assert.Contains("DROP_EXISTING = ON",
+            IndexScript.Alter(Dialect, Index(), Index() with { Filter = "([Slot]>(0))" }).Single());
+        Assert.Contains("DROP_EXISTING = ON",
+            IndexScript.Alter(Dialect, Index(), Index() with { DataSpace = "SECONDARY" }).Single());
+    }
+
+    [Fact]
+    public void Operation_only_options_ride_a_rebuild_that_is_happening_anyway()
+    {
+        var sql = IndexScript.Alter(
+            Dialect, Index(), Index() with { FillFactor = 80 }, new RebuildOptions(MaxDop: 4, SortInTempDb: true))
+            .Single();
+
+        Assert.Contains("SORT_IN_TEMPDB = ON", sql);
+        Assert.Contains("MAXDOP = 4", sql);
+    }
+
+    [Fact]
+    public void Operation_only_options_never_cause_a_rebuild_on_their_own()
+    {
+        // They are stored nowhere, so there is nothing about the index for them to change. Treating a typed
+        // MAXDOP as a difference would rebuild an index nobody asked to change.
+        Assert.Empty(IndexScript.Alter(Dialect, Index(), Index(), new RebuildOptions(MaxDop: 4, SortInTempDb: true)));
+    }
+
+    [Fact]
+    public void A_zero_MAXDOP_is_left_out_because_it_is_not_the_same_as_one()
+    {
+        var sql = IndexScript.Create(Dialect, Index(), dropExisting: false, new RebuildOptions(MaxDop: 0));
+
+        Assert.DoesNotContain("MAXDOP", sql);
+    }
+
+    // ── Filter round-tripping ────────────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("([Slot]>(0))", "[Slot]>(0)")]
+    [InlineData("([Slot]>(0) AND [Note] IS NOT NULL)", "[Slot]>(0) AND [Note] IS NOT NULL")]
+    public void The_servers_own_outer_brackets_come_off_the_filter(string stored, string shown) =>
+        Assert.Equal(shown, IndexScript.StripOuterParentheses(stored));
+
+    [Fact]
+    public void A_predicate_that_merely_starts_and_ends_with_a_bracket_is_left_whole()
+    {
+        // "(a) AND (b)" also opens with "(" and closes with ")". Stripping it yields "a) AND (b".
+        const string filter = "([Slot]>(0)) AND ([Note] IS NOT NULL)";
+
+        Assert.Equal(filter, IndexScript.StripOuterParentheses(filter));
+    }
+
+    [Fact]
+    public void An_index_with_no_filter_stays_without_one()
+    {
+        Assert.Null(IndexScript.StripOuterParentheses(null));
+        Assert.Equal("", IndexScript.StripOuterParentheses(""));
+    }
+
+    // ── Fragmentation and extended properties (phase 3) ──────────────────────────────────────────────
+
+    [Fact]
+    public void Fragmentation_opens_on_the_cheap_scan_and_upgrades_only_on_request()
+    {
+        Assert.Contains("'LIMITED'", IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", detailed: false));
+        Assert.Contains("'DETAILED'", IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", detailed: true));
+    }
+
+    [Fact]
+    public void Fragmentation_reads_the_leaf_level_only()
+    {
+        // DETAILED returns one row per b-tree level. Without the filter the page shows an intermediate
+        // level's numbers, which look plausible and are about something else.
+        Assert.Contains("ps.index_level = 0", IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", true));
+    }
+
+    [Fact]
+    public void Fragmentation_folds_a_partitioned_index_into_one_row()
+    {
+        var sql = IndexScript.Fragmentation(Dialect, "app", "Fitting", "IX_A", detailed: false);
+
+        Assert.Contains("MAX(ps.avg_fragmentation_in_percent)", sql);
+        Assert.Contains("SUM(ps.page_count)", sql);
+    }
+
+    [Fact]
+    public void Fragmentation_quotes_names_inside_the_literal_OBJECT_ID_reads()
+    {
+        // OBJECT_ID takes text, so a quote in a name must not end the literal early.
+        var sql = IndexScript.Fragmentation(Dialect, "app", "O'Brien", "IX_A'B", detailed: false);
+
+        Assert.Contains("N'[app].[O''Brien]'", sql);
+        Assert.Contains("N'IX_A''B'", sql);
+    }
+
+    [Fact]
+    public void A_new_extended_property_is_added_and_a_changed_one_updated()
+    {
+        // SQL Server has no upsert here: add on an existing name fails rather than replacing.
+        var statements = IndexScript.ExtendedProperties("app", "Fitting", "IX_A",
+            original: new Dictionary<string, string> { ["Owner"] = "team-a" },
+            wanted: new Dictionary<string, string> { ["Owner"] = "team-b", ["Ticket"] = "SE-252" });
+
+        Assert.Contains(statements, s => s.StartsWith("EXEC sp_updateextendedproperty") && s.Contains("N'Owner'"));
+        Assert.Contains(statements, s => s.StartsWith("EXEC sp_addextendedproperty") && s.Contains("N'Ticket'"));
+    }
+
+    [Fact]
+    public void A_removed_extended_property_is_dropped()
+    {
+        var statements = IndexScript.ExtendedProperties("app", "Fitting", "IX_A",
+            original: new Dictionary<string, string> { ["Owner"] = "team-a" },
+            wanted: new Dictionary<string, string>());
+
+        Assert.Equal(
+            ["EXEC sp_dropextendedproperty @name = N'Owner', @level0type = N'SCHEMA', @level0name = N'app', "
+                + "@level1type = N'TABLE', @level1name = N'Fitting', @level2type = N'INDEX', @level2name = N'IX_A'"],
+            statements);
+    }
+
+    [Fact]
+    public void An_unchanged_extended_property_produces_nothing()
+    {
+        var same = new Dictionary<string, string> { ["Owner"] = "team-a" };
+
+        Assert.Empty(IndexScript.ExtendedProperties("app", "Fitting", "IX_A", same, same));
+    }
+
+    [Fact]
+    public void An_index_on_an_unqualified_table_hangs_its_properties_off_dbo()
+    {
+        // All three levels have to be named, and an unqualified table is in dbo.
+        var statements = IndexScript.ExtendedProperties(null, "Fitting", "IX_A",
+            original: new Dictionary<string, string>(),
+            wanted: new Dictionary<string, string> { ["Owner"] = "team-a" });
+
+        Assert.Contains("@level0name = N'dbo'", statements.Single());
+    }
+
+    [Fact]
+    public void A_script_of_pre_built_statements_still_gets_the_filtered_index_preamble()
+    {
+        Assert.StartsWith("SET QUOTED_IDENTIFIER ON;", IndexScript.Script(["CREATE INDEX …"], filtered: true));
+        Assert.StartsWith("CREATE INDEX", IndexScript.Script(["CREATE INDEX …"], filtered: false));
+        Assert.Equal("-- Nothing to change.", IndexScript.Script([], filtered: false));
+    }
+
     [Fact]
     public void SQL_Server_owns_the_New_Index_dialog_and_leaves_the_other_kinds_to_the_host()
     {
