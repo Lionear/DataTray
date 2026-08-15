@@ -189,17 +189,22 @@ internal static class IndexScript
     /// a script that lands in sqlcmd or a scheduled job does.
     /// </summary>
     public static string Script(
-        ISqlDialect dialect, IndexDefinition? original, IndexDefinition wanted, RebuildOptions? rebuild = null)
+        ISqlDialect dialect, IndexDefinition? original, IndexDefinition wanted, RebuildOptions? rebuild = null) =>
+        Script(Alter(dialect, original, wanted, rebuild),
+            filtered: wanted.Filter is { Length: > 0 } || original?.Filter is { Length: > 0 });
+
+    /// <inheritdoc cref="Script(ISqlDialect, IndexDefinition, IndexDefinition, RebuildOptions)"/>
+    /// <param name="statements">Already-built statements, for a caller that appends its own — the dialog
+    /// adds the extended-property calls after the index itself.</param>
+    /// <param name="filtered">Whether either side of the change carries a filter.</param>
+    public static string Script(IReadOnlyList<string> statements, bool filtered)
     {
-        var statements = Alter(dialect, original, wanted, rebuild);
         if (statements.Count == 0)
         {
             return "-- Nothing to change.";
         }
 
-        var preamble = wanted.Filter is { Length: > 0 } || original?.Filter is { Length: > 0 }
-            ? "SET QUOTED_IDENTIFIER ON;\r\nGO\r\n\r\n"
-            : string.Empty;
+        var preamble = filtered ? "SET QUOTED_IDENTIFIER ON;\r\nGO\r\n\r\n" : string.Empty;
 
         return preamble + string.Join("\r\nGO\r\n\r\n", statements) + "\r\nGO\r\n";
     }
@@ -301,6 +306,88 @@ internal static class IndexScript
         string.IsNullOrEmpty(index.Schema)
             ? dialect.QuoteIdentifier(index.Table)
             : $"{dialect.QuoteIdentifier(index.Schema)}.{dialect.QuoteIdentifier(index.Table)}";
+
+    /// <summary>
+    /// The <c>sp_*extendedproperty</c> calls that turn <paramref name="original"/> into
+    /// <paramref name="wanted"/>. Separate from <see cref="Alter"/> and appended after it, because they
+    /// address the index by name: on a create there is nothing to hang them off until it exists, and after a
+    /// rename the old name is gone.
+    /// </summary>
+    /// <remarks>
+    /// Three procedures rather than one upsert — SQL Server has no upsert here, and add on an existing name
+    /// fails rather than replacing. An index sits at level 2, so all three levels have to be named; the
+    /// schema falls back to dbo, which is where an unqualified table is.
+    /// </remarks>
+    public static IReadOnlyList<string> ExtendedProperties(
+        string? schema,
+        string table,
+        string index,
+        IReadOnlyDictionary<string, string> original,
+        IReadOnlyDictionary<string, string> wanted)
+    {
+        var levels = $"@level0type = N'SCHEMA', @level0name = {Literal(string.IsNullOrEmpty(schema) ? "dbo" : schema)}, "
+            + $"@level1type = N'TABLE', @level1name = {Literal(table)}, "
+            + $"@level2type = N'INDEX', @level2name = {Literal(index)}";
+
+        var statements = new List<string>();
+
+        foreach (var (name, value) in wanted)
+        {
+            if (!original.TryGetValue(name, out var was))
+            {
+                statements.Add($"EXEC sp_addextendedproperty @name = {Literal(name)}, @value = {Literal(value)}, {levels}");
+            }
+            else if (was != value)
+            {
+                statements.Add($"EXEC sp_updateextendedproperty @name = {Literal(name)}, @value = {Literal(value)}, {levels}");
+            }
+        }
+
+        foreach (var name in original.Keys.Where(k => !wanted.ContainsKey(k)))
+        {
+            statements.Add($"EXEC sp_dropextendedproperty @name = {Literal(name)}, {levels}");
+        }
+
+        return statements;
+    }
+
+    /// <summary>
+    /// One row of fragmentation for <paramref name="index"/>, from <c>sys.dm_db_index_physical_stats</c>.
+    /// </summary>
+    /// <param name="detailed">
+    /// <c>LIMITED</c> reads the parent level of the b-tree; <c>DETAILED</c> reads every page, which is why
+    /// this dialog opens on the cheap one and puts the other behind a button. The columns are the same
+    /// either way — <c>LIMITED</c> simply returns NULL for page fullness, record counts, ghost rows and row
+    /// sizes, which is most of what the page shows.
+    /// </param>
+    /// <remarks>
+    /// <c>index_level = 0</c> is not optional: DETAILED returns one row per b-tree level, and without the
+    /// filter the page would show an intermediate level's numbers. A partitioned index is folded to one row
+    /// the same way the maintenance dialog folds it — MAX of the fragmentation, since the worst partition is
+    /// what makes a rebuild worth running, and SUM of the counts.
+    /// </remarks>
+    public static string Fragmentation(ISqlDialect dialect, string? schema, string table, string index, bool detailed)
+    {
+        var qualified = string.IsNullOrEmpty(schema)
+            ? dialect.QuoteIdentifier(table)
+            : $"{dialect.QuoteIdentifier(schema)}.{dialect.QuoteIdentifier(table)}";
+
+        return $"""
+            SELECT CAST(MAX(ps.avg_fragmentation_in_percent) AS decimal(5,2)),
+                   SUM(ps.page_count),
+                   SUM(ps.fragment_count),
+                   CAST(AVG(ps.avg_fragment_size_in_pages) AS decimal(9,2)),
+                   CAST(AVG(ps.avg_page_space_used_in_percent) AS decimal(5,2)),
+                   SUM(ps.record_count),
+                   SUM(ps.ghost_record_count),
+                   CAST(AVG(ps.avg_record_size_in_bytes) AS decimal(9,2))
+            FROM sys.dm_db_index_physical_stats(
+                DB_ID(), OBJECT_ID({Literal(qualified)}), NULL, NULL, '{(detailed ? "DETAILED" : "LIMITED")}') AS ps
+            JOIN sys.indexes AS i
+                ON i.object_id = ps.object_id AND i.index_id = ps.index_id
+            WHERE ps.index_level = 0 AND i.name = {Literal(index)}
+            """;
+    }
 
     /// <summary>
     /// A filter as the user typed it, from the form <c>sys.indexes</c> stores. The server normalises

@@ -31,9 +31,13 @@ namespace DataTray.Providers.MsSql;
 /// </remarks>
 public sealed class IndexPropertiesView : UserControl
 {
-    // Fragmentation and Extended Properties (phase 3) join these. The rail hides itself while there is only
-    // one page — a rail with a single entry is chrome that cannot do anything.
-    private static readonly string[] Pages = ["General", "Options", "Storage", "Filter"];
+    // Creating an index, the Fragmentation page has nothing to report on — a rail entry that can never do
+    // anything is noise, so it only exists on the Properties entry point.
+    private static readonly string[] CreatePages =
+        ["General", "Options", "Storage", "Filter", "Extended Properties"];
+
+    private static readonly string[] EditPages =
+        ["General", "Options", "Storage", "Filter", "Fragmentation", "Extended Properties"];
 
     /// <summary>A table column as the picker and the grids show it.</summary>
     private sealed record TableColumn(string Name, string Type, bool Nullable, bool Identity);
@@ -44,7 +48,8 @@ public sealed class IndexPropertiesView : UserControl
     private readonly bool _creating;
 
     private readonly ContentControl _host = new();
-    private readonly Control?[] _built = new Control?[Pages.Length];
+    private readonly string[] _pages;
+    private readonly Control?[] _built;
 
     private readonly TextBlock _status = new()
     {
@@ -93,6 +98,13 @@ public sealed class IndexPropertiesView : UserControl
 
     private readonly TextBlock _filterRowCount = new() { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
 
+    // Extended Properties page. Edited in memory and written on OK with everything else, so a dialog that
+    // is cancelled leaves nothing behind — SSMS writes these as you go, which is a second commit model in
+    // one dialog.
+    private readonly SelectTable _extendedPropertyTable = new(["Name", "Value"], [220, 0]);
+    private readonly Dictionary<string, string> _originalExtendedProperties = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _extendedProperties = new(StringComparer.Ordinal);
+
     private readonly List<TableColumn> _tableColumns = [];
     private readonly List<IndexColumn> _columns = [];
 
@@ -119,13 +131,15 @@ public sealed class IndexPropertiesView : UserControl
             _name.Text = context.Node.Name;
         }
 
+        _pages = creating ? CreatePages : EditPages;
+        _built = new Control?[_pages.Length];
+
         var rail = new ListBox
         {
             Width = 170,
-            ItemsSource = Pages,
+            ItemsSource = _pages,
             SelectedIndex = 0,
-            Background = Brushes.Transparent,
-            IsVisible = Pages.Length > 1
+            Background = Brushes.Transparent
         };
         ScrollViewer.SetHorizontalScrollBarVisibility(rail, ScrollBarVisibility.Disabled);
         rail.SelectionChanged += (_, _) => ShowPage(rail.SelectedIndex);
@@ -179,12 +193,16 @@ public sealed class IndexPropertiesView : UserControl
             return;
         }
 
-        _built[index] ??= index switch
+        // Dispatched by name rather than by ordinal: the rail is one entry shorter when creating, and an
+        // index-based switch would then build the wrong page for everything after Filter.
+        _built[index] ??= _pages[index] switch
         {
-            0 => BuildGeneral(),
-            1 => BuildOptions(),
-            2 => BuildStorage(),
-            _ => BuildFilter()
+            "General" => BuildGeneral(),
+            "Options" => BuildOptions(),
+            "Storage" => BuildStorage(),
+            "Filter" => BuildFilter(),
+            "Fragmentation" => BuildFragmentation(),
+            _ => BuildExtendedProperties()
         };
 
         _host.Content = _built[index];
@@ -484,6 +502,192 @@ public sealed class IndexPropertiesView : UserControl
         }
     }
 
+    // ── Fragmentation ────────────────────────────────────────────────────────────────────────────────
+
+    private Control BuildFragmentation()
+    {
+        var page = new PropPage();
+        page.Section("From the cheap scan");
+        page.Row("Fragmentation (%)", "fragmentation");
+        page.Row("Pages", "pages");
+        page.Row("Size", "size");
+        page.Row("Fragments", "fragments");
+        page.Row("Average fragment size (pages)", "fragmentSize");
+
+        page.Section("Needs the detailed scan");
+        page.Row("Page fullness (%)", "fullness");
+        page.Row("Rows", "rows");
+        page.Row("Ghost rows", "ghosts");
+        page.Row("Average row size (bytes)", "rowSize");
+
+        var scan = new Button { Content = "Run detailed scan" };
+        scan.Click += async (_, _) => await LoadFragmentationAsync(page, scan, detailed: true);
+
+        _ = LoadFragmentationAsync(page, scan, detailed: false);
+
+        return FormBits.Page(
+            new TextBlock
+            {
+                Text = "SSMS opens this page on a DETAILED scan, which reads every page of the index. This "
+                    + "one opens on LIMITED — the parent level of the b-tree — and leaves the rest behind a "
+                    + "button that names what it costs.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            },
+            page.Stack,
+            scan,
+            new TextBlock
+            {
+                Text = "Rebuild and Reorganize are on the tree's own menu, on this index and on the table's "
+                    + "Indexes folder — this page reports, it does not act.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.65
+            });
+    }
+
+    private async Task LoadFragmentationAsync(PropPage page, Button scan, bool detailed)
+    {
+        scan.IsEnabled = false;
+        try
+        {
+            var sql = IndexScript.Fragmentation(
+                _context.Provider.Dialect, _schema, _table, _context.Node.Name, detailed);
+
+            await using var connection = new SqlConnection(_context.Profile.ConnectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            // A DETAILED scan of a large index is not a 30-second question.
+            command.CommandTimeout = detailed ? 0 : 30;
+            await using var reader = await command.ExecuteReaderAsync();
+
+            if (!await reader.ReadAsync())
+            {
+                page.Set("fragmentation", "(no rows — the index may be disabled or empty)");
+                return;
+            }
+
+            page.Set("fragmentation", Num(reader, 0));
+            page.Set("pages", Num(reader, 1));
+            page.Set("fragments", Num(reader, 2));
+            page.Set("fragmentSize", Num(reader, 3));
+
+            // LIMITED returns NULL for all four of these, which is most of this page — hence saying so
+            // rather than showing four blank rows that look like a failed load.
+            var missing = detailed ? "—" : "— not scanned";
+            page.Set("fullness", reader.IsDBNull(4) ? missing : Num(reader, 4));
+            page.Set("rows", reader.IsDBNull(5) ? missing : Num(reader, 5));
+            page.Set("ghosts", reader.IsDBNull(6) ? missing : Num(reader, 6));
+            page.Set("rowSize", reader.IsDBNull(7) ? missing : Num(reader, 7));
+
+            if (!reader.IsDBNull(1))
+            {
+                var pages = Convert.ToInt64(reader.GetValue(1));
+                page.Set("size", $"{pages * 8d / 1024:N1} MB");
+                Dispatcher.UIThread.Post(() => scan.Content = detailed
+                    ? "Re-run detailed scan"
+                    : $"Run detailed scan (reads {pages:N0} pages, {pages * 8d / 1024:N1} MB)");
+            }
+        }
+        catch (Exception ex)
+        {
+            // VIEW DATABASE STATE is separable from ALTER on the table, so a missing DMV permission is not a
+            // reason for the rest of the dialog to stop working.
+            page.Fail(ex);
+        }
+        finally
+        {
+            Dispatcher.UIThread.Post(() => scan.IsEnabled = true);
+        }
+    }
+
+    // Every column here comes back as a decimal or a bigint and NULL is normal, so no Convert.ToX: it
+    // throws on DBNull rather than answering.
+    private static string Num(SqlDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? "—" : Convert.ToDecimal(reader.GetValue(ordinal)).ToString("N2").TrimEnd('0').TrimEnd('.', ',');
+
+    // ── Extended Properties ──────────────────────────────────────────────────────────────────────────
+
+    private Control BuildExtendedProperties()
+    {
+        var name = new TextBox { Width = 220, PlaceholderText = "Name" };
+        var value = new TextBox { Width = 320, PlaceholderText = "Value" };
+
+        var set = new Button { Content = "Add / update" };
+        set.Click += (_, _) =>
+        {
+            if (name.Text is { Length: > 0 } key)
+            {
+                _extendedProperties[key] = value.Text ?? "";
+                name.Text = value.Text = "";
+                RefreshExtendedProperties();
+            }
+        };
+
+        var remove = new Button { Content = "Remove" };
+        remove.Click += (_, _) =>
+        {
+            var keys = _extendedProperties.Keys.ToList();
+            if (_extendedPropertyTable.SelectedIndex is var i and >= 0 && i < keys.Count)
+            {
+                _extendedProperties.Remove(keys[i]);
+                RefreshExtendedProperties();
+            }
+        };
+
+        _extendedPropertyTable.SelectionChanged += () =>
+        {
+            var keys = _extendedProperties.Keys.ToList();
+            if (_extendedPropertyTable.SelectedIndex is var i and >= 0 && i < keys.Count)
+            {
+                name.Text = keys[i];
+                value.Text = _extendedProperties[keys[i]];
+            }
+        };
+
+        RefreshExtendedProperties();
+
+        return FormBits.Page(
+            new TextBlock
+            {
+                Text = "Free-form notes stored against the index itself — what it is for, who added it, the "
+                    + "ticket it came from. Changes are written when you press OK, along with everything else.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            },
+            _extendedPropertyTable.Control,
+            new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(0, 8, 0, 0),
+                Children = { name, value, set, remove }
+            });
+    }
+
+    private void RefreshExtendedProperties() => _extendedPropertyTable.Fill(
+        [.. _extendedProperties.Select(p => new[] { new Cell(p.Key), new Cell(p.Value) })],
+        "None.");
+
+    private async Task LoadExtendedPropertiesAsync(SqlConnection connection)
+    {
+        const string sql = """
+            SELECT CAST(name AS nvarchar(128)), CAST(value AS nvarchar(max))
+            FROM fn_listextendedproperty(NULL, 'SCHEMA', @schema, 'TABLE', @table, 'INDEX', @index)
+            """;
+
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@schema", string.IsNullOrEmpty(_schema) ? "dbo" : _schema);
+        command.Parameters.AddWithValue("@table", _table);
+        command.Parameters.AddWithValue("@index", _context.Node.Name);
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var value = reader.IsDBNull(1) ? "" : reader.GetString(1);
+            _originalExtendedProperties[reader.GetString(0)] = value;
+            _extendedProperties[reader.GetString(0)] = value;
+        }
+    }
+
     // ── Load ─────────────────────────────────────────────────────────────────────────────────────────
 
     private async Task LoadAsync()
@@ -500,6 +704,7 @@ public sealed class IndexPropertiesView : UserControl
             if (!_creating)
             {
                 await LoadIndexAsync(connection);
+                await LoadExtendedPropertiesAsync(connection);
             }
 
             Dispatcher.UIThread.Post(() =>
@@ -509,6 +714,7 @@ public sealed class IndexPropertiesView : UserControl
                 _optimizeSequentialKey.IsVisible = _optimizeForSequentialKeySupported;
                 RefreshGrids();
                 RefreshPicker();
+                RefreshExtendedProperties();
                 Revalidate();
             });
         }
@@ -840,6 +1046,21 @@ public sealed class IndexPropertiesView : UserControl
     private RebuildOptions Rebuild() =>
         new((int)(_maxDop.Value ?? 0), _sortInTempDb.IsChecked == true);
 
+    /// <summary>Everything OK runs, in order. The extended properties come last because they address the
+    /// index by name: on a create it does not exist until the CREATE has run, and after a rename the name
+    /// they would have used is gone.</summary>
+    private IReadOnlyList<string> AllStatements()
+    {
+        var wanted = Wanted();
+
+        return
+        [
+            .. IndexScript.Alter(_context.Provider.Dialect, _original, wanted, Rebuild()),
+            .. IndexScript.ExtendedProperties(
+                _schema, _table, wanted.Name, _originalExtendedProperties, _extendedProperties)
+        ];
+    }
+
     private void Revalidate()
     {
         // Disabled with a reason rather than hidden: a checkbox that vanishes when you clear Unique looks
@@ -865,7 +1086,7 @@ public sealed class IndexPropertiesView : UserControl
         _ok.IsEnabled = false;
         try
         {
-            var statements = IndexScript.Alter(_context.Provider.Dialect, _original, Wanted(), Rebuild());
+            var statements = AllStatements();
             if (statements.Count == 0)
             {
                 Close();
@@ -891,8 +1112,9 @@ public sealed class IndexPropertiesView : UserControl
     {
         try
         {
-            _context.OpenQueryEditor?.Invoke(
-                IndexScript.Script(_context.Provider.Dialect, _original, Wanted(), Rebuild()));
+            var filtered = Wanted().Filter is { Length: > 0 } || _original?.Filter is { Length: > 0 };
+
+            _context.OpenQueryEditor?.Invoke(IndexScript.Script(AllStatements(), filtered));
         }
         catch (Exception ex)
         {
