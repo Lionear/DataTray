@@ -45,6 +45,26 @@ internal static class ActivityTables
     ];
 
     /// <summary>
+    /// The databases present in <paramref name="rows"/>, sorted, with <paramref name="allLabel"/> first —
+    /// what the Database dropdown over a grid offers. Only the databases that currently have rows are
+    /// listed, so the choices are the ones that can actually change what is on screen.
+    /// </summary>
+    public static IReadOnlyList<string> Databases(IReadOnlyList<string[]> rows, int column, string allLabel)
+    {
+        var names = new List<string> { allLabel };
+        if (column >= 0)
+        {
+            names.AddRange(rows
+                .Select(row => column < row.Length ? row[column] : string.Empty)
+                .Where(name => name.Length > 0)
+                .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(name => name, StringComparer.CurrentCulture));
+        }
+
+        return names;
+    }
+
+    /// <summary>
     /// The build-and-host line the toolbar shows, from <c>@@VERSION</c>: "Microsoft SQL Server 2025
     /// (RTM-CU6) (KB5093421) - 17.0.4055.5 (X64) · Linux (Ubuntu 24.04.4 LTS)".
     /// </summary>
@@ -197,7 +217,7 @@ internal static class ActivityTables
                 before.TryGetValue(q.Key, out var was);
                 return new[]
                 {
-                    q.Text,
+                    Collapse(q.Text),
                     ActivityRates.Number(ActivityRates.PerSecond(q.Executions, was?.Executions ?? 0, seconds)),
                     ActivityRates.Number(
                         ActivityRates.PerSecond(q.WorkerTimeUs, was?.WorkerTimeUs ?? 0, seconds) / 1000),
@@ -208,7 +228,8 @@ internal static class ActivityTables
                     // usually cost", which is a different question from the per-second columns beside it.
                     ActivityRates.Milliseconds(q.Executions == 0 ? 0 : q.ElapsedUs / 1000d / q.Executions),
                     q.PlanCount.ToString(CultureInfo.CurrentCulture),
-                    q.Database
+                    q.Database,
+                    q.Text
                 };
             })
         ];
@@ -218,7 +239,7 @@ internal static class ActivityTables
     [
         .. now.ActiveQueries.Select(q => new[]
         {
-            q.Text,
+            Collapse(q.Text),
             q.SessionId.ToString(CultureInfo.CurrentCulture),
             q.Database,
             q.ElapsedMs.ToString("N0", CultureInfo.CurrentCulture),
@@ -226,9 +247,21 @@ internal static class ActivityTables
             q.LogicalReads.ToString("N0", CultureInfo.CurrentCulture),
             q.Writes.ToString("N0", CultureInfo.CurrentCulture),
             q.WaitType,
-            q.BlockedBy == 0 ? string.Empty : q.BlockedBy.ToString(CultureInfo.CurrentCulture)
+            q.BlockedBy == 0 ? string.Empty : q.BlockedBy.ToString(CultureInfo.CurrentCulture),
+            q.Text
         })
     ];
+
+    /// <summary>The query column is one grid row, so a stored procedure's newlines and indentation would
+    /// otherwise render as a very tall row showing one visible word. The statement keeps its own formatting
+    /// in the trailing slot past the headers (<see cref="FullTextColumn"/>), which no column binds to and
+    /// which the grid shows in full on a double-click.</summary>
+    private static string Collapse(string sql) =>
+        string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>Where both query grids carry the statement as the server wrote it. Both header sets are
+    /// nine long, so this one index serves them both.</summary>
+    public const int FullTextColumn = 9;
 
     /// <summary>Wall-clock seconds between two samples; 0 when there is no earlier one, which
     /// <see cref="ActivityRates.PerSecond"/> reads as "no rate yet" rather than as a division by zero.</summary>

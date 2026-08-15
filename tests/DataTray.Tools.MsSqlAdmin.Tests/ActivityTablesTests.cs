@@ -170,6 +170,35 @@ public class ActivityTablesTests
         return [.. rows.Select(p => p with { HeadBlocker = heads.Contains(p.SessionId) })];
     }
 
+    [Fact]
+    public void A_query_row_carries_the_collapsed_text_to_show_and_the_original_to_read()
+    {
+        var sql = "SELECT *\n  FROM Orders\n  WHERE Id = 1";
+        var now = Sample(First, queries: [new QueryTotals("key", sql, "Sales", 1, 0, 0, 0, 0, 0, 1)]);
+
+        var row = ActivityTables.RecentQueries(now, previous: null).Single();
+
+        // The grid column is one line — a stored procedure's own indentation would make the row as tall as
+        // the procedure — while the double-click window needs the statement exactly as the server has it.
+        Assert.Equal("SELECT * FROM Orders WHERE Id = 1", row[0]);
+        Assert.Equal(sql, row[ActivityTables.FullTextColumn]);
+    }
+
+    [Fact]
+    public void The_database_dropdown_lists_the_databases_that_have_rows_with_all_first()
+    {
+        var rows = new[]
+        {
+            ["51", "Sales"], ["52", "archive"], ["53", "SALES"], ["54", string.Empty], new[] { "55" }
+        };
+
+        var names = ActivityTables.Databases(rows, column: 1, allLabel: "(all)");
+
+        // Case-insensitive, so one database is one entry however the DMV cased it; a row with no database
+        // (a background task) adds nothing to pick, and a short row must not throw.
+        Assert.Equal(["(all)", "archive", "Sales"], names);
+    }
+
     private static QueryTotals Query(long executions, long workerTimeUs, long elapsedUs) =>
         new("key", "SELECT 1", "Sales", executions, workerTimeUs, 0, 0, 0, elapsedUs, 1);
 

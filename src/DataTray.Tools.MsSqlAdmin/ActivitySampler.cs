@@ -118,7 +118,7 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
     [
         .. result.Rows.Select(r => new QueryTotals(
             Text(r[0]),
-            Collapse(Text(r[1])),
+            Text(r[1]),
             Text(r[2]),
             Long(r[3]),
             Long(r[4]),
@@ -134,7 +134,7 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         .. result.Rows.Select(r => new ActiveQueryRow(
             Int(r[0]),
             Text(r[1]),
-            Collapse(Text(r[2])),
+            Text(r[2]),
             Long(r[3]),
             Long(r[4]),
             Long(r[5]),
@@ -155,11 +155,6 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
             row.Length > 2 ? Long(row[2]) : 0,
             row.Length > 3 ? Int(row[3]) : 0);
     }
-
-    // Query text is shown one row per query, so the newlines and indentation of a stored procedure would
-    // otherwise render as a single very tall row with one visible word.
-    private static string Collapse(string sql) =>
-        string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static string Text(object? value) => value?.ToString() ?? string.Empty;
 
@@ -225,7 +220,10 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         --    Two reasons: the grid would otherwise show the same query several times with its cost split
         --    across the rows, and query_key — which the client uses to difference two samples — has to be
         --    unique or the refresh dies on a duplicate dictionary key. The GROUP BY is therefore exactly
-        --    the three columns query_key is built from, which is what makes it unique by construction.
+        --    the columns query_key is built from, which is what makes it unique by construction.
+        --    The database is one of those columns: the same batch run against three databases is three
+        --    different queries with three different costs, and collapsing them into one row would have to
+        --    label that row with one arbitrary database out of the three.
         WITH plans AS (
             SELECT query_hash, COUNT(*) AS plan_count
             FROM sys.dm_exec_query_stats
@@ -234,6 +232,7 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
             SELECT qs.sql_handle,
                    qs.statement_start_offset,
                    qs.statement_end_offset,
+                   pa.dbid,
                    -- Every plan of one statement carries the same query_hash (they are the same parse
                    -- tree); MAX only picks the one value out of the group.
                    MAX(qs.query_hash) AS query_hash,
@@ -244,17 +243,25 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
                    SUM(qs.total_logical_reads) AS total_logical_reads,
                    SUM(qs.total_elapsed_time) AS total_elapsed_time
             FROM sys.dm_exec_query_stats AS qs
+            -- Which database a query ran against lives on the *plan*, not on the text: dm_exec_sql_text's
+            -- own dbid is only filled in for compiled objects and is NULL for every ad-hoc batch, which is
+            -- most of this grid. OUTER APPLY, not a WHERE on the attribute, so a plan that has aged out of
+            -- cache between the scan and the lookup still keeps its row — with no database rather than none.
+            OUTER APPLY (SELECT TOP (1) CONVERT(int, value) AS dbid
+                         FROM sys.dm_exec_plan_attributes(qs.plan_handle)
+                         WHERE attribute = 'dbid') AS pa
             WHERE qs.last_execution_time > DATEADD(second, -{recentWindowSeconds}, GETDATE())
-            GROUP BY qs.sql_handle, qs.statement_start_offset, qs.statement_end_offset)
+            GROUP BY qs.sql_handle, qs.statement_start_offset, qs.statement_end_offset, pa.dbid)
         SELECT TOP (50)
                CONVERT(varchar(140), r.sql_handle, 2) + '-'
                    + CONVERT(varchar(12), r.statement_start_offset) + '-'
-                   + CONVERT(varchar(12), r.statement_end_offset) AS query_key,
+                   + CONVERT(varchar(12), r.statement_end_offset) + '-'
+                   + CONVERT(varchar(12), ISNULL(r.dbid, -1)) AS query_key,
                SUBSTRING(st.text, (r.statement_start_offset / 2) + 1,
                    ((CASE r.statement_end_offset
                          WHEN -1 THEN DATALENGTH(st.text)
                          ELSE r.statement_end_offset END - r.statement_start_offset) / 2) + 1) AS statement_text,
-               ISNULL(DB_NAME(st.dbid), '') AS database_name,
+               ISNULL(DB_NAME(r.dbid), '') AS database_name,
                r.execution_count,
                r.total_worker_time,
                r.total_physical_reads,

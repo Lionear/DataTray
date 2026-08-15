@@ -74,46 +74,50 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
         _databaseIo = new ActivityChart(_loc.Get("activity.graph.io"), Color.FromRgb(220, 160, 60));
         _batchRequests = new ActivityChart(_loc.Get("activity.graph.batchRequests"), Color.FromRgb(150, 120, 230));
 
-        var filterAll = _loc.Get("activity.filterAll");
         _processes = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.processes"),
             ActivityTables.ProcessHeaders,
             // Only Wait Resource is pinned; it can hold a page identifier that would stretch the row.
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 220, 0, 0, 0, 0, 0],
-            filterAll,
             height: 260,
             // SSMS opens on user processes only; the engine's own sixty background tasks are a different
             // question from the one anyone opens this grid to answer.
             filterColumn: 1,
-            filterText: "1");
+            filterText: "1",
+            databaseColumn: 3);
 
         _waits = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.waits"),
             ActivityTables.WaitHeaders,
             [0, 0, 0, 0, 0],
-            filterAll,
             height: 200);
 
         _files = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.fileIo"),
             ActivityTables.FileIoHeaders,
             [0, 420, 0, 0, 0],
-            filterAll,
             height: 200);
 
         _recentQueries = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.recentQueries"),
             ActivityTables.RecentQueryHeaders,
             [420, 0, 0, 0, 0, 0, 0, 0, 0],
-            filterAll,
-            height: 220);
+            height: 220,
+            databaseColumn: 8,
+            fullTextColumn: ActivityTables.FullTextColumn);
 
         _activeQueries = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.activeQueries"),
             ActivityTables.ActiveQueryHeaders,
             [420, 0, 0, 0, 0, 0, 0, 0, 0],
-            filterAll,
-            height: 200);
+            height: 200,
+            databaseColumn: 2,
+            fullTextColumn: ActivityTables.FullTextColumn);
 
         _processes.SetRowMenu(BuildProcessMenu());
 
