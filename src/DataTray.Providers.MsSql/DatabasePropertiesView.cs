@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using DataTray.Sdk.Ui;
@@ -49,15 +50,116 @@ public sealed class DatabasePropertiesView : UserControl
         ScrollViewer.SetHorizontalScrollBarVisibility(rail, ScrollBarVisibility.Disabled);
         rail.SelectionChanged += (_, _) => ShowPage(rail.SelectedIndex);
 
-        var layout = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         Grid.SetColumn(rail, 0);
         Grid.SetColumn(_host, 1);
-        layout.Children.Add(rail);
-        layout.Children.Add(_host);
+        body.Children.Add(rail);
+        body.Children.Add(_host);
+
+        // The dialog writes now, so it owns OK/Cancel and the host leaves off its Close row
+        // (ICustomNodeInfoUi.InfoViewOwnsActionBar). Everything is committed here rather than per page:
+        // several pages can change at once, and a page that saved itself on the way past would leave the
+        // dialog half-applied when the next one failed.
+        var cancel = new Button { Content = "Cancel", MinWidth = 96 };
+        cancel.Click += (_, _) => Close();
+        _ok.Click += async (_, _) => await ApplyAsync();
+
+        var footer = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        Grid.SetColumn(_status, 0);
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { _ok, cancel }
+        };
+        Grid.SetColumn(buttons, 1);
+        footer.Children.Add(_status);
+        footer.Children.Add(buttons);
+
+        var layout = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        Grid.SetRow(body, 0);
+        Grid.SetRow(footer, 1);
+        layout.Children.Add(body);
+        layout.Children.Add(footer);
         Content = layout;
 
         ShowPage(0);
     }
+
+    private readonly Button _ok = new() { Content = "OK", MinWidth = 96, Classes = { "Accent" } };
+
+    private readonly TextBlock _status = new()
+    {
+        Opacity = 0.75,
+        TextWrapping = TextWrapping.Wrap,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+
+    private readonly CheckBox _rollbackImmediate = new()
+    {
+        Content = "Disconnect other sessions (WITH ROLLBACK IMMEDIATE)"
+    };
+
+    // The Options page and its state as loaded. Null until the page has been opened once — an untouched
+    // page has nothing to write, which is also why opening the dialog and pressing OK does nothing.
+    private PropPage? _options;
+    private IReadOnlyDictionary<string, string>? _optionsAsLoaded;
+
+    private async Task ApplyAsync()
+    {
+        _ok.IsEnabled = false;
+        try
+        {
+            var statements = PendingStatements();
+            if (statements.Count == 0)
+            {
+                Close();
+                return;
+            }
+
+            Report($"Applying {statements.Count} change(s)…");
+            foreach (var statement in statements)
+            {
+                await _context.Provider.ExecuteDdlAsync(_context.Profile, statement, CancellationToken.None);
+            }
+
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Report(ex.Message);
+            _ok.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Everything OK will run, in page order. A page never opened contributes nothing, because its
+    /// editors were never built and there is nothing to have changed.</summary>
+    private IReadOnlyList<string> PendingStatements()
+    {
+        var dialect = _context.Provider.Dialect;
+        var statements = new List<string>();
+
+        if (_options is not null && _optionsAsLoaded is not null)
+        {
+            statements.AddRange(DatabaseOptionWriter.Alter(
+                dialect, _database, _optionsAsLoaded, _options.Snapshot(), _rollbackImmediate.IsChecked == true));
+        }
+
+        statements.AddRange(DatabaseOptionWriter.ExtendedProperties(
+            _originalExtendedProperties, _extendedProperties));
+
+        statements.AddRange(_fileChanges.Values);
+
+        return statements;
+    }
+
+    private void Report(string message) => Dispatcher.UIThread.Post(() => _status.Text = message);
+
+    private void Close() => (TopLevel.GetTopLevel(this) as Window)?.Close();
 
     // Build a page the first time it is selected (kicking off its own load), then cache it.
     private void ShowPage(int index)
@@ -207,12 +309,125 @@ public sealed class DatabasePropertiesView : UserControl
 
     // ── Files ────────────────────────────────────────────────────────────────────────────────────────
 
+    // One pending MODIFY FILE per file, keyed by logical name so editing the same file twice replaces the
+    // statement instead of queueing two.
+    private readonly Dictionary<string, string> _fileChanges = new(StringComparer.OrdinalIgnoreCase);
+
     private Control BuildFiles()
     {
-        var table = new Table(["Logical Name", "File Type", "Filegroup", "Size (MB)", "Autogrowth / Maxsize", "Path", "File Name"],
-            [140, 90, 90, 75, 170, 180, 150]);
+        var table = new Table(
+            ["Logical Name", "File Type", "Filegroup", "Initial Size (MB)", "Autogrowth / Maxsize", "Path", "File Name"],
+            [140, 90, 90, 100, 170, 180, 150]);
         _ = LoadFilesAsync(table);
-        return table.Control;
+
+        var owner = new PropPage();
+        owner.Row("Database name", "dbName");
+        owner.Row("Owner", "dbOwner");
+        owner.Set("dbName", _database);
+        _ = LoadFileOwnerAsync(owner);
+
+        return new StackPanel
+        {
+            Spacing = 6,
+            Children = { owner.Stack, Header("Database files"), table.Control, BuildAutogrowthEditor() }
+        };
+    }
+
+    private async Task LoadFileOwnerAsync(PropPage p)
+    {
+        try
+        {
+            await using var connection = await OpenAsync();
+            await RunAsync(connection,
+                "SELECT SUSER_SNAME(owner_sid) FROM sys.databases WHERE name = @db",
+                cmd => cmd.Parameters.AddWithValue("@db", _database),
+                reader => p.Set("dbOwner", Str(reader, 0)));
+        }
+        catch (Exception ex)
+        {
+            p.Fail(ex);
+        }
+    }
+
+    /// <summary>
+    /// SSMS opens a small "Change Autogrowth" modal from a "…" button inside the grid cell. The grid here is
+    /// a <see cref="Table"/>, which holds text and nothing else, so the editor sits under the grid and names
+    /// the file it acts on instead.
+    /// </summary>
+    /// <remarks>
+    /// ponytail: an editor below the grid rather than a control in the cell. The in-cell version needs a
+    /// grid widget that can host controls — worth building when a second page wants one, not for this.
+    /// </remarks>
+    private Control BuildAutogrowthEditor()
+    {
+        var file = new ComboBox { Width = 200, PlaceholderText = "File" };
+        var growth = new NumericUpDown { Minimum = 0, Maximum = 100_000, Value = 64, Width = 130 };
+        var unit = new ComboBox { ItemsSource = new[] { "In megabytes", "In percent" }, SelectedIndex = 0, Width = 150 };
+        var maxKind = new ComboBox
+        {
+            ItemsSource = new[] { "Unlimited", "Limited to (MB)" },
+            SelectedIndex = 0,
+            Width = 170
+        };
+
+        var maxSize = new NumericUpDown { Minimum = 1, Maximum = 100_000_000, Value = 100, Width = 150, IsEnabled = false };
+        maxKind.SelectionChanged += (_, _) => maxSize.IsEnabled = maxKind.SelectedIndex == 1;
+
+        var status = new TextBlock { Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+
+        var apply = new Button { Content = "Stage change" };
+        apply.Click += (_, _) =>
+        {
+            if (file.SelectedItem is not string name)
+            {
+                status.Text = "Pick a file first.";
+                return;
+            }
+
+            _fileChanges[name] = DatabaseOptionWriter.ModifyFile(
+                _context.Provider.Dialect, _database, name,
+                (int)(growth.Value ?? 0),
+                unit.SelectedIndex == 1,
+                maxKind.SelectedIndex == 1 ? (int)(maxSize.Value ?? 0) : null);
+
+            status.Text = $"{_fileChanges.Count} file change(s) will run when you press OK.";
+        };
+
+        _ = LoadFileNamesAsync(file);
+
+        return new StackPanel
+        {
+            Spacing = 6,
+            Children =
+            {
+                Header("Change autogrowth"),
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Children = { file, growth, unit, maxKind, maxSize, apply }
+                },
+                status
+            }
+        };
+    }
+
+    private async Task LoadFileNamesAsync(ComboBox picker)
+    {
+        try
+        {
+            await using var connection = await OpenAsync();
+            var names = new List<string>();
+            await RunAsync(connection,
+                "SELECT name FROM sys.database_files ORDER BY type, file_id",
+                _ => { },
+                reader => names.Add(reader.GetString(0)));
+            Dispatcher.UIThread.Post(() => picker.ItemsSource = names);
+        }
+        catch
+        {
+            // The grid above shows the same failure; a second copy of it here is noise.
+        }
     }
 
     private async Task LoadFilesAsync(Table table)
@@ -347,53 +562,113 @@ public sealed class DatabasePropertiesView : UserControl
         var p = new PropPage();
         p.Section("General");
         p.Row("Collation", "collation");
-        p.Row("Recovery Model", "recovery");
+        Choice(p, "Recovery Model", "recovery", ["SIMPLE", "BULK_LOGGED", "FULL"]);
         p.Row("Compatibility Level", "compat");
         p.Row("Containment Type", "containment");
         p.Section("Automatic");
-        p.Row("Auto Close", "autoClose");
-        p.Row("Auto Create Statistics", "autoCreateStats");
+        Flag(p, "Auto Close", "autoClose");
+        Flag(p, "Auto Create Statistics", "autoCreateStats");
+        // Read-only on purpose: INCREMENTAL is an argument of AUTO_CREATE_STATISTICS, not an option of its
+        // own, so making it a second checkbox would let the two rows disagree about one statement.
         p.Row("Auto Create Incremental Statistics", "autoCreateStatsInc");
-        p.Row("Auto Shrink", "autoShrink");
-        p.Row("Auto Update Statistics", "autoUpdateStats");
-        p.Row("Auto Update Statistics Asynchronously", "autoUpdateStatsAsync");
+        Flag(p, "Auto Shrink", "autoShrink");
+        Flag(p, "Auto Update Statistics", "autoUpdateStats");
+        Flag(p, "Auto Update Statistics Asynchronously", "autoUpdateStatsAsync");
         p.Section("Cursor");
-        p.Row("Close Cursor on Commit Enabled", "cursorClose");
-        p.Row("Default Cursor", "cursorDefault");
+        Flag(p, "Close Cursor on Commit Enabled", "cursorClose");
+        Choice(p, "Default Cursor", "cursorDefault", ["GLOBAL", "LOCAL"]);
         p.Section("Recovery");
-        p.Row("Page Verify", "pageVerify");
-        p.Row("Target Recovery Time (Seconds)", "targetRecovery");
+        Choice(p, "Page Verify", "pageVerify", ["CHECKSUM", "TORN_PAGE_DETECTION", "NONE"]);
+        Number(p, "Target Recovery Time (Seconds)", "targetRecovery");
         p.Section("Miscellaneous");
-        p.Row("ANSI NULL Default", "ansiNullDefault");
-        p.Row("ANSI NULLS Enabled", "ansiNulls");
-        p.Row("ANSI Padding Enabled", "ansiPadding");
-        p.Row("ANSI Warnings Enabled", "ansiWarnings");
-        p.Row("Arithmetic Abort Enabled", "arithAbort");
-        p.Row("Concatenate Null Yields Null", "concatNull");
-        p.Row("Numeric Round-Abort", "numericRoundAbort");
-        p.Row("Quoted Identifiers Enabled", "quotedIdentifier");
-        p.Row("Recursive Triggers Enabled", "recursiveTriggers");
-        p.Row("Trustworthy", "trustworthy");
-        p.Row("Date Correlation Optimization Enabled", "dateCorrelation");
-        p.Row("Parameterization", "parameterization");
-        p.Row("Delayed Durability", "delayedDurability");
+        Flag(p, "ANSI NULL Default", "ansiNullDefault");
+        Flag(p, "ANSI NULLS Enabled", "ansiNulls");
+        Flag(p, "ANSI Padding Enabled", "ansiPadding");
+        Flag(p, "ANSI Warnings Enabled", "ansiWarnings");
+        Flag(p, "Arithmetic Abort Enabled", "arithAbort");
+        Flag(p, "Concatenate Null Yields Null", "concatNull");
+        Flag(p, "Numeric Round-Abort", "numericRoundAbort");
+        Flag(p, "Quoted Identifiers Enabled", "quotedIdentifier");
+        Flag(p, "Recursive Triggers Enabled", "recursiveTriggers");
+        Flag(p, "Trustworthy", "trustworthy");
+        Flag(p, "Date Correlation Optimization Enabled", "dateCorrelation");
+        Choice(p, "Parameterization", "parameterization", ["SIMPLE", "FORCED"]);
+        Choice(p, "Delayed Durability", "delayedDurability", ["DISABLED", "ALLOWED", "FORCED"]);
         p.Section("Service Broker");
-        p.Row("Broker Enabled", "broker");
-        p.Row("Honor Broker Priority", "brokerPriority");
+        Choice(p, "Broker Enabled", "broker", ["ENABLE_BROKER", "DISABLE_BROKER"], ["True", "False"]);
+        Flag(p, "Honor Broker Priority", "brokerPriority");
         p.Row("Service Broker Identifier", "brokerGuid");
         p.Section("FILESTREAM");
         p.Row("FILESTREAM Directory Name", "filestreamDirectory");
         p.Row("FILESTREAM Non-Transacted Access", "filestreamAccess");
         p.Section("State");
         p.Row("Database State", "state");
-        p.Row("Database Read-Only", "readOnly");
-        p.Row("Restrict Access", "userAccess");
+        Choice(p, "Database Read-Only", "readOnly", ["READ_WRITE", "READ_ONLY"], ["False", "True"]);
+        Choice(p, "Restrict Access", "userAccess", ["MULTI_USER", "SINGLE_USER", "RESTRICTED_USER"]);
         p.Row("Encryption Enabled", "encrypted");
-        p.Row("Allow Snapshot Isolation", "snapshotIso");
-        p.Row("Is Read Committed Snapshot On", "rcsi");
+        Flag(p, "Allow Snapshot Isolation", "snapshotIso");
+        Flag(p, "Is Read Committed Snapshot On", "rcsi");
 
+        _options = p;
         _ = LoadOptionsAsync(p);
-        return p.Stack;
+
+        return new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                p.Stack,
+                Header("Changing the last four needs everyone else out"),
+                _rollbackImmediate,
+                new TextBlock
+                {
+                    Text = "Read-only, restrict access, read-committed snapshot and the broker cannot be "
+                        + "changed while other sessions are connected. SQL Server does not refuse — it waits, "
+                        + "indefinitely, which looks exactly like a hung application. Ticking this adds WITH "
+                        + "ROLLBACK IMMEDIATE, which disconnects those sessions and rolls back whatever they "
+                        + "were doing. Left unticked, those four rows are not written at all.",
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.65
+                }
+            }
+        };
+    }
+
+    // ── Option editors ───────────────────────────────────────────────────────────────────────────────
+    //
+    // Each editor reads back the value in the vocabulary ALTER DATABASE uses ("ON", "FULL", "READ_ONLY"),
+    // not the one the page displays, so the before/after snapshot the writer diffs needs no translation.
+
+    private static void Flag(PropPage page, string label, string key)
+    {
+        var box = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        page.Edit(label, key, box,
+            text => box.IsChecked = text is "True" or "ON",
+            () => box.IsChecked == true ? "ON" : "OFF");
+    }
+
+    /// <param name="values">What ALTER DATABASE is given.</param>
+    /// <param name="display">What the catalog reads back and the user sees, when it differs — the broker is
+    /// a bit in sys.databases and a verb in the statement, and read-only is the same the other way round.</param>
+    private static void Choice(PropPage page, string label, string key, string[] values, string[]? display = null)
+    {
+        var shown = display ?? [.. values.Select(Titled)];
+        var box = new ComboBox { ItemsSource = shown, Width = 220 };
+        page.Edit(label, key, box,
+            text =>
+            {
+                var i = Array.FindIndex(shown, s => string.Equals(s, text, StringComparison.OrdinalIgnoreCase));
+                box.SelectedIndex = i < 0 ? 0 : i;
+            },
+            () => values[Math.Max(box.SelectedIndex, 0)]);
+    }
+
+    private static void Number(PropPage page, string label, string key)
+    {
+        var box = new NumericUpDown { Minimum = 0, Maximum = 3600, Width = 140 };
+        page.Edit(label, key, box,
+            text => box.Value = int.TryParse(text, out var v) ? v : 0,
+            () => ((int)(box.Value ?? 0)).ToString());
     }
 
     private async Task LoadOptionsAsync(PropPage p)
@@ -430,7 +705,7 @@ public sealed class DatabasePropertiesView : UserControl
                     p.Set("autoShrink", YesNo(reader.GetBoolean(7)));
                     p.Set("autoUpdateStats", YesNo(reader.GetBoolean(8)));
                     p.Set("autoUpdateStatsAsync", YesNo(reader.GetBoolean(9)));
-                    p.Set("pageVerify", Str(reader, 10));
+                    p.Set("pageVerify", Titled(Str(reader, 10)));
                     p.Set("readOnly", YesNo(reader.GetBoolean(11)));
                     p.Set("userAccess", Titled(Str(reader, 12)));
                     p.Set("encrypted", YesNo(reader.GetBoolean(13)));
@@ -460,6 +735,10 @@ public sealed class DatabasePropertiesView : UserControl
                     p.Set("filestreamAccess", Titled(Str(reader, 36)));
                     p.Set("filestreamDirectory", Str(reader, 37));
                 });
+
+            // After the loaded values have reached the editors, not before: Set posts to the UI thread, so
+            // snapshotting here would capture the defaults and make every row look changed.
+            await Dispatcher.UIThread.InvokeAsync(() => _optionsAsLoaded = p.Snapshot());
         }
         catch (Exception ex)
         {
@@ -693,28 +972,97 @@ public sealed class DatabasePropertiesView : UserControl
 
     // ── Extended Properties ──────────────────────────────────────────────────────────────────────────
 
+    private readonly SelectTable _extendedPropertyTable = new(["Name", "Value"], [220, 0]);
+    private readonly Dictionary<string, string> _originalExtendedProperties = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _extendedProperties = new(StringComparer.Ordinal);
+
     private Control BuildExtendedProperties()
     {
-        var table = new Table(["Name", "Value"], [200, 360]);
-        _ = LoadExtendedPropertiesAsync(table);
-        return table.Control;
+        var name = new TextBox { Width = 220, PlaceholderText = "Name" };
+        var value = new TextBox { Width = 320, PlaceholderText = "Value" };
+
+        var set = new Button { Content = "Add / update" };
+        set.Click += (_, _) =>
+        {
+            if (name.Text is { Length: > 0 } key)
+            {
+                _extendedProperties[key] = value.Text ?? "";
+                name.Text = value.Text = "";
+                RefreshExtendedProperties();
+            }
+        };
+
+        var remove = new Button { Content = "Remove" };
+        remove.Click += (_, _) =>
+        {
+            var keys = _extendedProperties.Keys.ToList();
+            if (_extendedPropertyTable.SelectedIndex is var i and >= 0 && i < keys.Count)
+            {
+                _extendedProperties.Remove(keys[i]);
+                RefreshExtendedProperties();
+            }
+        };
+
+        _extendedPropertyTable.SelectionChanged += () =>
+        {
+            var keys = _extendedProperties.Keys.ToList();
+            if (_extendedPropertyTable.SelectedIndex is var i and >= 0 && i < keys.Count)
+            {
+                name.Text = keys[i];
+                value.Text = _extendedProperties[keys[i]];
+            }
+        };
+
+        _ = LoadExtendedPropertiesAsync();
+
+        return new StackPanel
+        {
+            Spacing = 6,
+            Children =
+            {
+                _extendedPropertyTable.Control,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Margin = new Thickness(0, 8, 0, 0),
+                    Children = { name, value, set, remove }
+                },
+                new TextBlock
+                {
+                    Text = "Database-level properties. \"None\" means this database genuinely has none — most "
+                        + "do not. Changes are written when you press OK, with the rest of the dialog.",
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.65,
+                    Margin = new Thickness(0, 8, 0, 0)
+                }
+            }
+        };
     }
 
-    private async Task LoadExtendedPropertiesAsync(Table table)
+    private void RefreshExtendedProperties() => _extendedPropertyTable.Fill(
+        [.. _extendedProperties.Select(p => new[] { new Cell(p.Key), new Cell(p.Value) })],
+        "None.");
+
+    private async Task LoadExtendedPropertiesAsync()
     {
         try
         {
             await using var connection = await OpenAsync();
-            var rows = new List<string[]>();
             await RunAsync(connection,
                 "SELECT name, CAST(value AS nvarchar(4000)) FROM sys.extended_properties WHERE class = 0 ORDER BY name",
                 _ => { },
-                reader => rows.Add([reader.GetString(0), Str(reader, 1) ?? ""]));
-            table.Fill(rows);
+                reader =>
+                {
+                    var value = Str(reader, 1) ?? "";
+                    _originalExtendedProperties[reader.GetString(0)] = value;
+                    _extendedProperties[reader.GetString(0)] = value;
+                });
+            RefreshExtendedProperties();
         }
         catch (Exception ex)
         {
-            table.Fail(ex);
+            _extendedPropertyTable.Fail(ex);
         }
     }
 
