@@ -37,8 +37,50 @@ internal sealed class PropPage
         Stack.Children.Add(row);
     }
 
+    /// <summary>
+    /// A row whose value column holds a control rather than a label. <paramref name="write"/> puts a loaded
+    /// value into it and <paramref name="read"/> takes the current one back out, so the page's loader keeps
+    /// calling <see cref="Set"/> either way and does not care which rows are editable.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="read"/> returns the value in the vocabulary of whatever will be written — "ON" rather
+    /// than "True" — so the before/after snapshot the caller diffs needs no second translation. That matters
+    /// because a translation applied to one side and not the other is a change that looks real and is not.
+    /// </remarks>
+    public void Edit(string label, string key, Control editor, Action<string> write, Func<string> read)
+    {
+        Editors[key] = (write, read);
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("240,*"), Margin = new Thickness(0, 2, 0, 2) };
+        var name = new TextBlock
+        {
+            Text = label,
+            Opacity = 0.65,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(name, 0);
+        Grid.SetColumn(editor, 1);
+        row.Children.Add(name);
+        row.Children.Add(editor);
+        Stack.Children.Add(row);
+    }
+
+    public Dictionary<string, (Action<string> Write, Func<string> Read)> Editors { get; } = new();
+
+    /// <summary>The current value of every editable row, in the vocabulary its writer uses. Taken once when
+    /// the page has loaded and again on OK; the difference is what gets written.</summary>
+    public Dictionary<string, string> Snapshot() =>
+        Editors.ToDictionary(e => e.Key, e => e.Value.Read(), StringComparer.Ordinal);
+
     public void Set(string key, string? text)
     {
+        if (Editors.TryGetValue(key, out var editor))
+        {
+            Dispatcher.UIThread.Post(() => editor.Write(text ?? ""));
+            return;
+        }
+
         if (Values.TryGetValue(key, out var tb))
         {
             Dispatcher.UIThread.Post(() => tb.Text = string.IsNullOrEmpty(text) ? "—" : text);

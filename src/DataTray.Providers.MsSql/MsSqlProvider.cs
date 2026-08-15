@@ -107,9 +107,11 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         _ => new DatabasePropertiesView(context)
     };
 
-    // The index dialog commits on OK, not per page: one CREATE INDEX … DROP_EXISTING carries the whole
-    // definition, so a Close button beside its OK would be a second way out with different consequences.
-    public bool InfoViewOwnsActionBar(DbNodeRef node) => node.Kind is DbNodeKind.Index;
+    // Both dialogs commit on OK rather than per page, so a Close button beside their OK would be a second
+    // way out with different consequences. For the index that is because one CREATE INDEX … DROP_EXISTING
+    // carries the whole definition; for the database because several pages change at once and a page that
+    // saved itself on the way past would leave the dialog half-applied when the next one failed.
+    public bool InfoViewOwnsActionBar(DbNodeRef node) => node.Kind is DbNodeKind.Index or DbNodeKind.Database;
 
     // Route B: SQL Server replaces the host's generic "New Index…" dialog with the same Index Properties
     // view the Properties entry point opens (SE-252) — included columns, per-column sort order and filters

@@ -235,6 +235,9 @@ public class IndexScriptTests
         Assert.True(provider.HasInfoFor(index));
         Assert.True(provider.InfoViewOwnsActionBar(index));
         Assert.Equal("Index Properties - IX_Fitting_Name", provider.InfoTitle(index));
-        Assert.False(provider.InfoViewOwnsActionBar(new DbNodeRef(DbNodeKind.Database, "master")));
+
+        // A job's properties page still saves per page, so it keeps the host's Close row — the flag is per
+        // node kind, not per provider.
+        Assert.False(provider.InfoViewOwnsActionBar(new DbNodeRef(DbNodeKind.AgentJob, "Nightly")));
     }
 }
