@@ -11,7 +11,7 @@ using Microsoft.Data.SqlClient;
 
 namespace DataTray.Providers.MsSql;
 
-public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNodeInfoUi, ICustomCellActionUi, ICustomSecurityUi
+public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNodeInfoUi, ICustomCellActionUi, ICustomSecurityUi, ICustomCreateUi
 {
     // Route B, fourth capability: make a blocking_session_id cell actionable when it points at a real
     // blocker (> 0) — click opens the blocking session's details with a Kill button. It rides on the column
@@ -88,15 +88,39 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     public Control CreateAdvancedView(IConnectionUiContext context) => new MsSqlAdvancedView(context);
 
     // Route B, third capability: SQL Server's "Database Properties" dialog on a Database node. Read-only,
-    // no Execute/progress — the host shows the view in generic info-dialog chrome.
-    public bool HasInfoFor(DbNodeRef node) => node.Kind is DbNodeKind.Database or DbNodeKind.AgentJob;
+    // no Execute/progress — the host shows the view in generic info-dialog chrome. Job and Index properties
+    // write as well, and bring their own OK/Cancel (see InfoViewOwnsActionBar).
+    public bool HasInfoFor(DbNodeRef node) =>
+        node.Kind is DbNodeKind.Database or DbNodeKind.AgentJob or DbNodeKind.Index;
 
-    public string InfoTitle(DbNodeRef node) =>
-        node.Kind == DbNodeKind.AgentJob ? "Job Properties" : "Database Properties";
+    public string InfoTitle(DbNodeRef node) => node.Kind switch
+    {
+        DbNodeKind.AgentJob => "Job Properties",
+        DbNodeKind.Index => $"Index Properties - {node.Name}",
+        _ => "Database Properties"
+    };
 
-    public Control CreateInfoView(NodeInfoContext context) => context.Node.Kind == DbNodeKind.AgentJob
-        ? new AgentJobPropertiesView(context)
-        : new DatabasePropertiesView(context);
+    public Control CreateInfoView(NodeInfoContext context) => context.Node.Kind switch
+    {
+        DbNodeKind.AgentJob => new AgentJobPropertiesView(context),
+        DbNodeKind.Index => new IndexPropertiesView(context, creating: false),
+        _ => new DatabasePropertiesView(context)
+    };
+
+    // The index dialog commits on OK, not per page: one CREATE INDEX … DROP_EXISTING carries the whole
+    // definition, so a Close button beside its OK would be a second way out with different consequences.
+    public bool InfoViewOwnsActionBar(DbNodeRef node) => node.Kind is DbNodeKind.Index;
+
+    // Route B: SQL Server replaces the host's generic "New Index…" dialog with the same Index Properties
+    // view the Properties entry point opens (SE-252) — included columns, per-column sort order and filters
+    // are not things CreateObjectSpec models, and would not be worth modelling for one engine. The other
+    // providers declare no create UI and keep the host's dialog.
+    public bool HasCreateUiFor(DbObjectKind kind) => kind == DbObjectKind.Index;
+
+    public string CreateTitle(DbObjectKind kind) => "New Index";
+
+    public Control BuildCreateView(DbObjectKind kind, NodeInfoContext context) =>
+        new IndexPropertiesView(context, creating: true);
 
     public string DisplayName => "Microsoft SQL Server";
 

@@ -1904,9 +1904,17 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        await CreateObjectAsync(node, DbObjectKind.Index, node.SchemaName, node.DatabaseName,
-            table, await LoadTableColumnsAsync(node));
+        // A provider that owns this dialog (SQL Server's Index Properties) reads the table's columns itself,
+        // with the types and nullability its grid shows — so don't pay for the host's name-only list first.
+        IReadOnlyList<string> columns = OwnsCreateUi(node, DbObjectKind.Index)
+            ? []
+            : await LoadTableColumnsAsync(node);
+
+        await CreateObjectAsync(node, DbObjectKind.Index, node.SchemaName, node.DatabaseName, table, columns);
     }
+
+    private bool OwnsCreateUi(TreeNodeViewModel node, DbObjectKind kind) =>
+        _providers.Get(node.Connection.ProviderId) is ICustomCreateUi create && create.HasCreateUiFor(kind);
 
     // The table's column names, for the New Index picker. Best-effort: the dialog's column box is editable,
     // so a provider that cannot list them (or a permission error) costs the suggestions, not the feature.
@@ -1943,12 +1951,35 @@ public partial class MainViewModel : ViewModelBase
         string? table = null,
         IReadOnlyList<string>? tableColumns = null)
     {
+        var provider = _providers.Get(node.Connection.ProviderId);
+
+        // Route B: the provider brings its own "New …" dialog for this kind and runs its own DDL, so there
+        // is no spec to collect and no SQL coming back. Everything the host still owns — which node to
+        // reload afterwards — is the same either way.
+        if (provider is ICustomCreateUi create && create.HasCreateUiFor(kind) && NodeInfoRequested is not null
+            && node.NodeKind is { } parentKind)
+        {
+            try
+            {
+                var customProfile = _connections.Resolve(node.Connection, database);
+                var context = NodeContextFor(node, customProfile, new DbNodeRef(parentKind, node.Name), provider);
+                await NodeInfoRequested(new NodeInfoDialogViewModel(
+                    create.CreateTitle(kind), create.BuildCreateView(kind, context), Loc, viewOwnsActionBar: true));
+                await node.RefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                ReportError(node.Connection.Name, ex.Message);
+            }
+
+            return;
+        }
+
         if (CreateObjectDialogRequested is null)
         {
             return;
         }
 
-        var provider = _providers.Get(node.Connection.ProviderId);
         var dialog = _createDialogFactory();
         dialog.Configure(provider, kind, parentSchema, table, tableColumns);
 
@@ -2626,15 +2657,34 @@ public partial class MainViewModel : ViewModelBase
             var provider = _providers.Get(connection.ProviderId);
             var profile = _connections.Resolve(connection, node.DatabaseName);
             var nodeRef = new DbNodeRef(kind, node.Name);
-            var view = info.CreateInfoView(new NodeInfoContext(profile, nodeRef, provider));
-            var dialog = new NodeInfoDialogViewModel(info.InfoTitle(nodeRef), view, Loc);
+            var view = info.CreateInfoView(NodeContextFor(node, profile, nodeRef, provider));
+            var dialog = new NodeInfoDialogViewModel(info.InfoTitle(nodeRef), view, Loc,
+                info.InfoViewOwnsActionBar(nodeRef));
             await NodeInfoRequested(dialog);
+
+            // A view that owns its action bar writes as well as reads (SQL Server's Index Properties), so
+            // whatever it changed has to reach the tree. Read-only views make this a no-op refresh.
+            if (info.InfoViewOwnsActionBar(nodeRef))
+            {
+                await (node.Parent ?? node).RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
             ReportError(connection.Name, ex.Message);
         }
     }
+
+    // The context every provider-owned node view gets: the resolved profile, the node, the provider, the
+    // ancestry that actually identifies the object (an "Indexes" folder is called that under every table),
+    // and a way to hand SQL to a query tab for a Script button.
+    private NodeInfoContext NodeContextFor(
+        TreeNodeViewModel node, ConnectionProfile profile, DbNodeRef nodeRef, IDbProvider provider) =>
+        new(profile, nodeRef, provider)
+        {
+            NodePath = node.NodePath,
+            OpenQueryEditor = sql => OpenQueryWithContent(node.Connection, node.DatabaseName, sql)
+        };
 
     /// <summary>Set by the view so the VM can show the node-info (properties) dialog.</summary>
     public Func<NodeInfoDialogViewModel, Task>? NodeInfoRequested { get; set; }
