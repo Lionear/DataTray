@@ -741,13 +741,30 @@ public sealed class IndexPropertiesView : UserControl
         Dispatcher.UIThread.Post(() => _dataSpacePicker.ItemsSource = spaces);
     }
 
-    // OPTIMIZE_FOR_SEQUENTIAL_KEY arrived in SQL Server 2019 and does not parse before it, so emitting it
-    // unconditionally would break every rebuild on 2016/2017. COL_LENGTH answers without a version compare.
+    /// <summary>
+    /// Whether this server has <c>OPTIMIZE_FOR_SEQUENTIAL_KEY</c> (SQL Server 2019). It does not parse
+    /// before then, so emitting it unconditionally would break every rebuild on 2016/2017.
+    /// </summary>
+    /// <remarks>
+    /// Asks the server to select the column rather than asking metadata about it. This used to use
+    /// <c>COL_LENGTH</c>, which answers NULL for <em>every</em> column of <c>sys.indexes</c> — a catalog
+    /// view's columns are in <c>sys.system_columns</c>, not <c>sys.columns</c>. So the probe read "not
+    /// supported" on every server there has ever been, and the option was silently never written. A check
+    /// that fails safe is still wrong when it fails always.
+    /// </remarks>
     private static async Task<bool> SupportsOptimizeForSequentialKeyAsync(SqlConnection connection)
     {
-        await using var command = new SqlCommand(
-            "SELECT COL_LENGTH('sys.indexes', 'optimize_for_sequential_key')", connection);
-        return await command.ExecuteScalarAsync() is int;
+        try
+        {
+            await using var command = new SqlCommand(
+                "SELECT TOP 0 optimize_for_sequential_key FROM sys.indexes", connection);
+            await command.ExecuteScalarAsync();
+            return true;
+        }
+        catch (SqlException)
+        {
+            return false;
+        }
     }
 
     private async Task LoadIndexAsync(SqlConnection connection)

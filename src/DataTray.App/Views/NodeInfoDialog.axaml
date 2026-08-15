@@ -2,8 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="DataTray.App.Views.NodeInfoDialog"
         Title="{Binding Title}"
-        Width="900" Height="620" MinWidth="640" MinHeight="420"
+        Width="1080" Height="700" MinWidth="760" MinHeight="460"
         WindowStartupLocation="CenterOwner">
+  <!-- Wider and taller than it was (900x620): these views are page rails over seven-column grids, and the
+       widest column of the widest page had nowhere to go. -->
   <Grid RowDefinitions="*,Auto">
 
     <!-- Provider-supplied view (ICustomNodeInfoUi). Deliberately not wrapped in a ScrollViewer: these views

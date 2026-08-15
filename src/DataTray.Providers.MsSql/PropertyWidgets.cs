@@ -26,7 +26,7 @@ internal static class PropMetrics
     /// <summary>Minimum height of a property row. Set so a row holding text and a row holding a control are
     /// the same height — otherwise a page alternates between tight and loose as the control types change,
     /// which is most of what made the first version look unfinished.</summary>
-    public const double RowHeight = 32;
+    public const double RowHeight = 30;
 
     public static T Themed<T>(this T control, AvaloniaProperty property, string resource) where T : AvaloniaObject
     {
@@ -84,7 +84,7 @@ internal sealed class PropPage
             FontWeight = FontWeight.SemiBold,
             FontSize = 13,
             // The notice occupies index 0 whether or not it is showing, so "first section" is 1, not 0.
-            Margin = new Thickness(0, Stack.Children.Count <= 1 ? 0 : 20, 0, 8)
+            Margin = new Thickness(0, Stack.Children.Count <= 1 ? 0 : 18, 0, 7)
         };
         text.Themed(TextBlock.ForegroundProperty, "SETextPrimaryBrush");
         Stack.Children.Add(text);
@@ -209,13 +209,22 @@ internal sealed class Table
 
     public Control Control { get; }
 
-    public Table(string[] headers, double[] widths)
+    /// <param name="height">Fixed height, for a table stacked with others on a scrolling page — inside a
+    /// ScrollViewer there is no height to fill, so three tables in a row would each collapse to their
+    /// content and the page would have no rhythm. Null on a page where the table is the subject and takes
+    /// the space itself.</param>
+    public Table(string[] headers, double[] widths, double? height = null)
     {
         _columns = headers.Length;
         _grid = new Grid();
         foreach (var w in widths)
         {
-            _grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(w, GridUnitType.Pixel)));
+            // A width of 0 or less means "take what is left", as it already does in SelectTable. The column
+            // that most needs to be read in full — a file's path, a permission's name — gets the leftover
+            // instead of a guess that was too narrow the moment someone had a long one.
+            _grid.ColumnDefinitions.Add(new ColumnDefinition(w <= 0
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(w, GridUnitType.Pixel)));
         }
         _grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         for (var c = 0; c < headers.Length; c++)
@@ -238,25 +247,32 @@ internal sealed class Table
         _status.Themed(TextBlock.ForegroundProperty, "SETextFaintBrush");
 
         // A bordered container rather than a bare grid: on a page that also holds label/value rows, an
-        // unframed grid reads as more rows rather than as a table.
+        // unframed grid reads as more rows rather than as a table. Rows scroll inside the frame, so the
+        // frame can be given the page's height without the content having to fill it.
+        var scroller = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = _grid
+        };
+        var inner = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        Grid.SetRow(scroller, 0);
+        Grid.SetRow(_status, 1);
+        inner.Children.Add(scroller);
+        inner.Children.Add(_status);
+
         var frame = new Border
         {
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Child = new StackPanel
-            {
-                Children =
-                {
-                    new ScrollViewer
-                    {
-                        HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                        VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                        Content = _grid
-                    },
-                    _status
-                }
-            }
+            ClipToBounds = true,
+            Child = inner
         };
+        if (height is { } fixedHeight)
+        {
+            frame.Height = fixedHeight;
+        }
+
         frame.Themed(Border.BorderBrushProperty, "SEHairlineBrush");
         Control = frame;
     }
@@ -284,11 +300,19 @@ internal sealed class Table
             var cells = new List<Border>();
             for (var c = 0; c < _columns; c++)
             {
+                var text = c < rows[r].Length ? rows[r][c] : "";
+                // One line per row, trimmed rather than wrapped, with the whole value on hover. Wrapping
+                // made a row with one long value twice the height of its neighbours, so a grid of mostly
+                // short values had a ragged left edge down the other columns — and a value long enough to
+                // wrap was usually long enough to be worth reading somewhere it fits anyway.
                 var cell = new TextBlock
                 {
-                    Text = c < rows[r].Length ? rows[r][c] : "",
-                    TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(10, 5, 12, 5)
+                    Text = text,
+                    TextWrapping = TextWrapping.NoWrap,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(10, 6, 12, 6),
+                    [ToolTip.TipProperty] = string.IsNullOrEmpty(text) ? null : text
                 };
                 cell.Themed(TextBlock.ForegroundProperty, "SETextPrimaryBrush");
                 Grid.SetColumn(cell, c);
@@ -298,10 +322,13 @@ internal sealed class Table
         }
     });
 
+    /// <summary>Same rule as <see cref="PropPage.Fail(Exception)"/>: the grid says what happened in its own
+    /// words, and the server's wording stays as the tooltip rather than being shouted in the page.</summary>
     public void Fail(Exception ex) => Dispatcher.UIThread.Post(() =>
     {
         _status.IsVisible = true;
-        _status.Text = $"(unavailable: {ex.Message})";
+        _status.Text = "This could not be read.";
+        ToolTip.SetTip(_status, ex.Message);
     });
 }
 

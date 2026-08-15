@@ -28,9 +28,13 @@ public sealed class DatabasePropertiesView : UserControl
 
     private readonly NodeInfoContext _context;
     private readonly string _database;
-    // A ScrollViewer rather than a ContentControl: the dialog no longer scrolls the whole view,
-    // so each page carries its own scrolling and the page rail stays where it is.
-    private readonly ScrollViewer _host = new();
+
+    // A ContentControl, not a ScrollViewer. A ScrollViewer measures its content at whatever height the
+    // content wants, so a page whose body is a grid could never fill the dialog — a six-row table sat in
+    // the top corner with the rest of the page empty under it, which is what made these pages read as
+    // unfinished. Each page now says for itself whether it scrolls (a long list of settings) or fills
+    // (a grid, which should own its area the way SSMS' do).
+    private readonly ContentControl _host = new();
     private readonly Control?[] _built = new Control?[Pages.Length];
 
     public DatabasePropertiesView(NodeInfoContext context)
@@ -187,9 +191,9 @@ public sealed class DatabasePropertiesView : UserControl
             };
             // No ScrollViewer here — the host dialog already wraps this whole view in one; nesting a second
             // would leave the inner content unbounded and never scroll.
-            // Breathing room on all four sides, and clear of the scrollbar on the right — the page used to run
-            // straight into it.
-            _built[index] = new StackPanel { Margin = new Thickness(20, 4, 22, 18), Children = { page } };
+            // Breathing room on all four sides, and clear of the scrollbar on the right — the page used to
+            // run straight into it. A Grid rather than a StackPanel so a page that wants the height gets it.
+            _built[index] = new Grid { Margin = new Thickness(20, 4, 22, 18), Children = { page } };
         }
 
         _host.Content = _built[index];
@@ -219,7 +223,7 @@ public sealed class DatabasePropertiesView : UserControl
 
         p.Values["name"].Text = _database;
         _ = LoadGeneralAsync(p);
-        return p.Stack;
+        return Scrolls(p.Stack);
     }
 
     private async Task LoadGeneralAsync(PropPage p)
@@ -318,8 +322,11 @@ public sealed class DatabasePropertiesView : UserControl
     private Control BuildFiles()
     {
         var table = new Table(
-            ["Logical Name", "File Type", "Filegroup", "Initial Size (MB)", "Autogrowth / Maxsize", "Path", "File Name"],
-            [140, 90, 90, 100, 170, 180, 150]);
+            // Path takes the leftover width — it is the column that has to be read in full and the only one
+            // with no natural length. The other six are sized to their content so none of that is wasted,
+            // and every cell carries its own value as a tooltip for whatever still does not fit.
+            ["Logical Name", "File Type", "Filegroup", "Initial Size (MB)", "Autogrowth / Maxsize", "File Name", "Path"],
+            [130, 80, 90, 105, 165, 140, 0]);
         _ = LoadFilesAsync(table);
 
         var owner = new PropPage();
@@ -328,11 +335,16 @@ public sealed class DatabasePropertiesView : UserControl
         owner.Set("dbName", _database);
         _ = LoadFileOwnerAsync(owner);
 
-        return new StackPanel
+        // The grid takes the height between the header above it and the autogrowth editor below.
+        var page = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto") };
+        Control[] parts = [owner.Stack, Header("Database files"), table.Control, BuildAutogrowthEditor()];
+        for (var i = 0; i < parts.Length; i++)
         {
-            Spacing = 6,
-            Children = { owner.Stack, Header("Database files"), table.Control, BuildAutogrowthEditor() }
-        };
+            Grid.SetRow(parts[i], i);
+            page.Children.Add(parts[i]);
+        }
+
+        return page;
     }
 
     private async Task LoadFileOwnerAsync(PropPage p)
@@ -397,7 +409,7 @@ public sealed class DatabasePropertiesView : UserControl
 
         _ = LoadFileNamesAsync(file);
 
-        return new StackPanel
+        return Scrolls(new StackPanel
         {
             Spacing = 6,
             Children =
@@ -411,7 +423,7 @@ public sealed class DatabasePropertiesView : UserControl
                 },
                 status
             }
-        };
+        });
     }
 
     private async Task LoadFileNamesAsync(ComboBox picker)
@@ -460,8 +472,8 @@ public sealed class DatabasePropertiesView : UserControl
                         reader.GetString(2),
                         $"{reader.GetDecimal(3):N2}",
                         Autogrowth(reader.GetBoolean(4), reader.GetInt32(5), reader.GetInt32(6)),
-                        dir,
-                        file
+                        file,
+                        dir
                     ]);
                 });
             table.Fill(rows);
@@ -479,13 +491,13 @@ public sealed class DatabasePropertiesView : UserControl
         // SSMS shows three grids here. The old single one filtered on type = 'FG', so a database with
         // FILESTREAM or memory-optimized data showed nothing about it at all — not an empty section, no
         // section.
-        var rows = new Table(["Name", "Files", "Read-Only", "Default", "Autogrow All Files"], [220, 80, 90, 90, 130]);
-        var filestream = new Table(["Name", "Files", "Read-Only", "Default"], [220, 80, 90, 90]);
-        var memoryOptimized = new Table(["Name", "Files"], [220, 80]);
+        var rows = new Table(["Name", "Files", "Read-Only", "Default", "Autogrow All Files"], [0, 80, 100, 90, 140], 190);
+        var filestream = new Table(["Name", "Files", "Read-Only", "Default"], [0, 80, 100, 90], 130);
+        var memoryOptimized = new Table(["Name", "Files"], [0, 80], 130);
 
         _ = LoadFilegroupsAsync(rows, filestream, memoryOptimized);
 
-        return new StackPanel
+        return Scrolls(new StackPanel
         {
             Spacing = 6,
             Children =
@@ -497,7 +509,34 @@ public sealed class DatabasePropertiesView : UserControl
                 Header("MEMORY OPTIMIZED DATA"),
                 memoryOptimized.Control
             }
+        });
+    }
+
+    /// <summary>A page that is a list of settings: it scrolls, and is as tall as it needs to be.</summary>
+    private static Control Scrolls(Control content) => new ScrollViewer
+    {
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        Content = content
+    };
+
+    /// <summary>A page whose subject is a grid. The grid takes the page's height and anything else — a note,
+    /// an editor — sits under it at its natural size, so the page has no dead area under a short table.</summary>
+    private static Control Fills(Control grid, params Control[] below)
+    {
+        var rows = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*" + string.Concat(below.Select(_ => ",Auto")))
         };
+        Grid.SetRow(grid, 0);
+        rows.Children.Add(grid);
+        for (var i = 0; i < below.Length; i++)
+        {
+            Grid.SetRow(below[i], i + 1);
+            rows.Children.Add(below[i]);
+        }
+
+        return rows;
     }
 
     private static TextBlock Header(string text)
@@ -522,43 +561,44 @@ public sealed class DatabasePropertiesView : UserControl
             await using var connection = await OpenAsync();
             List<string[]> row = [], fs = [], mo = [];
 
-            // is_autogrow_all_files arrived in SQL Server 2016. Asked for unconditionally it would fail the
-            // whole page on an older server — one unavailable column costing every filegroup, which is
-            // exactly how the FILESTREAM rows took out the Options page. Probed instead, and its absence
-            // costs one cell.
-            var autogrowAll = await SupportsColumnAsync(connection, "sys.filegroups", "is_autogrow_all_files");
-            var autogrowColumn = autogrowAll ? "fg.is_autogrow_all_files" : "CAST(0 AS bit)";
-
-            // One pass over every data space type rather than three queries: they differ only in which
-            // columns mean anything, and is_autogrow_all_files does not exist on a FILESTREAM filegroup.
-            await RunAsync(connection,
-                $"""
-                SELECT fg.name, fg.type, COUNT(df.file_id), fg.is_read_only, fg.is_default,
-                       {autogrowColumn}
-                FROM sys.filegroups fg
-                LEFT JOIN sys.database_files df ON df.data_space_id = fg.data_space_id
-                GROUP BY fg.name, fg.type, fg.is_read_only, fg.is_default, {autogrowColumn}
-                ORDER BY fg.name
-                """,
-                _ => { },
-                reader =>
+            var autogrowAll = true;
+            void Read(SqlDataReader reader)
+            {
+                var name = reader.GetString(0);
+                var files = reader.GetInt32(2).ToString();
+                switch (reader.GetString(1).Trim())
                 {
-                    var name = reader.GetString(0);
-                    var files = reader.GetInt32(2).ToString();
-                    switch (reader.GetString(1).Trim())
-                    {
-                        case "FG":
-                            row.Add([name, files, Tick(reader.GetBoolean(3)), Tick(reader.GetBoolean(4)),
-                                autogrowAll ? Tick(reader.GetBoolean(5)) : "—"]);
-                            break;
-                        case "FD":
-                            fs.Add([name, files, Tick(reader.GetBoolean(3)), Tick(reader.GetBoolean(4))]);
-                            break;
-                        case "FX":
-                            mo.Add([name, files]);
-                            break;
-                    }
-                });
+                    case "FG":
+                        row.Add([name, files, Tick(reader.GetBoolean(3)), Tick(reader.GetBoolean(4)),
+                            autogrowAll ? Tick(reader.GetBoolean(5)) : "—"]);
+                        break;
+                    case "FD":
+                        fs.Add([name, files, Tick(reader.GetBoolean(3)), Tick(reader.GetBoolean(4))]);
+                        break;
+                    case "FX":
+                        mo.Add([name, files]);
+                        break;
+                }
+            }
+
+            // is_autogrow_all_files arrived in SQL Server 2016, so the query runs with it and is retried
+            // without it if the server has never heard of it. Run-and-retry rather than a metadata probe:
+            // sys.filegroups is a *catalog view*, and a catalog view's columns live in sys.system_columns,
+            // not sys.columns — so COL_LENGTH answers NULL for a column that is right there, which is
+            // exactly how this page ended up broken on a 2017 server. Asking the server to run the statement
+            // is the only test that cannot be wrong about what the server will run.
+            try
+            {
+                await RunAsync(connection, FilegroupQuery(withAutogrowAll: true), _ => { }, Read);
+            }
+            catch (SqlException)
+            {
+                autogrowAll = false;
+                row.Clear();
+                fs.Clear();
+                mo.Clear();
+                await RunAsync(connection, FilegroupQuery(withAutogrowAll: false), _ => { }, Read);
+            }
 
             rows.Fill(row);
             filestream.Fill(fs);
@@ -571,6 +611,20 @@ public sealed class DatabasePropertiesView : UserControl
             memoryOptimized.Fail(ex);
         }
     }
+
+    /// <summary>
+    /// Every filegroup with its file count. A correlated subquery rather than a LEFT JOIN and a GROUP BY:
+    /// grouping by a catalog view's columns hits "Each GROUP BY expression must contain at least one column
+    /// that is not an outer join column", because sys.filegroups is itself defined over an outer join. The
+    /// subquery form has no GROUP BY to get wrong and reads as what it is — a count per filegroup.
+    /// </summary>
+    private static string FilegroupQuery(bool withAutogrowAll) => $"""
+        SELECT fg.name, fg.type,
+               (SELECT COUNT(*) FROM sys.database_files AS df WHERE df.data_space_id = fg.data_space_id),
+               fg.is_read_only, fg.is_default{(withAutogrowAll ? ", fg.is_autogrow_all_files" : "")}
+        FROM sys.filegroups AS fg
+        ORDER BY fg.name
+        """;
 
     // ── Options ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -629,7 +683,7 @@ public sealed class DatabasePropertiesView : UserControl
         _options = p;
         _ = LoadOptionsAsync(p);
 
-        return new StackPanel
+        return Scrolls(new StackPanel
         {
             Spacing = 4,
             Children =
@@ -644,7 +698,7 @@ public sealed class DatabasePropertiesView : UserControl
                     + "ROLLBACK IMMEDIATE, which disconnects those sessions and rolls back whatever they "
                     + "were doing. Left off, those four rows are not written at all.")
             }
-        };
+        });
     }
 
     // ── Option editors ───────────────────────────────────────────────────────────────────────────────
@@ -770,7 +824,7 @@ public sealed class DatabasePropertiesView : UserControl
         p.Row("Auto Cleanup", "autoCleanup");
 
         _ = LoadChangeTrackingAsync(p);
-        return p.Stack;
+        return Scrolls(p.Stack);
     }
 
     private async Task LoadChangeTrackingAsync(PropPage p)
@@ -812,19 +866,16 @@ public sealed class DatabasePropertiesView : UserControl
 
     private Control BuildPermissions()
     {
-        var table = new Table(["Grantee", "Grantor", "Permission", "State"], [180, 180, 210, 100]);
+        // Permission takes the leftover width: the longest names here run to about forty characters
+        // ("VIEW ANY COLUMN ENCRYPTION KEY DEFINITION"), and at a fixed 210 every one of them wrapped to two
+        // lines, so a page of mostly short names had a ragged left edge down the State column.
+        var table = new Table(["Grantee", "Grantor", "Permission", "State"], [170, 170, 0, 90]);
         _ = LoadPermissionsAsync(table);
 
-        return new StackPanel
-        {
-            Spacing = 6,
-            Children =
-            {
-                table.Control,
-                Note("Permissions on the database itself, which is what this dialog is about. Grants on "
-                    + "tables, views and other objects live with those objects.")
-            }
-        };
+        return Fills(
+            table.Control,
+            Note("Permissions on the database itself, which is what this dialog is about. Grants on "
+                + "tables, views and other objects live with those objects."));
     }
 
     private async Task LoadPermissionsAsync(Table table)
@@ -868,7 +919,7 @@ public sealed class DatabasePropertiesView : UserControl
         // SSMS's "Configurations" page is database-*scoped* configurations — ALTER DATABASE SCOPED
         // CONFIGURATION, not sp_configure. sp_configure is server-level and belongs to Server Properties,
         // which this dialog is not.
-        var table = new Table(["Name", "Value", "Value For Secondary"], [320, 160, 180]);
+        var table = new Table(["Name", "Value", "Value For Secondary"], [0, 160, 180]);
         _ = LoadConfigurationsAsync(table);
         return table.Control;
     }
@@ -910,7 +961,7 @@ public sealed class DatabasePropertiesView : UserControl
 
         _ = LoadLogShippingAsync(p);
 
-        return new StackPanel
+        return Scrolls(new StackPanel
         {
             Spacing = 6,
             Children =
@@ -920,7 +971,7 @@ public sealed class DatabasePropertiesView : UserControl
                     + "schedules, a monitor instance — and setting log shipping up is its own feature "
                     + "rather than a corner of this dialog.")
             }
-        };
+        });
     }
 
     private async Task LoadLogShippingAsync(PropPage p)
@@ -1015,7 +1066,7 @@ public sealed class DatabasePropertiesView : UserControl
 
         _ = LoadExtendedPropertiesAsync();
 
-        return new StackPanel
+        return Scrolls(new StackPanel
         {
             Spacing = 6,
             Children =
@@ -1031,7 +1082,7 @@ public sealed class DatabasePropertiesView : UserControl
                 Note("Database-level properties. \"None\" means this database genuinely has none — most do "
                     + "not. Changes are written when you press OK, with the rest of the dialog.")
             }
-        };
+        });
     }
 
     private void RefreshExtendedProperties() => _extendedPropertyTable.Fill(
@@ -1094,7 +1145,7 @@ public sealed class DatabasePropertiesView : UserControl
 
         _ = LoadQueryStoreAsync(p, policy, usage, usageText);
 
-        return new StackPanel
+        return Scrolls(new StackPanel
         {
             Spacing = 4,
             Children =
@@ -1105,7 +1156,7 @@ public sealed class DatabasePropertiesView : UserControl
                 usage,
                 usageText
             }
-        };
+        });
     }
 
     private async Task LoadQueryStoreAsync(PropPage p, PropPage policy, ProgressBar usage, TextBlock usageText)
@@ -1247,15 +1298,6 @@ public sealed class DatabasePropertiesView : UserControl
     }
 
     // ── Data access helpers ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>Whether a catalog view has a column, so a page can ask for it only where it exists. Cheaper
-    /// and more honest than comparing server versions: the question is "can I select this", and that is what
-    /// COL_LENGTH answers.</summary>
-    private static async Task<bool> SupportsColumnAsync(SqlConnection connection, string view, string column)
-    {
-        await using var command = new SqlCommand($"SELECT COL_LENGTH('{view}', '{column}')", connection);
-        return await command.ExecuteScalarAsync() is int;
-    }
 
     private async Task<SqlConnection> OpenAsync()
     {
