@@ -20,7 +20,10 @@ namespace DataTray.Providers.MsSql;
 public sealed class DatabasePropertiesView : UserControl
 {
     private static readonly string[] Pages =
-        ["General", "Files", "Filegroups", "Options", "Change Tracking", "Permissions", "Extended Properties", "Query Store"];
+    [
+        "General", "Files", "Filegroups", "Options", "Change Tracking", "Permissions", "Extended Properties",
+        "Query Store", "Configurations", "Transaction Log Shipping"
+    ];
 
     private readonly NodeInfoContext _context;
     private readonly string _database;
@@ -76,6 +79,8 @@ public sealed class DatabasePropertiesView : UserControl
                 5 => BuildPermissions(),
                 6 => BuildExtendedProperties(),
                 7 => BuildQueryStore(),
+                8 => BuildConfigurations(),
+                9 => BuildLogShipping(),
                 _ => new StackPanel()
             };
             // No ScrollViewer here — the host dialog already wraps this whole view in one; nesting a second
@@ -106,6 +111,7 @@ public sealed class DatabasePropertiesView : UserControl
         p.Row("Memory Used By Memory Optimized Objects", "xtpUsed");
         p.Section("Maintenance");
         p.Row("Collation", "collation");
+        p.Row("Transaction Log Shipping", "logShipping");
 
         p.Values["name"].Text = _database;
         _ = LoadGeneralAsync(p);
@@ -176,6 +182,20 @@ public sealed class DatabasePropertiesView : UserControl
                     }),
                 () => { });
 
+            // The same question the Transaction Log Shipping page answers in full, as the one-word summary
+            // SSMS puts here. In msdb, so it needs its own try like the backup history above.
+            await TryAsync(() => RunAsync(connection,
+                    """
+                    SELECT CASE WHEN EXISTS (SELECT 1 FROM msdb.dbo.log_shipping_primary_databases
+                                             WHERE primary_database = @db)
+                                  OR EXISTS (SELECT 1 FROM msdb.dbo.log_shipping_secondary_databases
+                                             WHERE secondary_database = @db)
+                                THEN 1 ELSE 0 END
+                    """,
+                    cmd => cmd.Parameters.AddWithValue("@db", _database),
+                    reader => p.Set("logShipping", YesNo(reader.GetInt32(0) == 1))),
+                () => p.Set("logShipping", "Unknown"));
+
             if (p.Values["lastBackup"].Text is "…") p.Set("lastBackup", "None");
             if (p.Values["lastLogBackup"].Text is "…") p.Set("lastLogBackup", "None");
         }
@@ -239,38 +259,84 @@ public sealed class DatabasePropertiesView : UserControl
 
     private Control BuildFilegroups()
     {
-        var table = new Table(["Name", "Files", "Read-Only", "Default"], [240, 90, 100, 100]);
-        _ = LoadFilegroupsAsync(table);
-        return table.Control;
+        // SSMS shows three grids here. The old single one filtered on type = 'FG', so a database with
+        // FILESTREAM or memory-optimized data showed nothing about it at all — not an empty section, no
+        // section.
+        var rows = new Table(["Name", "Files", "Read-Only", "Default", "Autogrow All Files"], [220, 80, 90, 90, 130]);
+        var filestream = new Table(["Name", "Files", "Read-Only", "Default"], [220, 80, 90, 90]);
+        var memoryOptimized = new Table(["Name", "Files"], [220, 80]);
+
+        _ = LoadFilegroupsAsync(rows, filestream, memoryOptimized);
+
+        return new StackPanel
+        {
+            Spacing = 6,
+            Children =
+            {
+                Header("Rows"),
+                rows.Control,
+                Header("FILESTREAM"),
+                filestream.Control,
+                Header("MEMORY OPTIMIZED DATA"),
+                memoryOptimized.Control
+            }
+        };
     }
 
-    private async Task LoadFilegroupsAsync(Table table)
+    private static TextBlock Header(string text) => new()
+    {
+        Text = text,
+        FontWeight = FontWeight.SemiBold,
+        Margin = new Thickness(0, 12, 0, 4)
+    };
+
+    private async Task LoadFilegroupsAsync(Table rows, Table filestream, Table memoryOptimized)
     {
         try
         {
             await using var connection = await OpenAsync();
-            var rows = new List<string[]>();
+            List<string[]> row = [], fs = [], mo = [];
+
+            // One pass over every data space type rather than three queries: they differ only in which
+            // columns mean anything, and is_autogrow_all_files does not exist on a FILESTREAM filegroup.
             await RunAsync(connection,
                 """
-                SELECT fg.name, COUNT(df.file_id), fg.is_read_only, fg.is_default
+                SELECT fg.name, fg.type, COUNT(df.file_id), fg.is_read_only, fg.is_default,
+                       fg.is_autogrow_all_files
                 FROM sys.filegroups fg
                 LEFT JOIN sys.database_files df ON df.data_space_id = fg.data_space_id
-                WHERE fg.type = 'FG'
-                GROUP BY fg.name, fg.is_read_only, fg.is_default
+                GROUP BY fg.name, fg.type, fg.is_read_only, fg.is_default, fg.is_autogrow_all_files
                 ORDER BY fg.name
                 """,
                 _ => { },
-                reader => rows.Add([
-                    reader.GetString(0),
-                    reader.GetInt32(1).ToString(),
-                    YesNo(reader.GetBoolean(2)),
-                    YesNo(reader.GetBoolean(3))
-                ]));
-            table.Fill(rows);
+                reader =>
+                {
+                    var name = reader.GetString(0);
+                    var files = reader.GetInt32(2).ToString();
+                    switch (reader.GetString(1).Trim())
+                    {
+                        case "FG":
+                            row.Add([name, files, YesNo(reader.GetBoolean(3)), YesNo(reader.GetBoolean(4)),
+                                YesNo(reader.GetBoolean(5))]);
+                            break;
+                        case "FD":
+                            fs.Add([name, files, YesNo(reader.GetBoolean(3)), YesNo(reader.GetBoolean(4))]);
+                            break;
+                        case "FX":
+                            mo.Add([name, files]);
+                            break;
+                    }
+                });
+
+            rows.Fill(row);
+            filestream.Fill(fs);
+            memoryOptimized.Fill(mo);
         }
         catch (Exception ex)
         {
-            table.Fail(ex);
+            rows.Fail(ex);
+            filestream.Fail(ex);
+            memoryOptimized.Fail(ex);
         }
     }
 
@@ -291,13 +357,38 @@ public sealed class DatabasePropertiesView : UserControl
         p.Row("Auto Shrink", "autoShrink");
         p.Row("Auto Update Statistics", "autoUpdateStats");
         p.Row("Auto Update Statistics Asynchronously", "autoUpdateStatsAsync");
-        p.Section("Recovery / Cursor");
+        p.Section("Cursor");
+        p.Row("Close Cursor on Commit Enabled", "cursorClose");
+        p.Row("Default Cursor", "cursorDefault");
+        p.Section("Recovery");
         p.Row("Page Verify", "pageVerify");
+        p.Row("Target Recovery Time (Seconds)", "targetRecovery");
+        p.Section("Miscellaneous");
+        p.Row("ANSI NULL Default", "ansiNullDefault");
+        p.Row("ANSI NULLS Enabled", "ansiNulls");
+        p.Row("ANSI Padding Enabled", "ansiPadding");
+        p.Row("ANSI Warnings Enabled", "ansiWarnings");
+        p.Row("Arithmetic Abort Enabled", "arithAbort");
+        p.Row("Concatenate Null Yields Null", "concatNull");
+        p.Row("Numeric Round-Abort", "numericRoundAbort");
+        p.Row("Quoted Identifiers Enabled", "quotedIdentifier");
+        p.Row("Recursive Triggers Enabled", "recursiveTriggers");
+        p.Row("Trustworthy", "trustworthy");
+        p.Row("Date Correlation Optimization Enabled", "dateCorrelation");
+        p.Row("Parameterization", "parameterization");
+        p.Row("Delayed Durability", "delayedDurability");
+        p.Section("Service Broker");
+        p.Row("Broker Enabled", "broker");
+        p.Row("Honor Broker Priority", "brokerPriority");
+        p.Row("Service Broker Identifier", "brokerGuid");
+        p.Section("FILESTREAM");
+        p.Row("FILESTREAM Directory Name", "filestreamDirectory");
+        p.Row("FILESTREAM Non-Transacted Access", "filestreamAccess");
         p.Section("State");
+        p.Row("Database State", "state");
         p.Row("Database Read-Only", "readOnly");
         p.Row("Restrict Access", "userAccess");
         p.Row("Encryption Enabled", "encrypted");
-        p.Row("Broker Enabled", "broker");
         p.Row("Allow Snapshot Isolation", "snapshotIso");
         p.Row("Is Read Committed Snapshot On", "rcsi");
 
@@ -316,7 +407,14 @@ public sealed class DatabasePropertiesView : UserControl
                        is_auto_close_on, is_auto_create_stats_on, is_auto_create_stats_incremental_on,
                        is_auto_shrink_on, is_auto_update_stats_on, is_auto_update_stats_async_on,
                        page_verify_option_desc, is_read_only, user_access_desc, is_encrypted,
-                       is_broker_enabled, snapshot_isolation_state_desc, is_read_committed_snapshot_on
+                       is_broker_enabled, snapshot_isolation_state_desc, is_read_committed_snapshot_on,
+                       is_cursor_close_on_commit_on, is_local_cursor_default, target_recovery_time_in_seconds,
+                       is_ansi_null_default_on, is_ansi_nulls_on, is_ansi_padding_on, is_ansi_warnings_on,
+                       is_arithabort_on, is_concat_null_yields_null_on, is_numeric_roundabort_on,
+                       is_quoted_identifier_on, is_recursive_triggers_on, is_trustworthy_on,
+                       is_date_correlation_on, is_parameterization_forced, delayed_durability_desc,
+                       is_honor_broker_priority_on, service_broker_guid, state_desc,
+                       is_filestream_non_transacted_access_desc, filestream_directory_name
                 FROM sys.databases WHERE name = @db
                 """,
                 cmd => cmd.Parameters.AddWithValue("@db", _database),
@@ -339,6 +437,28 @@ public sealed class DatabasePropertiesView : UserControl
                     p.Set("broker", YesNo(reader.GetBoolean(14)));
                     p.Set("snapshotIso", Titled(Str(reader, 15)));
                     p.Set("rcsi", YesNo(reader.GetBoolean(16)));
+                    p.Set("cursorClose", YesNo(reader.GetBoolean(17)));
+                    p.Set("cursorDefault", reader.GetBoolean(18) ? "LOCAL" : "GLOBAL");
+                    p.Set("targetRecovery", reader.GetInt32(19).ToString());
+                    p.Set("ansiNullDefault", YesNo(reader.GetBoolean(20)));
+                    p.Set("ansiNulls", YesNo(reader.GetBoolean(21)));
+                    p.Set("ansiPadding", YesNo(reader.GetBoolean(22)));
+                    p.Set("ansiWarnings", YesNo(reader.GetBoolean(23)));
+                    p.Set("arithAbort", YesNo(reader.GetBoolean(24)));
+                    p.Set("concatNull", YesNo(reader.GetBoolean(25)));
+                    p.Set("numericRoundAbort", YesNo(reader.GetBoolean(26)));
+                    p.Set("quotedIdentifier", YesNo(reader.GetBoolean(27)));
+                    p.Set("recursiveTriggers", YesNo(reader.GetBoolean(28)));
+                    p.Set("trustworthy", YesNo(reader.GetBoolean(29)));
+                    p.Set("dateCorrelation", YesNo(reader.GetBoolean(30)));
+                    // SSMS words this as SIMPLE / FORCED rather than as a yes/no.
+                    p.Set("parameterization", reader.GetBoolean(31) ? "Forced" : "Simple");
+                    p.Set("delayedDurability", Titled(Str(reader, 32)));
+                    p.Set("brokerPriority", YesNo(reader.GetBoolean(33)));
+                    p.Set("brokerGuid", reader.IsDBNull(34) ? "—" : reader.GetGuid(34).ToString());
+                    p.Set("state", Titled(Str(reader, 35)));
+                    p.Set("filestreamAccess", Titled(Str(reader, 36)));
+                    p.Set("filestreamDirectory", Str(reader, 37));
                 });
         }
         catch (Exception ex)
@@ -401,9 +521,25 @@ public sealed class DatabasePropertiesView : UserControl
 
     private Control BuildPermissions()
     {
-        var table = new Table(["Grantee", "Permission", "Securable Type", "State"], [180, 210, 150, 100]);
+        var table = new Table(["Grantee", "Grantor", "Permission", "State"], [180, 180, 210, 100]);
         _ = LoadPermissionsAsync(table);
-        return table.Control;
+
+        return new StackPanel
+        {
+            Spacing = 6,
+            Children =
+            {
+                table.Control,
+                new TextBlock
+                {
+                    Text = "Permissions on the database itself, which is what this dialog is about. Grants on "
+                        + "tables, views and other objects live with those objects.",
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.65,
+                    Margin = new Thickness(0, 8, 0, 0)
+                }
+            }
+        };
     }
 
     private async Task LoadPermissionsAsync(Table table)
@@ -412,18 +548,24 @@ public sealed class DatabasePropertiesView : UserControl
         {
             await using var connection = await OpenAsync();
             var rows = new List<string[]>();
+            // class = 0 is the database securable, which is the scope of this dialog and of SSMS's page.
+            // Without it every grant on every table came back too, and since the securable's own name was
+            // never resolved from major_id, dozens of rows rendered identically while meaning different
+            // objects — the page was not merely unorganised, it was ambiguous.
             await RunAsync(connection,
                 """
-                SELECT grantee.name, dp.permission_name, dp.class_desc, dp.state_desc
+                SELECT grantee.name, ISNULL(grantor.name, ''), dp.permission_name, dp.state_desc
                 FROM sys.database_permissions dp
                 JOIN sys.database_principals grantee ON dp.grantee_principal_id = grantee.principal_id
+                LEFT JOIN sys.database_principals grantor ON dp.grantor_principal_id = grantor.principal_id
+                WHERE dp.class = 0
                 ORDER BY grantee.name, dp.permission_name
                 """,
                 _ => { },
                 reader => rows.Add([
                     reader.GetString(0),
                     reader.GetString(1),
-                    Titled(reader.GetString(2)),
+                    reader.GetString(2),
                     Titled(reader.GetString(3))
                 ]));
             table.Fill(rows);
@@ -431,6 +573,121 @@ public sealed class DatabasePropertiesView : UserControl
         catch (Exception ex)
         {
             table.Fail(ex);
+        }
+    }
+
+    // ── Configurations ───────────────────────────────────────────────────────────────────────────────
+
+    private Control BuildConfigurations()
+    {
+        // SSMS's "Configurations" page is database-*scoped* configurations — ALTER DATABASE SCOPED
+        // CONFIGURATION, not sp_configure. sp_configure is server-level and belongs to Server Properties,
+        // which this dialog is not.
+        var table = new Table(["Name", "Value", "Value For Secondary"], [320, 160, 180]);
+        _ = LoadConfigurationsAsync(table);
+        return table.Control;
+    }
+
+    private async Task LoadConfigurationsAsync(Table table)
+    {
+        try
+        {
+            await using var connection = await OpenAsync();
+            var rows = new List<string[]>();
+            await RunAsync(connection,
+                """
+                SELECT name, ISNULL(CAST(value AS nvarchar(128)), ''),
+                       ISNULL(CAST(value_for_secondary AS nvarchar(128)), '')
+                FROM sys.database_scoped_configurations
+                ORDER BY name
+                """,
+                _ => { },
+                reader => rows.Add([reader.GetString(0), reader.GetString(1), reader.GetString(2)]));
+            table.Fill(rows);
+        }
+        catch (Exception ex)
+        {
+            // The view arrived in SQL Server 2016 with the feature itself.
+            table.Fail(ex);
+        }
+    }
+
+    // ── Transaction Log Shipping ─────────────────────────────────────────────────────────────────────
+
+    private Control BuildLogShipping()
+    {
+        var p = new PropPage();
+        p.Row("Role", "role");
+        p.Row("Backup Directory", "backupDirectory");
+        p.Row("Backup Retention (minutes)", "retention");
+        p.Row("Last Backup File", "lastBackup");
+        p.Row("Monitor Server", "monitor");
+
+        _ = LoadLogShippingAsync(p);
+
+        return new StackPanel
+        {
+            Spacing = 6,
+            Children =
+            {
+                p.Stack,
+                new TextBlock
+                {
+                    Text = "Status only. SSMS's page here is a configuration wizard — secondary servers, "
+                        + "backup schedules, a monitor instance — and setting log shipping up is its own "
+                        + "feature rather than a corner of this dialog.",
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.65,
+                    Margin = new Thickness(0, 12, 0, 0)
+                }
+            }
+        };
+    }
+
+    private async Task LoadLogShippingAsync(PropPage p)
+    {
+        try
+        {
+            await using var connection = await OpenAsync();
+            var found = false;
+
+            // msdb explicitly: the connection is pointed at the database this dialog is about, and the log
+            // shipping tables live in msdb regardless.
+            await RunAsync(connection,
+                """
+                SELECT 'Primary', pd.backup_directory, pd.backup_retention_period,
+                       ISNULL(pd.last_backup_file, ''), ISNULL(pd.monitor_server, '')
+                FROM msdb.dbo.log_shipping_primary_databases AS pd
+                WHERE pd.primary_database = @db
+                UNION ALL
+                SELECT 'Secondary', '', 0, '', ISNULL(sd.secondary_database, '')
+                FROM msdb.dbo.log_shipping_secondary_databases AS sd
+                WHERE sd.secondary_database = @db
+                """,
+                cmd => cmd.Parameters.AddWithValue("@db", _database),
+                reader =>
+                {
+                    found = true;
+                    p.Set("role", reader.GetString(0));
+                    p.Set("backupDirectory", Str(reader, 1));
+                    p.Set("retention", reader.GetInt32(2).ToString());
+                    p.Set("lastBackup", Str(reader, 3));
+                    p.Set("monitor", Str(reader, 4));
+                });
+
+            if (!found)
+            {
+                p.Set("role", "Not configured");
+                foreach (var key in new[] { "backupDirectory", "retention", "lastBackup", "monitor" })
+                {
+                    p.Set(key, "—");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Reading msdb needs rights on msdb, which is separable from rights on this database.
+            p.Fail(ex);
         }
     }
 
@@ -479,16 +736,42 @@ public sealed class DatabasePropertiesView : UserControl
         p.Row("Size Based Cleanup Mode", "cleanup");
         p.Row("Query Store Capture Mode", "capture");
 
-        _ = LoadQueryStoreAsync(p);
-        return p.Stack;
+        // Its own PropPage and its own query: these four columns arrived in SQL Server 2019, and adding them
+        // to the query above would put the whole page inside that version gate — it would report "Not
+        // available on this server" on 2016/2017, where it works today.
+        var policy = new PropPage();
+        policy.Section("Query Store Capture Policy");
+        policy.Row("Execution Count", "policyExecutions");
+        policy.Row("Stale Threshold (hours)", "policyStale");
+        policy.Row("Total Compile CPU Time (ms)", "policyCompileCpu");
+        policy.Row("Total Execution CPU Time (ms)", "policyExecutionCpu");
+
+        var usage = new ProgressBar { Minimum = 0, Maximum = 100, Height = 10, Margin = new Thickness(0, 6, 0, 0) };
+        var usageText = new TextBlock { Opacity = 0.8, Margin = new Thickness(0, 4, 0, 0) };
+
+        _ = LoadQueryStoreAsync(p, policy, usage, usageText);
+
+        return new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                p.Stack,
+                policy.Stack,
+                Header("Current Disk Usage"),
+                usage,
+                usageText
+            }
+        };
     }
 
-    private async Task LoadQueryStoreAsync(PropPage p)
+    private async Task LoadQueryStoreAsync(PropPage p, PropPage policy, ProgressBar usage, TextBlock usageText)
     {
         try
         {
             await using var connection = await OpenAsync();
             var found = false;
+            await LoadCapturePolicyAsync(connection, policy);
             await RunAsync(connection,
                 """
                 SELECT desired_state_desc, actual_state_desc, flush_interval_seconds, interval_length_minutes,
@@ -506,6 +789,7 @@ public sealed class DatabasePropertiesView : UserControl
                     p.Set("interval", reader.GetInt64(3).ToString());
                     p.Set("maxSize", reader.GetInt64(4).ToString("N0"));
                     p.Set("currentSize", reader.GetInt64(5).ToString("N0"));
+                    SetDiskUsage(usage, usageText, reader.GetInt64(5), reader.GetInt64(4));
                     p.Set("stale", reader.GetInt64(6).ToString());
                     p.Set("cleanup", Titled(Str(reader, 7)));
                     p.Set("capture", Titled(Str(reader, 8)));
@@ -529,6 +813,51 @@ public sealed class DatabasePropertiesView : UserControl
                 p.Set(k, "—");
             }
             _ = ex;
+        }
+    }
+
+    // SSMS draws a donut here. There is no charting library in this repo and no custom-drawn control
+    // anywhere in it, and one pie chart is not a reason to add a dependency to a plugin that references
+    // Avalonia core by design — a bar and the numbers carry the same information.
+    // ponytail: bar over a chart; revisit only if more than one page here wants to draw.
+    private static void SetDiskUsage(ProgressBar bar, TextBlock text, long currentMb, long maxMb) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var percent = maxMb > 0 ? Math.Clamp(currentMb * 100d / maxMb, 0, 100) : 0;
+            bar.Value = percent;
+            text.Text = maxMb > 0
+                ? $"{currentMb:N0} MB of {maxMb:N0} MB ({percent:N1}%)"
+                : $"{currentMb:N0} MB used; no maximum set.";
+        });
+
+    private async Task LoadCapturePolicyAsync(SqlConnection connection, PropPage policy)
+    {
+        var keys = new[] { "policyExecutions", "policyStale", "policyCompileCpu", "policyExecutionCpu" };
+        try
+        {
+            await RunAsync(connection,
+                """
+                SELECT capture_policy_execution_count, capture_policy_stale_threshold_hours,
+                       capture_policy_total_compile_cpu_time_ms, capture_policy_total_execution_cpu_time_ms
+                FROM sys.database_query_store_options
+                """,
+                _ => { },
+                reader =>
+                {
+                    policy.Set("policyExecutions", reader.GetInt32(0).ToString("N0"));
+                    policy.Set("policyStale", reader.GetInt32(1).ToString("N0"));
+                    policy.Set("policyCompileCpu", reader.GetInt64(2).ToString("N0"));
+                    policy.Set("policyExecutionCpu", reader.GetInt64(3).ToString("N0"));
+                });
+        }
+        catch
+        {
+            // The four columns are SQL Server 2019+. Kept in its own try so a 2016/2017 server loses this
+            // section and nothing else — folded into the main query it would take the whole page down.
+            foreach (var key in keys)
+            {
+                policy.Set(key, "Requires SQL Server 2019");
+            }
         }
     }
 
