@@ -511,6 +511,7 @@ public partial class MainView : UserControl
             _viewModel.ShowPluginDialogRequested = ShowPluginDialogAsync;
             _viewModel.ShowPluginConfirmRequested = ShowPluginConfirmAsync;
             PopulateConnectionMenu(_viewModel);
+            HookNodeActions();
             _viewModel.RoutineParametersRequested = ShowRoutineParametersDialogAsync;
             _viewModel.NodeInfoRequested = ShowNodeInfoDialogAsync;
             _viewModel.SecurityViewRequested = ShowSecurityDialogAsync;
@@ -825,6 +826,55 @@ public partial class MainView : UserControl
                 _connMenuSeparator.IsVisible = anyVisible;
             }
         };
+    }
+
+    // SE-253 node actions: a tool that is one of the node's own verbs (Rebuild an index, Drop it) renders on
+    // the context menu itself rather than under Tools. XAML cannot interleave a bound collection with static
+    // items, so the items are spliced in after the NodeActionsAnchor separator — rebuilt each time the menu
+    // opens, which is both the moment the selection is settled and the only moment they are visible.
+    private bool _nodeActionsHooked;
+    private readonly List<MenuItem> _nodeActionItems = new();
+
+    private void HookNodeActions()
+    {
+        if (_nodeActionsHooked || TreeContextMenu is null)
+        {
+            return;
+        }
+
+        _nodeActionsHooked = true;
+        TreeContextMenu.Opening += (_, _) => SyncNodeActions();
+    }
+
+    private void SyncNodeActions()
+    {
+        if (TreeContextMenu is null || NodeActionsAnchor is null || _viewModel is null)
+        {
+            return;
+        }
+
+        foreach (var item in _nodeActionItems)
+        {
+            TreeContextMenu.Items.Remove(item);
+        }
+
+        _nodeActionItems.Clear();
+
+        var at = TreeContextMenu.Items.IndexOf(NodeActionsAnchor);
+        foreach (var action in _viewModel.NodeActions)
+        {
+            var command = action.Run;
+            var item = new MenuItem { Header = action.Title };
+            item.Click += (_, _) => command?.Execute(null);
+            TreeContextMenu.Items.Insert(++at, item);
+            _nodeActionItems.Add(item);
+        }
+
+        // The anchor stays hidden: it marks where to splice, it is not a divider. Everything above it is
+        // connection- or object-scoped, so on the nodes that have node actions (an Indexes folder, an
+        // Agent job) all of it is hidden and showing the separator put a rule at the very top of the
+        // menu with nothing above it to divide. Sibling visibility can't decide this either — on the
+        // first open the static items' IsVisible bindings have not been applied yet when Opening fires.
     }
 
     private DataTray.Sdk.Extensibility.ManagedConnectionInfo? SelectedConnectionInfo()

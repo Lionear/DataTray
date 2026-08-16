@@ -5,6 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The plugin declares Avalonia with ExcludeAssets=runtime — the host owns it and shares it across the
+         ALC boundary, so the plugin must not ship its own copy. A test process has no host, so merely
+         constructing a tool that names a Control (IndexToolBase.CreateView) fails to load Avalonia.Controls.
+         Referenced here with runtime assets so the assembly is on disk for the test run only. -->
+    <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />

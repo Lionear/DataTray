@@ -24,6 +24,40 @@ internal static class ActivityRates
         seconds <= 0 || now < before ? 0 : (now - before) / seconds;
 
     /// <summary>
+    /// The instance's share of the whole machine's CPU over the interval between two samples, as SSMS's
+    /// "% Processor Time" graph reports it: one core of sixteen fully busy is 6%, not 100%. Null when
+    /// there is nothing to difference yet (the first refresh), when the clock did not move, or when the
+    /// server did not say how many CPUs it has — the graph then shows a gap rather than a zero line that
+    /// would read as an idle instance.
+    /// </summary>
+    /// <remarks>
+    /// The inputs are <c>sys.dm_os_sys_info</c>'s own process accounting rather than a perfmon counter or
+    /// the scheduler ring buffer, because those two do not exist in the same form on both platforms: the
+    /// ring buffer is Windows-only, and the Resource Pool Stats "CPU usage %" counter reads flat zero on
+    /// some builds of SQL Server on Linux (SE-260). Kernel and user milliseconds against the wall clock are
+    /// what the OS tells the engine on either.
+    /// </remarks>
+    public static double? ProcessorTime(ServerCounters now, ServerCounters? before)
+    {
+        if (before is null || now.CpuCount <= 0)
+        {
+            return null;
+        }
+
+        var elapsed = now.MsTicks - before.MsTicks;
+        var burnt = now.ProcessCpuMs - before.ProcessCpuMs;
+        if (elapsed <= 0 || burnt < 0)
+        {
+            // The instance restarted between samples (ms_ticks is machine uptime, the CPU total is not).
+            return null;
+        }
+
+        // A sample straddling a restart, or a clock nudged backwards, can put this over 100; the graph is
+        // drawn against a fixed 100 scale and a spike beyond it is noise, not information.
+        return Math.Min(burnt * 100.0 / elapsed / now.CpuCount, 100);
+    }
+
+    /// <summary>
     /// The sessions at the head of a blocking chain: each one blocks at least one other session and is not
     /// itself blocked. This is what SSMS's "Head Blocker" column marks — the session you would actually
     /// kill, as opposed to the ones merely queued behind it.
@@ -140,4 +174,40 @@ internal static class ActivityRates
 
     /// <summary>A duration in milliseconds, rendered the way SSMS's Average Duration column reads.</summary>
     public static string Milliseconds(double ms) => Number(ms) + " ms";
+
+    /// <summary>
+    /// Orders two grid cells the way a header click should: numbers by value, so 9 comes before 10 and
+    /// 1,234 after both, and everything else as text.
+    /// </summary>
+    /// <remarks>
+    /// The cells arrive already formatted for display, so the parse has to accept what
+    /// <see cref="Number"/> and <see cref="Milliseconds"/> put there — the culture's thousands separator,
+    /// and a unit appended after a space ("200 ms"), which is otherwise a column of numbers sorted as
+    /// text with 1,234 ms filed between 1 ms and 2 ms.
+    ///
+    /// <para>Numbers sort ahead of text rather than being compared against it. A column can hold both (an
+    /// empty "Blocked By" beside a session id), and comparing each pair by whichever rule happens to fit
+    /// is not a total order: 9 &lt; 10 as numbers while "1x" falls between them as text, and a sort given
+    /// contradictory answers is entitled to throw — which would leave a header click doing nothing at
+    /// all.</para>
+    /// </remarks>
+    public static int CompareCells(string a, string b)
+    {
+        var left = TryNumber(a, out var x);
+        var right = TryNumber(b, out var y);
+
+        if (left && right)
+        {
+            return x.CompareTo(y);
+        }
+
+        return left == right
+            ? string.Compare(a, b, StringComparison.CurrentCultureIgnoreCase)
+            : left ? -1 : 1;
+    }
+
+    private static bool TryNumber(string cell, out double value) =>
+        double.TryParse(cell, NumberStyles.Any, CultureInfo.CurrentCulture, out value)
+        || (cell.IndexOf(' ') is > 0 and var unit
+            && double.TryParse(cell.AsSpan(0, unit), NumberStyles.Any, CultureInfo.CurrentCulture, out value));
 }

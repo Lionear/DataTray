@@ -26,6 +26,10 @@ public sealed class NewAgentJobTool : IToolPlugin
     // The Agent Jobs folder has its own node kind so this lands there and nowhere else.
     public ToolTarget Target { get; } = new(ProviderIds: ["sqlserver"], NodeKinds: [DbNodeKind.AgentJobFolder]);
 
+    /// <summary>New Job… is what the Jobs folder is for, so it belongs on its context menu rather than under
+    /// Tools ▸ (SE-261).</summary>
+    public bool IsNodeAction => true;
+
     public IReadOnlyList<ToolField> Fields { get; } =
     [
         new(NameKey, "Name", Required: true, LabelKey: "agentjob.new.field.name"),
@@ -76,6 +80,10 @@ public sealed class DeleteAgentJobTool : IToolPlugin
     public string? DescriptionKey => "agentjob.delete.description";
 
     public ToolTarget Target { get; } = new(ProviderIds: ["sqlserver"], NodeKinds: [DbNodeKind.AgentJob]);
+
+    /// <summary>Delete is one of the job's own verbs, so it renders on the job's context menu next to
+    /// Start/Stop rather than under Tools ▸ (SE-261).</summary>
+    public bool IsNodeAction => true;
 
     public IReadOnlyList<ToolField> Fields { get; } = [];
 

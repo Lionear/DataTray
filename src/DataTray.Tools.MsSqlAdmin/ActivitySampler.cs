@@ -9,11 +9,11 @@ namespace DataTray.Tools.MsSqlAdmin;
 /// STATE that any of these DMVs already requires.
 /// </summary>
 /// <remarks>
-/// <para>All seven statements go over as <b>one script</b> (<see cref="IDbProvider.ExecuteScriptAsync"/>,
-/// which returns one result set per SELECT, in order) rather than as seven calls. The provider opens a
-/// connection per call, and seven connections every ten seconds is a cost the server pays for nothing —
+/// <para>All eight statements go over as <b>one script</b> (<see cref="IDbProvider.ExecuteScriptAsync"/>,
+/// which returns one result set per SELECT, in order) rather than as eight calls. The provider opens a
+/// connection per call, and eight connections every ten seconds is a cost the server pays for nothing —
 /// the samples are also then consistent with each other, taken at one instant rather than smeared across
-/// seven round trips.</para>
+/// eight round trips.</para>
 /// <para>ponytail: one script means one failure — an instance missing any single DMV (Azure SQL Database
 /// has no scheduler ring buffer and no <c>sys.master_files</c> in the shape used here) fails the whole
 /// refresh rather than one section. Split the script per section if Azure SQL support is wanted; against
@@ -29,10 +29,10 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
     public async Task<ActivitySample> ReadAsync(int refreshSeconds, CancellationToken ct)
     {
         var results = await provider.ExecuteScriptAsync(profile, Script(RecentWindowSeconds(refreshSeconds)), ct);
-        if (results.Count < 7)
+        if (results.Count < 8)
         {
             throw new InvalidOperationException(
-                $"The Activity Monitor expected 7 result sets from its DMV script and received {results.Count}.");
+                $"The Activity Monitor expected 8 result sets from its DMV script and received {results.Count}.");
         }
 
         var processes = ReadProcesses(results[0]);
@@ -43,7 +43,8 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
             ReadFiles(results[2]),
             ReadQueries(results[3]),
             ReadActiveQueries(results[4]),
-            ReadCounters(results[5], results[6]));
+            ReadCounters(results[5], results[6]),
+            results[7].Rows.Count > 0 ? Text(results[7].Rows[0][0]) : string.Empty);
     }
 
     private static IReadOnlyList<ProcessRow> ReadProcesses(QueryResult result)
@@ -117,7 +118,7 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
     [
         .. result.Rows.Select(r => new QueryTotals(
             Text(r[0]),
-            Collapse(Text(r[1])),
+            Text(r[1]),
             Text(r[2]),
             Long(r[3]),
             Long(r[4]),
@@ -133,7 +134,7 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         .. result.Rows.Select(r => new ActiveQueryRow(
             Int(r[0]),
             Text(r[1]),
-            Collapse(Text(r[2])),
+            Text(r[2]),
             Long(r[3]),
             Long(r[4]),
             Long(r[5]),
@@ -144,21 +145,16 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
 
     private static ServerCounters ReadCounters(QueryResult counters, QueryResult waitingTasks)
     {
-        var row = counters.Rows.Count > 0 ? counters.Rows[0] : [null, null];
+        var row = counters.Rows.Count > 0 ? counters.Rows[0] : [null, null, null, null];
         var waiting = waitingTasks.Rows.Count(r => !ActivityRates.IsBenignWait(Text(r[0])));
 
         return new ServerCounters(
-            // Null where the resource-pool counters are absent, so the graph shows a gap rather than a
-            // zero line that would read as an idle instance.
-            row[0] is null ? null : Convert.ToDouble(row[0], CultureInfo.InvariantCulture),
             waiting,
-            row.Length > 1 ? Long(row[1]) : 0);
+            Long(row[0]),
+            row.Length > 1 ? Long(row[1]) : 0,
+            row.Length > 2 ? Long(row[2]) : 0,
+            row.Length > 3 ? Int(row[3]) : 0);
     }
-
-    // Query text is shown one row per query, so the newlines and indentation of a stored procedure would
-    // otherwise render as a single very tall row with one visible word.
-    private static string Collapse(string sql) =>
-        string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static string Text(object? value) => value?.ToString() ?? string.Empty;
 
@@ -171,11 +167,11 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         : Convert.ToInt32(value, CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// The seven SELECTs behind one refresh, in the order <see cref="ReadAsync"/> unpacks them. Kept as one
+    /// The eight SELECTs behind one refresh, in the order <see cref="ReadAsync"/> unpacks them. Kept as one
     /// literal so the column order a reader sees and the indexes the reader uses sit on the same screen.
     /// </summary>
     private static string Script(int recentWindowSeconds) => $"""
-        -- DataTray Activity Monitor. This marker is what result set 4 filters on: all seven statements go
+        -- DataTray Activity Monitor. This marker is what result set 4 filters on: all eight statements go
         -- over as one batch and therefore share one sql_handle and one cached text, so a single NOT LIKE
         -- keeps the monitor's own queries out of its Recent Expensive Queries grid — which would otherwise
         -- report, every ten seconds, that the most expensive thing on this server is the monitor.
@@ -218,31 +214,66 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
 
         -- 4. Recent expensive queries: statements executed inside the window, dearest first. plan_count is
         --    every cached plan for the same query_hash, which is what makes plan-cache bloat visible.
+        --    dm_exec_query_stats has one row per *plan*, so one statement can appear several times over:
+        --    the same batch compiled against three databases, a recompile under different SET options, a
+        --    serial and a parallel plan side by side. Those rows are summed into one per statement here.
+        --    Two reasons: the grid would otherwise show the same query several times with its cost split
+        --    across the rows, and query_key — which the client uses to difference two samples — has to be
+        --    unique or the refresh dies on a duplicate dictionary key. The GROUP BY is therefore exactly
+        --    the columns query_key is built from, which is what makes it unique by construction.
+        --    The database is one of those columns: the same batch run against three databases is three
+        --    different queries with three different costs, and collapsing them into one row would have to
+        --    label that row with one arbitrary database out of the three.
         WITH plans AS (
             SELECT query_hash, COUNT(*) AS plan_count
             FROM sys.dm_exec_query_stats
-            GROUP BY query_hash)
+            GROUP BY query_hash),
+        recent AS (
+            SELECT qs.sql_handle,
+                   qs.statement_start_offset,
+                   qs.statement_end_offset,
+                   pa.dbid,
+                   -- Every plan of one statement carries the same query_hash (they are the same parse
+                   -- tree); MAX only picks the one value out of the group.
+                   MAX(qs.query_hash) AS query_hash,
+                   SUM(qs.execution_count) AS execution_count,
+                   SUM(qs.total_worker_time) AS total_worker_time,
+                   SUM(qs.total_physical_reads) AS total_physical_reads,
+                   SUM(qs.total_logical_writes) AS total_logical_writes,
+                   SUM(qs.total_logical_reads) AS total_logical_reads,
+                   SUM(qs.total_elapsed_time) AS total_elapsed_time
+            FROM sys.dm_exec_query_stats AS qs
+            -- Which database a query ran against lives on the *plan*, not on the text: dm_exec_sql_text's
+            -- own dbid is only filled in for compiled objects and is NULL for every ad-hoc batch, which is
+            -- most of this grid. OUTER APPLY, not a WHERE on the attribute, so a plan that has aged out of
+            -- cache between the scan and the lookup still keeps its row — with no database rather than none.
+            OUTER APPLY (SELECT TOP (1) CONVERT(int, value) AS dbid
+                         FROM sys.dm_exec_plan_attributes(qs.plan_handle)
+                         WHERE attribute = 'dbid') AS pa
+            WHERE qs.last_execution_time > DATEADD(second, -{recentWindowSeconds}, GETDATE())
+            GROUP BY qs.sql_handle, qs.statement_start_offset, qs.statement_end_offset, pa.dbid)
         SELECT TOP (50)
-               CONVERT(varchar(140), qs.sql_handle, 2) + '-'
-                   + CONVERT(varchar(12), qs.statement_start_offset) AS query_key,
-               SUBSTRING(st.text, (qs.statement_start_offset / 2) + 1,
-                   ((CASE qs.statement_end_offset
+               CONVERT(varchar(140), r.sql_handle, 2) + '-'
+                   + CONVERT(varchar(12), r.statement_start_offset) + '-'
+                   + CONVERT(varchar(12), r.statement_end_offset) + '-'
+                   + CONVERT(varchar(12), ISNULL(r.dbid, -1)) AS query_key,
+               SUBSTRING(st.text, (r.statement_start_offset / 2) + 1,
+                   ((CASE r.statement_end_offset
                          WHEN -1 THEN DATALENGTH(st.text)
-                         ELSE qs.statement_end_offset END - qs.statement_start_offset) / 2) + 1) AS statement_text,
-               ISNULL(DB_NAME(st.dbid), '') AS database_name,
-               qs.execution_count,
-               qs.total_worker_time,
-               qs.total_physical_reads,
-               qs.total_logical_writes,
-               qs.total_logical_reads,
-               qs.total_elapsed_time,
+                         ELSE r.statement_end_offset END - r.statement_start_offset) / 2) + 1) AS statement_text,
+               ISNULL(DB_NAME(r.dbid), '') AS database_name,
+               r.execution_count,
+               r.total_worker_time,
+               r.total_physical_reads,
+               r.total_logical_writes,
+               r.total_logical_reads,
+               r.total_elapsed_time,
                ISNULL(p.plan_count, 1) AS plan_count
-        FROM sys.dm_exec_query_stats AS qs
-        CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS st
-        LEFT JOIN plans AS p ON p.query_hash = qs.query_hash
-        WHERE qs.last_execution_time > DATEADD(second, -{recentWindowSeconds}, GETDATE())
-          AND st.text NOT LIKE '%DataTray Activity Monitor%'
-        ORDER BY qs.total_worker_time DESC;
+        FROM recent AS r
+        CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) AS st
+        LEFT JOIN plans AS p ON p.query_hash = r.query_hash
+        WHERE st.text NOT LIKE '%DataTray Activity Monitor%'
+        ORDER BY r.total_worker_time DESC;
 
         -- 5. Active expensive queries: what is executing right now, this connection excluded.
         SELECT r.session_id,
@@ -262,25 +293,36 @@ internal sealed class ActivitySampler(IDbProvider provider, ConnectionProfile pr
         WHERE r.session_id <> @@SPID
         ORDER BY r.cpu_time DESC;
 
-        -- 6. Overview counters. The resource-pool CPU counter is a raw fraction over a fixed window: the
-        --    used value against its base is the instance's share of the whole box, which is what SSMS
-        --    graphs as "% Processor Time" — one busy core of sixteen reads as 6%. The base is the same
-        --    window for every pool, so it is taken once (MAX) while the usage is summed across pools.
-        --    Batch Requests/sec, by contrast, IS cumulative and is differenced by the client.
-        --    object_name is matched with LIKE because a named instance prefixes it.
-        SELECT (SELECT SUM(CASE WHEN counter_name = 'CPU usage %' THEN cntr_value END) * 100.0
-                       / NULLIF(MAX(CASE WHEN counter_name = 'CPU usage % base' THEN cntr_value END), 0)
-                FROM sys.dm_os_performance_counters
-                WHERE object_name LIKE '%Resource Pool Stats%') AS cpu_percent,
-               (SELECT TOP (1) cntr_value
+        -- 6. Overview counters. Processor time comes from the engine's own process accounting: kernel plus
+        --    user CPU milliseconds burnt since startup, beside the clock (ms_ticks) and the number of
+        --    logical CPUs. The client differences two samples, exactly as it does for every other rate
+        --    here, and the result is the instance's share of the whole box — one busy core of sixteen
+        --    reads as 6%, which is what SSMS graphs as "% Processor Time".
+        --    These three columns are the same on Windows and on Linux, which the alternatives are not: the
+        --    scheduler ring buffer is Windows-only, and the Resource Pool Stats "CPU usage %" perfmon
+        --    counter this used to read is populated by the resource governor's own sampling and comes back
+        --    flat zero on some builds of SQL Server on Linux (SE-260).
+        --    Batch Requests/sec IS cumulative and is differenced by the client too. object_name is matched
+        --    with LIKE because a named instance prefixes it.
+        SELECT (SELECT TOP (1) cntr_value
                 FROM sys.dm_os_performance_counters
                 WHERE counter_name = 'Batch Requests/sec'
-                  AND object_name LIKE '%SQL Statistics%') AS batch_requests;
+                  AND object_name LIKE '%SQL Statistics%') AS batch_requests,
+               si.process_kernel_time_ms + si.process_user_time_ms AS process_cpu_ms,
+               si.ms_ticks,
+               si.cpu_count
+        FROM sys.dm_os_sys_info AS si;
 
         -- 7. Waiting tasks, one row per waiting request, so the client can drop the idle waits with the
         --    same list the Resource Waits grid uses.
         SELECT ISNULL(wait_type, '') AS wait_type
         FROM sys.dm_os_waiting_tasks
         WHERE session_id IS NOT NULL;
+
+        -- 8. Build and host, for the line beside the toolbar. @@VERSION rather than SERVERPROPERTY plus
+        --    sys.dm_os_host_info because it names the host in the same breath as the build and exists on
+        --    every version — host_info only arrived in 2017, and a missing view here would fail the whole
+        --    refresh (see the remarks on this class), not just this one line.
+        SELECT @@VERSION AS server_version;
         """;
 }

@@ -39,6 +39,7 @@ public interface IToolPlugin
 | `Fields` | The Route A input declarations; the host renders a generic dialog from them, exactly like the connection form. Empty when the tool uses a Route B custom view. |
 | `IsDestructive` | When true the host shows a destructive-action confirmation before running. |
 | `IsActivityMonitor` | Declares this tool *is* the connection's Activity Monitor (an engine-specific replacement for the host's built-in one). The host's own "Activity Monitor…" item on a connection root opens it, and it is left out of the node's `Tools` submenu — a tool that **replaces** a feature keeps that feature's place, unlike one that adds a feature. |
+| `IsNodeAction` | Declares this tool is one of the node's **own actions** rather than something extra offered on it (Rebuild or Drop on an index). It renders as a plain item on the node's context menu instead of inside its `Tools` submenu, and `MenuPath` is ignored. The general form of `IsActivityMonitor`, for when the host has no existing item to redirect. A tool that *adds* a capability — backup, schema diff, shrink — belongs under `Tools`. |
 | `PreviewAsync` | Optional: when a `File` field changes, return a short summary of the chosen file (e.g. read a backup header) shown under that field before Execute runs. |
 | `ExecuteAsync` | Runs the tool. `inputs` holds the collected field values keyed by `ToolField.Key`; report progress lines through `progress`. |
 
@@ -122,6 +123,25 @@ returned control in the tool dialog and still collects values through
 returned `Control` is an Avalonia type shared across the ALC boundary, add an
 Avalonia reference to the plugin `.csproj` with `ExcludeAssets="runtime"` (share
 the host's copy) — see [Referencing Avalonia for a Route B view](capabilities.md#referencing-avalonia-for-a-route-b-view).
+
+Route B is also how a tool with **no** inputs shows something. The dialog body is
+either the generated fields or your view; a tool that declares neither renders as
+a title over an empty body. If the action is the whole input, the view is where
+the confirmation goes — what the action is about to do, and to what.
+
+To describe that object, the context carries the same ancestry `ExecuteAsync`
+gets (host API 8):
+
+```csharp
+context.NodePath                      // connection root → launch node, inclusive
+context.Ancestor(DbNodeKind.Table)    // "which table is this index on?"
+context.QueryAsync(sql, ct)           // read-only, on the tool's own connection
+```
+
+`Node` alone does not identify every node — an index is named within its table
+and an "Indexes" folder is named nothing at all. Both members default to
+empty/null, so on an older host a view that reads them should say what is
+missing rather than guess.
 
 ### A tab instead of a dialog — `IToolDocumentUi` (host API 6)
 

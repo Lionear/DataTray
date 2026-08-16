@@ -1161,6 +1161,24 @@
   <data name="ConfirmDeleteConnection" xml:space="preserve">
     <value>Delete the connection "{0}"? This cannot be undone.</value>
   </data>
+  <data name="SettingsToolbar" xml:space="preserve">
+    <value>Toolbar</value>
+  </data>
+  <data name="ToolbarDesc" xml:space="preserve">
+    <value>Drag to reorder. Untick to hide — hidden actions stay available in the menus and can still be given a keyboard shortcut.</value>
+  </data>
+  <data name="ToolbarResetDefaults" xml:space="preserve">
+    <value>Reset to defaults</value>
+  </data>
+  <data name="ToolbarSavedTo" xml:space="preserve">
+    <value>Saved to toolbar.json</value>
+  </data>
+  <data name="ToolbarOverflow" xml:space="preserve">
+    <value>More actions</value>
+  </data>
+  <data name="ToolbarCustomize" xml:space="preserve">
+    <value>Customise toolbar…</value>
+  </data>
   <data name="SettingsKeyboard" xml:space="preserve">
     <value>Keyboard</value>
   </data>

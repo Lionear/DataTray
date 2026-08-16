@@ -44,6 +44,19 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
     private readonly ComboBox _interval = new() { MinWidth = 90, FontSize = 12 };
     private readonly TextBlock _status = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.75, FontSize = 12 };
 
+    // Which server this is, at the far end of the toolbar: the build and the OS under it. Trimmed rather
+    // than wrapped, because it is reference information — the whole of @@VERSION is on its tooltip.
+    private readonly TextBlock _version = new()
+    {
+        VerticalAlignment = VerticalAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        TextAlignment = TextAlignment.Right,
+        TextTrimming = TextTrimming.CharacterEllipsis,
+        Margin = new Thickness(16, 0, 0, 0),
+        Opacity = 0.75,
+        FontSize = 12
+    };
+
     // Every sample since the tab opened, trimmed to what the graphs and the "recent" column still need.
     private readonly List<ActivitySample> _history = [];
 
@@ -61,46 +74,50 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
         _databaseIo = new ActivityChart(_loc.Get("activity.graph.io"), Color.FromRgb(220, 160, 60));
         _batchRequests = new ActivityChart(_loc.Get("activity.graph.batchRequests"), Color.FromRgb(150, 120, 230));
 
-        var filterAll = _loc.Get("activity.filterAll");
         _processes = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.processes"),
             ActivityTables.ProcessHeaders,
             // Only Wait Resource is pinned; it can hold a page identifier that would stretch the row.
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 220, 0, 0, 0, 0, 0],
-            filterAll,
             height: 260,
             // SSMS opens on user processes only; the engine's own sixty background tasks are a different
             // question from the one anyone opens this grid to answer.
             filterColumn: 1,
-            filterText: "1");
+            filterText: "1",
+            databaseColumn: 3);
 
         _waits = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.waits"),
             ActivityTables.WaitHeaders,
             [0, 0, 0, 0, 0],
-            filterAll,
             height: 200);
 
         _files = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.fileIo"),
             ActivityTables.FileIoHeaders,
             [0, 420, 0, 0, 0],
-            filterAll,
             height: 200);
 
         _recentQueries = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.recentQueries"),
             ActivityTables.RecentQueryHeaders,
             [420, 0, 0, 0, 0, 0, 0, 0, 0],
-            filterAll,
-            height: 220);
+            height: 220,
+            databaseColumn: 8,
+            fullTextColumn: ActivityTables.FullTextColumn);
 
         _activeQueries = new ActivityGrid(
+            _loc,
             _loc.Get("activity.section.activeQueries"),
             ActivityTables.ActiveQueryHeaders,
             [420, 0, 0, 0, 0, 0, 0, 0, 0],
-            filterAll,
-            height: 200);
+            height: 200,
+            databaseColumn: 2,
+            fullTextColumn: ActivityTables.FullTextColumn);
 
         _processes.SetRowMenu(BuildProcessMenu());
 
@@ -132,11 +149,10 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
         var refreshNow = new Button { Content = _loc.Get("activity.refreshNow"), FontSize = 12 };
         refreshNow.Click += (_, _) => _ = RefreshAsync();
 
-        var toolbar = new StackPanel
+        var controls = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Thickness(10, 8),
             Children =
             {
                 new TextBlock
@@ -150,6 +166,13 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
                 _status
             }
         };
+
+        // The version fills whatever the controls leave, so it sits against the right edge and gives up its
+        // own width first when the window is narrow.
+        var toolbar = new DockPanel { Margin = new Thickness(10, 8) };
+        DockPanel.SetDock(controls, Dock.Left);
+        toolbar.Children.Add(controls);
+        toolbar.Children.Add(_version);
 
         var graphs = new Grid
         {
@@ -262,6 +285,9 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
             _history.RemoveRange(0, _history.Count - ActivityChart.Capacity);
         }
 
+        _version.Text = ActivityTables.ServerVersion(sample.Version);
+        ToolTip.SetTip(_version, sample.Version.Length == 0 ? null : sample.Version);
+
         _processes.Update(ActivityTables.Processes(sample));
         _waits.Update(ActivityTables.ResourceWaits(sample, previous, baseline));
         _files.Update(ActivityTables.DataFileIo(sample, previous));
@@ -275,9 +301,10 @@ internal sealed class ActivityMonitorView : UserControl, IDisposable
     {
         var seconds = previous is null ? 0 : (sample.TakenAt - previous.TakenAt).TotalSeconds;
 
+        var processorTime = ActivityRates.ProcessorTime(sample.Counters, previous?.Counters);
         _cpu.Add(
-            sample.Counters.CpuPercent,
-            sample.Counters.CpuPercent is { } cpu
+            processorTime,
+            processorTime is { } cpu
                 ? ActivityRates.Number(cpu) + "%"
                 : _loc.Get("activity.graph.unavailable"));
 

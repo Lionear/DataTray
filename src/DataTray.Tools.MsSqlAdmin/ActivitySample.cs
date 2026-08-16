@@ -36,10 +36,11 @@ internal sealed record FileIoTotals(
     long IoStallMs,
     long IoCount);
 
-/// <summary>Cumulative execution totals for one cached statement, from <c>sys.dm_exec_query_stats</c>.
-/// <see cref="Key"/> identifies the same statement across refreshes so its rates can be differenced; it
-/// changes when the plan is evicted and recompiled, which <see cref="ActivityRates.PerSecond"/> absorbs as
-/// a counter reset.</summary>
+/// <summary>Cumulative execution totals for one statement, summed over every cached plan for it, from
+/// <c>sys.dm_exec_query_stats</c>. <see cref="Key"/> is the statement's handle and offsets — the columns the
+/// sampler groups on, so it is unique within a sample — and identifies the same statement across refreshes
+/// so its rates can be differenced; it changes when the statement is recompiled at a different offset, which
+/// <see cref="ActivityRates.PerSecond"/> absorbs as a counter reset.</summary>
 internal sealed record QueryTotals(
     string Key,
     string Text,
@@ -64,10 +65,19 @@ internal sealed record ActiveQueryRow(
     string WaitType,
     int BlockedBy);
 
-/// <summary>The three instance-wide numbers behind the Overview graphs. <see cref="CpuPercent"/> is null
-/// where the scheduler ring buffer is unavailable (Azure SQL Database), in which case that graph stays
-/// empty rather than drawing a zero line that would read as "idle".</summary>
-internal sealed record ServerCounters(double? CpuPercent, int WaitingTasks, long BatchRequests);
+/// <summary>
+/// The instance-wide numbers behind the Overview graphs. <see cref="ProcessCpuMs"/>, <see cref="MsTicks"/>
+/// and <see cref="CpuCount"/> are the raw parts of "% Processor Time" — CPU milliseconds burnt since
+/// startup, the clock they were burnt against, and how many cores there are to burn — which
+/// <see cref="ActivityRates.ProcessorTime"/> turns into a percentage once there are two samples to
+/// difference.
+/// </summary>
+internal sealed record ServerCounters(
+    int WaitingTasks,
+    long BatchRequests,
+    long ProcessCpuMs,
+    long MsTicks,
+    int CpuCount);
 
 /// <summary>
 /// One complete Activity Monitor refresh. Everything here is <b>raw</b>: cumulative counters as the server
@@ -82,4 +92,7 @@ internal sealed record ActivitySample(
     IReadOnlyList<FileIoTotals> Files,
     IReadOnlyList<QueryTotals> Queries,
     IReadOnlyList<ActiveQueryRow> ActiveQueries,
-    ServerCounters Counters);
+    ServerCounters Counters,
+    /// <summary><c>@@VERSION</c> verbatim: the build, and the operating system it runs on.
+    /// <see cref="ActivityTables.ServerVersion"/> cuts it down to the line the toolbar shows.</summary>
+    string Version);

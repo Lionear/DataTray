@@ -12,16 +12,23 @@ namespace DataTray.App.ViewModels;
 /// </summary>
 public partial class NodeInfoDialogViewModel : ViewModelBase
 {
-    public NodeInfoDialogViewModel(string title, Control view, ILocalizer localizer)
+    public NodeInfoDialogViewModel(string title, Control view, ILocalizer localizer, bool viewOwnsActionBar = false)
     {
         Title = title;
         View = view;
         Loc = localizer;
+        ShowCloseBar = !viewOwnsActionBar;
     }
 
     public string Title { get; }
 
     public Control View { get; }
+
+    /// <summary>False when the provider view brings its own footer — a properties dialog that writes needs
+    /// OK/Cancel of its own, and the host's Close row underneath it would be a third button that looks like
+    /// it does something different. The <c>SecurityDialog</c> chrome settled this the same way; here the
+    /// same view is hosted in the page-rail-sized window instead of growing a third one.</summary>
+    public bool ShowCloseBar { get; }
 
     public ILocalizer Loc { get; }
 

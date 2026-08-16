@@ -58,6 +58,24 @@ public class ActivityTablesTests
     }
 
     [Fact]
+    public void RecentQueries_survive_a_previous_sample_that_repeats_a_key()
+    {
+        // dm_exec_query_stats has a row per plan, so one statement can come back twice; the sampler sums
+        // those, but a server that finds a way to repeat a key must not take the refresh down with
+        // "An item with the same key has already been added" — which is exactly how this was reported.
+        var before = Sample(First, queries:
+        [
+            Query(executions: 10, workerTimeUs: 1_000_000, elapsedUs: 2_000_000),
+            Query(executions: 4, workerTimeUs: 500_000, elapsedUs: 1_000_000)
+        ]);
+        var now = Sample(Second, queries: [Query(executions: 30, workerTimeUs: 3_000_000, elapsedUs: 6_000_000)]);
+
+        var row = ActivityTables.RecentQueries(now, before).Single();
+
+        Assert.Equal(ActivityRates.Number(2), row[1]);
+    }
+
+    [Fact]
     public void The_first_refresh_shows_no_rates_at_all()
     {
         // With one sample there is nothing to difference. Zero is the honest answer; the alternative is
@@ -103,6 +121,44 @@ public class ActivityTablesTests
         Assert.Equal("51", rows[1][10]);
     }
 
+    [Fact]
+    public void ServerVersion_names_the_build_and_the_host_on_linux()
+    {
+        // Verbatim from SQL Server 2025 CU6 in a container, tabs and all.
+        var line = ActivityTables.ServerVersion(
+            "Microsoft SQL Server 2025 (RTM-CU6) (KB5093421) - 17.0.4055.5 (X64) \n"
+            + "\tJun  9 2026 12:41:10 \n"
+            + "\tCopyright (C) 2025 Microsoft Corporation\n"
+            + "\tEnterprise Developer Edition (64-bit) on Linux (Ubuntu 24.04.4 LTS) <X64>");
+
+        Assert.Equal(
+            "Microsoft SQL Server 2025 (RTM-CU6) (KB5093421) - 17.0.4055.5 (X64) · Linux (Ubuntu 24.04.4 LTS)",
+            line);
+    }
+
+    [Fact]
+    public void ServerVersion_drops_the_architecture_tail_windows_appends()
+    {
+        var line = ActivityTables.ServerVersion(
+            "Microsoft SQL Server 2019 (RTM-CU18) (KB5017593) - 15.0.4261.1 (X64) \r\n"
+            + "\tSep  6 2022 20:09:11 \r\n"
+            + "\tCopyright (C) 2019 Microsoft Corporation\r\n"
+            + "\tDeveloper Edition (64-bit) on Windows Server 2019 Standard 10.0 <X64> (Build 17763: ) (Hypervisor)");
+
+        Assert.Equal(
+            "Microsoft SQL Server 2019 (RTM-CU18) (KB5017593) - 15.0.4261.1 (X64) · Windows Server 2019 Standard 10.0",
+            line);
+    }
+
+    [Fact]
+    public void ServerVersion_falls_back_to_the_build_when_the_host_cannot_be_found()
+    {
+        // A localised install says "on" in its own language. Naming the build and staying quiet about the
+        // host beats printing whatever happens to follow the last "on" in a German sentence.
+        Assert.Equal("Microsoft SQL Server 2019", ActivityTables.ServerVersion("Microsoft SQL Server 2019\n\tsomething"));
+        Assert.Equal(string.Empty, ActivityTables.ServerVersion(string.Empty));
+    }
+
     private static ProcessRow Process(int sessionId, int blockedBy) => new(
         sessionId, true, "sa", "Sales", "running", "SELECT", "app", 0, "", "", blockedBy, 0, "host", "default");
 
@@ -114,6 +170,35 @@ public class ActivityTablesTests
         return [.. rows.Select(p => p with { HeadBlocker = heads.Contains(p.SessionId) })];
     }
 
+    [Fact]
+    public void A_query_row_carries_the_collapsed_text_to_show_and_the_original_to_read()
+    {
+        var sql = "SELECT *\n  FROM Orders\n  WHERE Id = 1";
+        var now = Sample(First, queries: [new QueryTotals("key", sql, "Sales", 1, 0, 0, 0, 0, 0, 1)]);
+
+        var row = ActivityTables.RecentQueries(now, previous: null).Single();
+
+        // The grid column is one line — a stored procedure's own indentation would make the row as tall as
+        // the procedure — while the double-click window needs the statement exactly as the server has it.
+        Assert.Equal("SELECT * FROM Orders WHERE Id = 1", row[0]);
+        Assert.Equal(sql, row[ActivityTables.FullTextColumn]);
+    }
+
+    [Fact]
+    public void The_database_dropdown_lists_the_databases_that_have_rows_with_all_first()
+    {
+        var rows = new[]
+        {
+            ["51", "Sales"], ["52", "archive"], ["53", "SALES"], ["54", string.Empty], new[] { "55" }
+        };
+
+        var names = ActivityTables.Databases(rows, column: 1, allLabel: "(all)");
+
+        // Case-insensitive, so one database is one entry however the DMV cased it; a row with no database
+        // (a background task) adds nothing to pick, and a short row must not throw.
+        Assert.Equal(["(all)", "archive", "Sales"], names);
+    }
+
     private static QueryTotals Query(long executions, long workerTimeUs, long elapsedUs) =>
         new("key", "SELECT 1", "Sales", executions, workerTimeUs, 0, 0, 0, elapsedUs, 1);
 
@@ -123,5 +208,5 @@ public class ActivityTablesTests
         IReadOnlyList<WaitTotals>? waits = null,
         IReadOnlyList<FileIoTotals>? files = null,
         IReadOnlyList<QueryTotals>? queries = null) =>
-        new(takenAt, processes ?? [], waits ?? [], files ?? [], queries ?? [], [], new ServerCounters(null, 0, 0));
+        new(takenAt, processes ?? [], waits ?? [], files ?? [], queries ?? [], [], new ServerCounters(0, 0, 0, 0, 0), "");
 }

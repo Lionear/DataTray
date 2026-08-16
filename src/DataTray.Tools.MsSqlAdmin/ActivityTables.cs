@@ -44,6 +44,57 @@ internal static class ActivityTables
         "Wait Type", "Blocked By"
     ];
 
+    /// <summary>
+    /// The databases present in <paramref name="rows"/>, sorted, with <paramref name="allLabel"/> first —
+    /// what the Database dropdown over a grid offers. Only the databases that currently have rows are
+    /// listed, so the choices are the ones that can actually change what is on screen.
+    /// </summary>
+    public static IReadOnlyList<string> Databases(IReadOnlyList<string[]> rows, int column, string allLabel)
+    {
+        var names = new List<string> { allLabel };
+        if (column >= 0)
+        {
+            names.AddRange(rows
+                .Select(row => column < row.Length ? row[column] : string.Empty)
+                .Where(name => name.Length > 0)
+                .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(name => name, StringComparer.CurrentCulture));
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// The build-and-host line the toolbar shows, from <c>@@VERSION</c>: "Microsoft SQL Server 2025
+    /// (RTM-CU6) (KB5093421) - 17.0.4055.5 (X64) · Linux (Ubuntu 24.04.4 LTS)".
+    /// </summary>
+    /// <remarks>
+    /// <c>@@VERSION</c>'s first line is the build, and its last ends in "&lt;edition&gt; on &lt;host&gt;" —
+    /// the same shape on Windows and on Linux. A string that does not have that shape (a localised install
+    /// says "on" in its own language) falls back to the build alone: half the answer beats a wrong one, and
+    /// the whole string is on the tooltip either way.
+    /// </remarks>
+    public static string ServerVersion(string version)
+    {
+        var build = version.Split('\n')[0].Trim();
+        var on = version.LastIndexOf(" on ", StringComparison.Ordinal);
+        if (on < 0)
+        {
+            return build;
+        }
+
+        var host = version[(on + 4)..].Trim();
+        // "… on Windows Server 2019 Standard 10.0 <X64> (Build 17763: ) (Hypervisor)" — the architecture
+        // and build number are already in the first line, and this line has to fit beside a toolbar.
+        var architecture = host.IndexOf(" <", StringComparison.Ordinal);
+        if (architecture > 0)
+        {
+            host = host[..architecture];
+        }
+
+        return build.Length == 0 ? host : build + " · " + host;
+    }
+
     public static IReadOnlyList<string[]> Processes(ActivitySample now) =>
     [
         .. now.Processes.Select(p => new[]
@@ -150,7 +201,12 @@ internal static class ActivityTables
 
     public static IReadOnlyList<string[]> RecentQueries(ActivitySample now, ActivitySample? previous)
     {
-        var before = previous?.Queries.ToDictionary(q => q.Key, StringComparer.Ordinal)
+        // DistinctBy, not a plain ToDictionary: the keys come from a DMV, and a duplicate one used to take
+        // the whole refresh down with "An item with the same key has already been added". The sampler now
+        // aggregates so that cannot happen, but a grid that loses one row's baseline for a refresh is a far
+        // better failure than a monitor that stops monitoring.
+        var before = previous?.Queries.DistinctBy(q => q.Key, StringComparer.Ordinal)
+                .ToDictionary(q => q.Key, StringComparer.Ordinal)
             ?? new Dictionary<string, QueryTotals>(StringComparer.Ordinal);
         var seconds = Seconds(previous, now);
 
@@ -161,7 +217,7 @@ internal static class ActivityTables
                 before.TryGetValue(q.Key, out var was);
                 return new[]
                 {
-                    q.Text,
+                    Collapse(q.Text),
                     ActivityRates.Number(ActivityRates.PerSecond(q.Executions, was?.Executions ?? 0, seconds)),
                     ActivityRates.Number(
                         ActivityRates.PerSecond(q.WorkerTimeUs, was?.WorkerTimeUs ?? 0, seconds) / 1000),
@@ -172,7 +228,8 @@ internal static class ActivityTables
                     // usually cost", which is a different question from the per-second columns beside it.
                     ActivityRates.Milliseconds(q.Executions == 0 ? 0 : q.ElapsedUs / 1000d / q.Executions),
                     q.PlanCount.ToString(CultureInfo.CurrentCulture),
-                    q.Database
+                    q.Database,
+                    q.Text
                 };
             })
         ];
@@ -182,7 +239,7 @@ internal static class ActivityTables
     [
         .. now.ActiveQueries.Select(q => new[]
         {
-            q.Text,
+            Collapse(q.Text),
             q.SessionId.ToString(CultureInfo.CurrentCulture),
             q.Database,
             q.ElapsedMs.ToString("N0", CultureInfo.CurrentCulture),
@@ -190,9 +247,21 @@ internal static class ActivityTables
             q.LogicalReads.ToString("N0", CultureInfo.CurrentCulture),
             q.Writes.ToString("N0", CultureInfo.CurrentCulture),
             q.WaitType,
-            q.BlockedBy == 0 ? string.Empty : q.BlockedBy.ToString(CultureInfo.CurrentCulture)
+            q.BlockedBy == 0 ? string.Empty : q.BlockedBy.ToString(CultureInfo.CurrentCulture),
+            q.Text
         })
     ];
+
+    /// <summary>The query column is one grid row, so a stored procedure's newlines and indentation would
+    /// otherwise render as a very tall row showing one visible word. The statement keeps its own formatting
+    /// in the trailing slot past the headers (<see cref="FullTextColumn"/>), which no column binds to and
+    /// which the grid shows in full on a double-click.</summary>
+    private static string Collapse(string sql) =>
+        string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>Where both query grids carry the statement as the server wrote it. Both header sets are
+    /// nine long, so this one index serves them both.</summary>
+    public const int FullTextColumn = 9;
 
     /// <summary>Wall-clock seconds between two samples; 0 when there is no earlier one, which
     /// <see cref="ActivityRates.PerSecond"/> reads as "no rate yet" rather than as a division by zero.</summary>

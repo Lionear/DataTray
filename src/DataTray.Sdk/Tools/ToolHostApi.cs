@@ -82,7 +82,43 @@ public static class ToolHostApi
     //                  monitor into a plugin and, with it, one level deeper in the menu; a feature changing
     //                  owner should not change place. Folded into 7 rather than given an 8 because 7 has
     //                  not shipped — v0.7.0 (2026-07-30) carries tool API 5. Additive default false.
-    public const int Version = 7;
+    //   also in v7 (2026-08-13): IToolPlugin.IsNodeAction (SE-253) — the general form of the above, for the
+    //                  case where the host has no menu item to redirect. A tool that is one of the node's own
+    //                  actions (SE-249's Rebuild/Reorganize/Disable/Drop on an index) renders directly on the
+    //                  node's context menu instead of inside its Tools submenu. Additive default false.
+    //                  Folded into 7 even though 7 is now out on preview and nightly, which reads like the
+    //                  exception failing. It does not: what makes a fold-in unsafe is the SE-166 trap, and
+    //                  that needs new *types*. SE-255 opened an 8 for exactly that reason — a plugin
+    //                  declaring 7 to use IToolbarPlugin loads on those hosts and then dies in GetTypes(),
+    //                  taking the whole plugin with it. A default interface member cannot do that: an
+    //                  old-7 host does not route on the flag, so the actions render under Tools, exactly as
+    //                  they did before SE-253. Wrong menu level on a preview host is the known ceiling here,
+    //                  and it is the cheaper end of the trade — calling this a v8 member would push plugin
+    //                  authors to declare 8 and lose every v7 host outright to fix one submenu level.
+    // v8 (2026-08-14): the toolbar seams (SE-255) — IToolbarPlugin + ToolbarContribution,
+    //                  IQueryToolbarPlugin + QueryToolbarContribution, IQueryDocument +
+    //                  QueryDocumentKind (all in DataTray.Sdk.Extensibility) and the "toolbar" capability,
+    //                  so a subsystem plugin can put a button in the application toolbar and in the query
+    //                  windows it applies to. Additive: nothing existing changes, and MinimumSupported
+    //                  stays 1, so every plugin built against v1–v7 keeps loading untouched.
+    //                  A new number rather than a fold-in into the still-unreleased 7, which is the
+    //                  exception the earlier folds relied on. The exception does not hold here: 7 is
+    //                  already out on the preview and nightly channels, and this bump adds *types*, not
+    //                  default interface members. A plugin declaring 7 to use IToolbarPlugin would be
+    //                  accepted by one of those hosts and then die in GetTypes() with
+    //                  ReflectionTypeLoadException — the whole plugin, panel and menu items included, for
+    //                  "Unable to load one or more of the requested types". That is the SE-166 trap; a
+    //                  version those hosts refuse outright is the accurate answer.
+    //                  (The SE-255 design doc predates 6 and 7 and says "5 → 6"; the reasoning is what
+    //                  transfers, not the number.)
+    //   also in v8 (2026-08-14): IToolUiContext gains NodePath and Ancestor(), mirroring the pair
+    //                  ToolExecutionContext has carried since v7. A Route-B view was given Node but not the
+    //                  ancestry, so it could not describe the object its tool was about to act on: the index
+    //                  tools' dialog had nothing to show and rendered as a title over an empty body. Both are
+    //                  default interface members — an older host simply returns empty and a view that reads
+    //                  it says what is missing — so this is a fold-in by the SE-253 test ("does it add
+    //                  types?"), not a v9.
+    public const int Version = 8;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
     /// extensibility seams, v4 the services + providers capabilities), so older tools keep loading on a newer

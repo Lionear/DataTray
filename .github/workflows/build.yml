@@ -228,6 +228,27 @@ jobs:
         shell: bash
         run: dotnet tool install -g vpk --version 1.2.0
 
+      # macOS `codesign` treats any directory whose name contains a dot as a nested bundle, and
+      # Velopack signs the app recursively — so one such directory anywhere in the payload fails the
+      # whole package with "bundle format unrecognized, invalid, or unsuitable" and a path, which reads
+      # like a broken signing setup rather than "a plugin brought a runtimes/<rid>/lib/net9.0 folder".
+      # That is what happened the first time this workflow ran. Catch it here, where the message can
+      # say which directory and what to do, instead of in a signing error further down.
+      - name: Check for bundle-hostile directory names
+        if: matrix.platform == 'osx'
+        shell: bash
+        run: |
+          set -euo pipefail
+          OFFENDERS=$(find "publish/${{ matrix.rid }}" -type d -name '*.*' || true)
+          if [ -n "$OFFENDERS" ]; then
+            echo "::error::Directories with a dot in the name are in the macOS payload; codesign will refuse the bundle."
+            echo "$OFFENDERS" >&2
+            echo "Usually a plugin staged from bin/ rather than from a RID-specific publish — see" >&2
+            echo "PublishMsSqlProviderForStaging in src/DataTray.Desktop/DataTray.Desktop.csproj." >&2
+            exit 1
+          fi
+          echo "No dotted directories in the payload."
+
       # vpk derives CFBundleShortVersionString from the pack version and pads it to four components,
       # where Apple allows at most three — so 0.8.0-nightly.99 would ship as 0.8.0.0. The repo's own
       # Info.plist is handed over instead, with the two version fields filled in here. Note that --plist

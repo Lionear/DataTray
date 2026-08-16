@@ -8,47 +8,86 @@ using Avalonia.Layout;
 
 namespace DataTray.Tools.MsSqlAdmin;
 
-/// <summary>
-/// One row of a monitor grid. The cells are bound by index (<c>[0]</c>, <c>[1]</c>, …) so one row type
-/// serves all five grids, and they are replaced in place on refresh: keeping the row objects alive is what
-/// lets the scroll position and the selected row survive a refresh, which a grid you are reading while it
-/// reloads every ten seconds absolutely needs.
-/// </summary>
-internal sealed class GridRow(string[] cells) : INotifyPropertyChanged
+/// <summary>One cell of a monitor grid: a string that can say when it changed.</summary>
+/// <remarks>
+/// A notifying object per cell rather than a plain string in the row, because a column binds to a property
+/// path and re-reads it only when that property announces itself. A row's own indexer announces nothing a
+/// binding listens to, so cells bound to <c>[0]</c>, <c>[1]</c>, … kept showing the values they were
+/// realised with — every grid in the tab was frozen on its first sample, and a header click reordered the
+/// rows behind a screen that never redrew (SE-265). <c>Cells[i].Value</c> is the shape the host's own
+/// result grid binds to, for exactly this reason.
+/// </remarks>
+internal sealed class GridCell(string value) : INotifyPropertyChanged
 {
-    public string[] Cells { get; private set; } = cells;
+    private string _value = value;
 
-    public string this[int index] => index >= 0 && index < Cells.Length ? Cells[index] : string.Empty;
+    public string Value
+    {
+        get => _value;
+        set
+        {
+            if (string.Equals(_value, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _value = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
+/// One row of a monitor grid. One row type serves all five grids, and the cells are written in place on
+/// refresh: keeping the row objects alive is what lets the scroll position and the selected row survive a
+/// refresh, which a grid you are reading while it reloads every ten seconds absolutely needs.
+/// </summary>
+internal sealed class GridRow(string[] cells)
+{
+    /// <summary>An array, not any read-only list: a binding to <c>Cells[i]</c> reaches the element through
+    /// <see cref="System.Collections.IList"/>, which an array implements and a read-only wrapper does not —
+    /// bind to one of those and every cell in the grid renders empty.</summary>
+    public GridCell[] Cells { get; } = [.. cells.Select(c => new GridCell(c))];
+
+    /// <summary>The cells as plain text — what a row action reads to know what it acts on.</summary>
+    public string[] Values => [.. Cells.Select(c => c.Value)];
 
     public void Replace(string[] cells)
     {
-        Cells = cells;
-        // "Item[]" is the framework's name for "every indexer value changed" — one notification rather than
-        // one per column.
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
+        for (var i = 0; i < Cells.Length; i++)
+        {
+            Cells[i].Value = i < cells.Length ? cells[i] : string.Empty;
+        }
     }
 }
 
 /// <summary>
 /// A collapsible section of the Activity Monitor: SSMS's header bar that folds the whole grid away, a
-/// filter over one column or all of them, and the grid itself.
+/// Database dropdown, a filter over one column or all of them, and the grid itself.
 /// </summary>
 /// <remarks>
 /// Sorting is done here rather than by the DataGrid, the same way the host's own result grid does it: the
 /// built-in sort is cancelled and the rows are ordered by this class, because the rows are replaced in
 /// place on every refresh and a sort the grid owns would silently be applied to values that have since
-/// changed. Numeric-looking columns sort numerically, so "9" does not come after "10".
+/// changed. Numeric-looking columns sort numerically (<see cref="ActivityRates.CompareCells"/>), so "9"
+/// does not come after "10", and the sort is stable, so rows a column cannot tell apart stay put instead
+/// of reshuffling every ten seconds.
 /// </remarks>
 internal sealed class ActivityGrid
 {
+    private readonly IPluginLocalizer _loc;
     private readonly string[] _headers;
     private readonly DataGrid _grid;
     private readonly ObservableCollection<GridRow> _rows = [];
+    private readonly ComboBox _database = new() { MinWidth = 140, FontSize = 12 };
     private readonly ComboBox _filterColumn = new() { MinWidth = 150, FontSize = 12 };
     private readonly TextBox _filterText = new() { Width = 200, FontSize = 12 };
     private readonly TextBlock _count = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7, FontSize = 12 };
+
+    private readonly int _databaseColumn;
+    private readonly int _fullTextColumn;
 
     private IReadOnlyList<string[]> _all = [];
     private int _sortColumn = -1;
@@ -58,16 +97,28 @@ internal sealed class ActivityGrid
     /// <paramref name="filterText"/> what it starts filtering for. The Processes grid opens filtered to
     /// user processes, as SSMS does: sixty background tasks above the four sessions you came to look at is
     /// not a monitor, and the filter is in plain sight to be cleared.</param>
+    /// <param name="databaseColumn">Header index of the grid's Database column, or -1 for a grid that has
+    /// none. It gets a dropdown of its own beside the free-text filter, because picking one of the databases
+    /// that actually have rows is the question this tab is opened with, and it is a different question from
+    /// the one the text box answers — the two stack.</param>
+    /// <param name="fullTextColumn">Row index holding the untruncated text a double-click shows in a window
+    /// (<see cref="ActivityTables.FullTextColumn"/>), or -1 for a grid whose cells are all short enough to
+    /// read where they are.</param>
     public ActivityGrid(
+        IPluginLocalizer loc,
         string title,
         string[] headers,
         double[] widths,
-        string filterAllLabel,
         double height = 220,
         int filterColumn = -1,
-        string filterText = "")
+        string filterText = "",
+        int databaseColumn = -1,
+        int fullTextColumn = -1)
     {
+        _loc = loc;
         _headers = headers;
+        _databaseColumn = databaseColumn;
+        _fullTextColumn = fullTextColumn;
 
         _grid = new DataGrid
         {
@@ -88,7 +139,7 @@ internal sealed class ActivityGrid
             _grid.Columns.Add(new DataGridTextColumn
             {
                 Header = headers[i],
-                Binding = new Binding($"[{i}]"),
+                Binding = new Binding($"Cells[{i}].Value"),
                 // A width of 0 means "as wide as it needs to be": these headers are long ("Recent Wait Time
                 // (ms/sec)") beside cells that are short, and a pixel width guessed per column clipped the
                 // headers into riddles. Only the columns holding a whole query or a file path are pinned,
@@ -102,19 +153,32 @@ internal sealed class ActivityGrid
         }
 
         _grid.Sorting += OnSorting;
+        _grid.DoubleTapped += async (_, _) => await ShowFullTextAsync();
 
-        _filterColumn.ItemsSource = new[] { filterAllLabel }.Concat(headers).ToList();
+        _filterColumn.ItemsSource = new[] { loc.Get("activity.filterAll") }.Concat(headers).ToList();
         _filterColumn.SelectedIndex = filterColumn >= 0 ? filterColumn + 1 : 0;
         _filterText.Text = filterText;
         _filterColumn.SelectionChanged += (_, _) => Render();
         _filterText.TextChanged += (_, _) => Render();
+
+        _database.IsVisible = databaseColumn >= 0;
+        _database.SelectionChanged += (_, _) => Render();
+        RefreshDatabases();
+
+        var label = new TextBlock
+        {
+            Text = _loc.Get("activity.database"),
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 12,
+            IsVisible = databaseColumn >= 0
+        };
 
         var bar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 6,
             Margin = new Thickness(0, 0, 0, 6),
-            Children = { _filterColumn, _filterText, _count }
+            Children = { label, _database, _filterColumn, _filterText, _count }
         };
 
         Section = new Expander
@@ -132,7 +196,7 @@ internal sealed class ActivityGrid
 
     /// <summary>The cells of the selected row, or null when nothing is selected — what a row action
     /// (Kill Process) reads to know what it acts on.</summary>
-    public string[]? SelectedCells => (_grid.SelectedItem as GridRow)?.Cells;
+    public string[]? SelectedCells => (_grid.SelectedItem as GridRow)?.Values;
 
     /// <summary>Attach a right-click action to the rows (the Processes grid's Kill Process).</summary>
     public void SetRowMenu(ContextMenu menu) => _grid.ContextMenu = menu;
@@ -140,7 +204,47 @@ internal sealed class ActivityGrid
     public void Update(IReadOnlyList<string[]> rows)
     {
         _all = rows;
+        RefreshDatabases();
         Render();
+    }
+
+    // The dropdown lists the databases in the whole snapshot, not in what the text filter left — the two
+    // filters are independent, so narrowing one must not take the other's choices away. Rewritten only when
+    // the set actually changes, or a refresh every ten seconds would drop the list open under the pointer.
+    private void RefreshDatabases()
+    {
+        if (_databaseColumn < 0)
+        {
+            return;
+        }
+
+        var names = ActivityTables.Databases(_all, _databaseColumn, _loc.Get("activity.allDatabases"));
+        if (_database.ItemsSource is IReadOnlyList<string> current && names.SequenceEqual(current))
+        {
+            return;
+        }
+
+        // A database that no longer has rows falls back to "(all databases)" rather than filtering
+        // everything away — the selection is only worth keeping while it can still match something.
+        var selected = _database.SelectedItem as string;
+        _database.ItemsSource = names;
+        _database.SelectedIndex = selected is not null ? Math.Max(names.ToList().IndexOf(selected), 0) : 0;
+    }
+
+    // Double-click a row to read the whole thing: the query column is one line of collapsed whitespace
+    // clipped to its column width, which is enough to recognise a statement and not enough to read one.
+    private async Task ShowFullTextAsync()
+    {
+        if (_fullTextColumn < 0 ||
+            SelectedCells is not { } cells ||
+            _fullTextColumn >= cells.Length ||
+            cells[_fullTextColumn].Length == 0 ||
+            TopLevel.GetTopLevel(_grid) is not Window owner)
+        {
+            return;
+        }
+
+        await QueryTextWindow.ShowAsync(owner, _loc, cells[_fullTextColumn]);
     }
 
     /// <summary>Show a failure in place of the rows, so one broken section says why instead of the tab
@@ -181,6 +285,14 @@ internal sealed class ActivityGrid
         var column = _filterColumn.SelectedIndex - 1;
 
         IEnumerable<string[]> rows = _all;
+        // Index 0 is "(all databases)"; anything below it is an exact database, not a substring, because the
+        // dropdown offers names that exist and "db" matching "db_archive" would be a different feature.
+        if (_databaseColumn >= 0 && _database.SelectedIndex > 0 && _database.SelectedItem is string database)
+        {
+            rows = rows.Where(r => string.Equals(
+                Cell(r, _databaseColumn), database, StringComparison.CurrentCultureIgnoreCase));
+        }
+
         if (!string.IsNullOrWhiteSpace(filter))
         {
             rows = column >= 0
@@ -191,7 +303,13 @@ internal sealed class ActivityGrid
         var list = rows.ToList();
         if (_sortColumn >= 0)
         {
-            list.Sort((a, b) => Compare(Cell(a, _sortColumn), Cell(b, _sortColumn)) * (_sortDescending ? -1 : 1));
+            // OrderBy, not List.Sort: it is stable, so the rows a sorted column cannot tell apart — and
+            // "0" is most of what a quiet server reports — keep the server's own order instead of
+            // reshuffling among themselves on every refresh.
+            var sign = _sortDescending ? -1 : 1;
+            list = [.. list.OrderBy(
+                r => Cell(r, _sortColumn),
+                Comparer<string>.Create((a, b) => ActivityRates.CompareCells(a, b) * sign))];
         }
 
         for (var i = 0; i < list.Count; i++)
@@ -217,17 +335,4 @@ internal sealed class ActivityGrid
     }
 
     private static string Cell(string[] row, int index) => index < row.Length ? row[index] : string.Empty;
-
-    // Numbers as numbers ("9" before "10"), everything else as text. The cells are already formatted for
-    // display, so the parse has to accept the thousands separators that formatting put there.
-    private static int Compare(string a, string b)
-    {
-        if (double.TryParse(a, NumberStyles.Any, CultureInfo.CurrentCulture, out var x)
-            && double.TryParse(b, NumberStyles.Any, CultureInfo.CurrentCulture, out var y))
-        {
-            return x.CompareTo(y);
-        }
-
-        return string.Compare(a, b, StringComparison.CurrentCultureIgnoreCase);
-    }
 }

@@ -36,7 +36,36 @@
   <!-- Each provider's self-contained output, tagged with the plugin-id folder it belongs in.
        Populated inside a target (not at project scope) because the wildcards must be evaluated
        after the providers have built, not during the initial project evaluation. -->
-  <Target Name="CollectProviderPluginFiles">
+  <PropertyGroup>
+    <!-- Absolute, because it is handed to another project as PublishDir. -->
+    <MsSqlPluginPublishDir>$(MSBuildThisFileDirectory)obj\plugin-publish\sqlserver\$(Configuration)\$(RuntimeIdentifier)\</MsSqlPluginPublishDir>
+  </PropertyGroup>
+
+  <!--
+    The SQL Server provider is staged from a RID-specific publish instead of from bin/, and it is the
+    only one that needs to be.
+
+    Microsoft.Data.SqlClient ships its managed assembly once per RID, under
+    runtimes/win/lib/net9.0 and runtimes/unix/lib/net9.0, and the plugin's deps.json resolves it
+    there — the loader is an AssemblyDependencyResolver, so those paths are load-bearing and the
+    folders cannot simply be deleted. But their names contain a dot, and macOS `codesign` treats any
+    dotted directory inside a bundle as a nested bundle: it reports "bundle format unrecognized,
+    invalid, or unsuitable" and refuses to sign the app at all. Velopack signs recursively, so this
+    fails the whole macOS package.
+
+    Publishing for the target RID resolves it the way the SDK intends: the correct SqlClient lands in
+    the plugin root and the deps.json written beside it points there, with no runtimes/*/lib tree left.
+
+    Without a RuntimeIdentifier — the plain `dotnet build` dev loop — there is nothing to flatten
+    towards and nothing signs that output, so the bin/ copy is kept.
+  -->
+  <Target Name="PublishMsSqlProviderForStaging" Condition="'$(RuntimeIdentifier)' != ''">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\DataTray.Providers.MsSql\DataTray.Providers.MsSql.csproj"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=false;PublishDir=$(MsSqlPluginPublishDir)" />
+  </Target>
+
+  <Target Name="CollectProviderPluginFiles" DependsOnTargets="PublishMsSqlProviderForStaging">
     <ItemGroup>
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\DataTray.Providers.Postgres\bin\$(Configuration)\$(TargetFramework)\**\*">
         <PluginId>postgres</PluginId>
@@ -47,7 +76,12 @@
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\DataTray.Providers.MySql\bin\$(Configuration)\$(TargetFramework)\**\*">
         <PluginId>mysql</PluginId>
       </ProviderPluginFile>
-      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\DataTray.Providers.MsSql\bin\$(Configuration)\$(TargetFramework)\**\*">
+      <!-- See PublishMsSqlProviderForStaging above for why this one is not staged from bin/. -->
+      <ProviderPluginFile Include="$(MsSqlPluginPublishDir)**\*" Condition="'$(RuntimeIdentifier)' != ''">
+        <PluginId>sqlserver</PluginId>
+      </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\DataTray.Providers.MsSql\bin\$(Configuration)\$(TargetFramework)\**\*"
+                          Condition="'$(RuntimeIdentifier)' == ''">
         <PluginId>sqlserver</PluginId>
       </ProviderPluginFile>
       <!-- Core admin tool plugin, staged unconditionally (Debug + Release) like the providers. -->
@@ -118,6 +152,28 @@
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>local-containers</PluginId>
       </ProviderPluginFile>
+    </ItemGroup>
+
+    <!-- Drop the native libraries for platforms a desktop build can never run on. SQLitePCLRaw ships
+         e_sqlite3 for 31 runtime identifiers — Android, iOS, Mac Catalyst, WebAssembly and the rest —
+         and a plugin folder is copied whole, so all of them ended up inside the app.
+         Not just weight: on macOS a recursive `codesign` walks into
+         plugins/sqlite/runtimes/browser-wasm/nativeassets/net9.0, calls it "bundle format
+         unrecognized, invalid, or unsuitable" and refuses the whole bundle. That went unnoticed while
+         the old workflow swallowed the signing failure with a trailing `|| echo warning` — so the .app
+         was shipping unsealed — and only surfaced once vpk took over the signing and failed on it.
+         Desktop RIDs (win-*, linux-*, osx-*) are deliberately left alone: which one is needed depends
+         on the publish target, and keeping them costs a few megabytes rather than a broken bundle. -->
+    <ItemGroup>
+      <ProviderPluginFile
+        Remove="@(ProviderPluginFile)"
+        Condition="$([System.String]::Copy('%(RecursiveDir)').Replace('\','/').Contains('runtimes/browser-wasm/'))
+                Or $([System.String]::Copy('%(RecursiveDir)').Replace('\','/').Contains('runtimes/android-'))
+                Or $([System.String]::Copy('%(RecursiveDir)').Replace('\','/').Contains('runtimes/ios-'))
+                Or $([System.String]::Copy('%(RecursiveDir)').Replace('\','/').Contains('runtimes/iossimulator-'))
+                Or $([System.String]::Copy('%(RecursiveDir)').Replace('\','/').Contains('runtimes/maccatalyst-'))
+                Or $([System.String]::Copy('%(RecursiveDir)').Replace('\','/').Contains('runtimes/tvos'))
+                Or $([System.String]::Copy('%(RecursiveDir)').Replace('\','/').Contains('runtimes/tizen'))" />
     </ItemGroup>
   </Target>
 

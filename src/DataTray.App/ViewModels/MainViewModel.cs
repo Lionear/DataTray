@@ -21,8 +21,10 @@ using DataTray.Core.Schema;
 using DataTray.Core.Session;
 using DataTray.Core.Settings;
 using DataTray.Core.Shortcuts;
+using DataTray.Core.Toolbar;
 using DataTray.Core.Tools;
 using DataTray.Sdk;
+using DataTray.Sdk.Extensibility;
 using DataTray.Sdk.Localization;
 using DataTray.Sdk.Scripting;
 using DataTray.Sdk.Tools;
@@ -63,6 +65,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IAppSettingsStore _settingsStore;
     private readonly IOpenTabsStore _openTabsStore;
     private readonly IRecentFilesStore _recentFiles;
+    private readonly ToolbarLayoutService _toolbarLayout;
 
     // Selected tree node drives the active connection: any node knows its owning connection.
     [ObservableProperty]
@@ -126,6 +129,7 @@ public partial class MainViewModel : ViewModelBase
         IRecentFilesStore recentFiles,
         AppUpdateViewModel appUpdate,
         PluginUpdatesViewModel pluginUpdates,
+        ToolbarLayoutService toolbarLayout,
         ILocalizer localizer)
     {
         _providers = providers;
@@ -154,6 +158,8 @@ public partial class MainViewModel : ViewModelBase
         _openTabsStore = openTabsStore;
         _recentFiles = recentFiles;
         _recentFiles.Changed += OnRecentFilesChanged;
+        _toolbarLayout = toolbarLayout;
+        _toolbarLayout.Changed += BuildToolbar;
         Update = appUpdate;
         PluginUpdates = pluginUpdates;
         // The update badge opens the Store straight on its Installed tab, where the updates live.
@@ -187,6 +193,68 @@ public partial class MainViewModel : ViewModelBase
         RestoreOpenTabs();
         RefreshRecentFiles();
         EvaluatePluginRestart();
+        BuildToolbar();
+    }
+
+    // --- Application toolbar (SE-255) --------------------------------------------------------------
+
+    /// <summary>The user's resolved toolbar: the visible catalog entries, in the user's order. Rebuilt
+    /// whenever Settings ▸ Toolbar saves, so a change lands without a restart.</summary>
+    public ObservableCollection<ToolbarActionViewModel> ToolbarActions { get; } = [];
+
+    // Plugin-contributed toolbar actions, keyed by their namespaced id. Mounted after activation, so the
+    // strip is rebuilt around them rather than rebuilt from scratch.
+    private readonly Dictionary<string, ToolbarActionViewModel> _pluginToolbarActions = [];
+
+    private void BuildToolbar()
+    {
+        ToolbarActions.Clear();
+        foreach (var entry in _toolbarLayout.VisibleActions())
+        {
+            // Host entries carry a resx key; plugin entries arrive already localized by the plugin.
+            if (ToolbarActionFor(entry) is { } action)
+            {
+                ToolbarActions.Add(action);
+            }
+        }
+    }
+
+    private ToolbarActionViewModel? ToolbarActionFor(ToolbarActionEntry entry) => entry.Id switch
+    {
+        ToolbarCatalog.Ids.NewQueryTab =>
+            new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), NewQueryTabCommand, isAccent: true),
+        ToolbarCatalog.Ids.GoToObject =>
+            new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), ToggleSearchCommand, detail: "⌘K"),
+        _ => _pluginToolbarActions.GetValueOrDefault(entry.Id),
+    };
+
+    /// <summary>
+    /// Mount a plugin's application-toolbar contribution (SE-255 §2.5). The action joins the catalog, so it
+    /// appears in Settings ▸ Toolbar and — being absent from the saved layout — shows up straight away.
+    /// </summary>
+    public void AddToolbarAction(string id, string title, string pluginTitle, Geometry? icon, string? tooltip, Func<Task> invoke)
+    {
+        _pluginToolbarActions[id] = new ToolbarActionViewModel(
+            id, title, icon, new AsyncRelayCommand(invoke), detail: pluginTitle, tooltip: tooltip);
+        ToolbarIcons.Register(id, icon);
+        _toolbarLayout.RegisterPluginActions([new ToolbarActionEntry(id, title, ToolbarActionSource.Plugin, pluginTitle)]);
+    }
+
+    // --- Query-window toolbar contributions (SE-255 §2.5) ------------------------------------------
+
+    private IReadOnlyList<QueryToolbarContribution> _queryToolbarContributions = [];
+    private IHostUi? _pluginHostUi;
+
+    /// <summary>Hand the registered query-toolbar contributions to every document, now and in future. Tabs
+    /// restored at startup exist before plugins finish activating, so they are caught up here.</summary>
+    public void MountQueryToolbarContributions(IReadOnlyList<QueryToolbarContribution> contributions, IHostUi hostUi)
+    {
+        _queryToolbarContributions = contributions;
+        _pluginHostUi = hostUi;
+        foreach (var document in Documents)
+        {
+            document.MountQueryToolbar(contributions, hostUi);
+        }
     }
 
 
@@ -994,10 +1062,17 @@ public partial class MainViewModel : ViewModelBase
     public bool CanShowActivityMonitor =>
         SelectedNode?.CanShowActivityMonitor == true || _activityMonitorTool is not null;
 
+    /// <summary>Tools that are the selected node's own actions (SE-253) rather than extras offered on it —
+    /// SSMS' Rebuild/Reorganize/Disable/Drop on an index. Flat by design, and kept out of
+    /// <see cref="ApplicableTools"/> so each appears once, on the node's menu instead of under Tools. The
+    /// view splices these into the context menu, which XAML cannot do for a bound collection.</summary>
+    public ObservableCollection<ToolMenuNode> NodeActions { get; } = [];
+
     // A tool applies to a connection node or a schema-object node; recompute whenever selection changes.
     private void RefreshApplicableTools(TreeNodeViewModel? node)
     {
         ApplicableTools.Clear();
+        NodeActions.Clear();
         _activityMonitorTool = null;
 
         if (node is not null && (node.IsConnectionNode || node.NodeKind is not null) && node.Connection is { } connection)
@@ -1015,6 +1090,14 @@ public partial class MainViewModel : ViewModelBase
                 var captured = tool;
                 var title = _tools.LocalizerFor(tool.Id).Resolve(tool.TitleKey, tool.Title);
                 var leaf = new ToolMenuNode(title, new RelayCommand(() => RunToolCommand.Execute(captured)));
+
+                // Same rule one step further out: a tool that is the node's own verb goes on the node's menu,
+                // not into Tools. MenuPath is ignored here — a node action has nowhere to nest.
+                if (tool.IsNodeAction)
+                {
+                    NodeActions.Add(leaf);
+                    continue;
+                }
 
                 // Walk the tool's MenuPath, creating or reusing a group node per segment, so tools that
                 // share a path (even from different plugins) land in the same submenu.
@@ -1821,9 +1904,17 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        await CreateObjectAsync(node, DbObjectKind.Index, node.SchemaName, node.DatabaseName,
-            table, await LoadTableColumnsAsync(node));
+        // A provider that owns this dialog (SQL Server's Index Properties) reads the table's columns itself,
+        // with the types and nullability its grid shows — so don't pay for the host's name-only list first.
+        IReadOnlyList<string> columns = OwnsCreateUi(node, DbObjectKind.Index)
+            ? []
+            : await LoadTableColumnsAsync(node);
+
+        await CreateObjectAsync(node, DbObjectKind.Index, node.SchemaName, node.DatabaseName, table, columns);
     }
+
+    private bool OwnsCreateUi(TreeNodeViewModel node, DbObjectKind kind) =>
+        _providers.Get(node.Connection.ProviderId) is ICustomCreateUi create && create.HasCreateUiFor(kind);
 
     // The table's column names, for the New Index picker. Best-effort: the dialog's column box is editable,
     // so a provider that cannot list them (or a permission error) costs the suggestions, not the feature.
@@ -1860,12 +1951,35 @@ public partial class MainViewModel : ViewModelBase
         string? table = null,
         IReadOnlyList<string>? tableColumns = null)
     {
+        var provider = _providers.Get(node.Connection.ProviderId);
+
+        // Route B: the provider brings its own "New …" dialog for this kind and runs its own DDL, so there
+        // is no spec to collect and no SQL coming back. Everything the host still owns — which node to
+        // reload afterwards — is the same either way.
+        if (provider is ICustomCreateUi create && create.HasCreateUiFor(kind) && NodeInfoRequested is not null
+            && node.NodeKind is { } parentKind)
+        {
+            try
+            {
+                var customProfile = _connections.Resolve(node.Connection, database);
+                var context = NodeContextFor(node, customProfile, new DbNodeRef(parentKind, node.Name), provider);
+                await NodeInfoRequested(new NodeInfoDialogViewModel(
+                    create.CreateTitle(kind), create.BuildCreateView(kind, context), Loc, viewOwnsActionBar: true));
+                await node.RefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                ReportError(node.Connection.Name, ex.Message);
+            }
+
+            return;
+        }
+
         if (CreateObjectDialogRequested is null)
         {
             return;
         }
 
-        var provider = _providers.Get(node.Connection.ProviderId);
         var dialog = _createDialogFactory();
         dialog.Configure(provider, kind, parentSchema, table, tableColumns);
 
@@ -2543,15 +2657,34 @@ public partial class MainViewModel : ViewModelBase
             var provider = _providers.Get(connection.ProviderId);
             var profile = _connections.Resolve(connection, node.DatabaseName);
             var nodeRef = new DbNodeRef(kind, node.Name);
-            var view = info.CreateInfoView(new NodeInfoContext(profile, nodeRef, provider));
-            var dialog = new NodeInfoDialogViewModel(info.InfoTitle(nodeRef), view, Loc);
+            var view = info.CreateInfoView(NodeContextFor(node, profile, nodeRef, provider));
+            var dialog = new NodeInfoDialogViewModel(info.InfoTitle(nodeRef), view, Loc,
+                info.InfoViewOwnsActionBar(nodeRef));
             await NodeInfoRequested(dialog);
+
+            // A view that owns its action bar writes as well as reads (SQL Server's Index Properties), so
+            // whatever it changed has to reach the tree. Read-only views make this a no-op refresh.
+            if (info.InfoViewOwnsActionBar(nodeRef))
+            {
+                await (node.Parent ?? node).RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
             ReportError(connection.Name, ex.Message);
         }
     }
+
+    // The context every provider-owned node view gets: the resolved profile, the node, the provider, the
+    // ancestry that actually identifies the object (an "Indexes" folder is called that under every table),
+    // and a way to hand SQL to a query tab for a Script button.
+    private NodeInfoContext NodeContextFor(
+        TreeNodeViewModel node, ConnectionProfile profile, DbNodeRef nodeRef, IDbProvider provider) =>
+        new(profile, nodeRef, provider)
+        {
+            NodePath = node.NodePath,
+            OpenQueryEditor = sql => OpenQueryWithContent(node.Connection, node.DatabaseName, sql)
+        };
 
     /// <summary>Set by the view so the VM can show the node-info (properties) dialog.</summary>
     public Func<NodeInfoDialogViewModel, Task>? NodeInfoRequested { get; set; }
@@ -2927,6 +3060,11 @@ public partial class MainViewModel : ViewModelBase
         EvaluatePluginRestart();
     }
 
+    /// <summary>Jump straight to Settings ▸ Toolbar from the strip's own gear (SE-255) — the toolbar is the
+    /// one setting you want to change while looking at it.</summary>
+    [RelayCommand]
+    private Task CustomizeToolbar() => OpenSettingsOnAsync("Toolbar");
+
     // Opens Settings pre-navigated to a given category key. Used by the Plugin Store's deep-link.
     private async Task OpenSettingsOnAsync(string categoryKey)
     {
@@ -2959,6 +3097,11 @@ public partial class MainViewModel : ViewModelBase
         document.Reported += (level, message) => ReportOutput(level, document.Connection?.Name, message);
         // A query auto-connects outside the tree's connect flow, so reflect that on the connection's status dot.
         document.ConnectionActivity += SetConnectionState;
+        if (_pluginHostUi is { } hostUi)
+        {
+            document.MountQueryToolbar(_queryToolbarContributions, hostUi);
+        }
+
         return document;
     }
 

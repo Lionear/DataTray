@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+
 namespace DataTray.Tools.MsSqlAdmin;
 
 /// <summary>
@@ -12,7 +14,7 @@ namespace DataTray.Tools.MsSqlAdmin;
 /// index name is only unique within its table, so a tool that looked the name up in <c>sys.indexes</c>
 /// would maintain whichever table matched first.
 /// </remarks>
-public abstract class IndexToolBase : IToolPlugin
+public abstract class IndexToolBase : IToolPlugin, ICustomToolUi
 {
     protected abstract IndexAction Action { get; }
 
@@ -37,8 +39,25 @@ public abstract class IndexToolBase : IToolPlugin
         ProviderIds: ["sqlserver"],
         NodeKinds: [AllIndexes ? DbNodeKind.IndexFolder : DbNodeKind.Index]);
 
-    /// <summary>The action is the whole input; there is nothing to collect.</summary>
+    /// <summary>The action is the whole input; there is nothing to collect. The dialog is therefore a
+    /// confirmation rather than a form — see <see cref="CreateView"/> for what it puts in front of it.</summary>
     public IReadOnlyList<ToolField> Fields { get; } = [];
+
+    /// <summary>Route B. With no fields and no view the host's generic dialog has nothing to render between
+    /// the title and the buttons, so these seven actions asked "rebuild every index on this table?" over an
+    /// empty body. What belongs there is what SSMS shows: the current fragmentation per index, so the
+    /// decision is made on the numbers it turns on rather than on the table's name.</summary>
+    public Control CreateView(IToolUiContext context) => new IndexFragmentationView(
+        context,
+        // The host resolves DescriptionKey itself for a Route-A dialog, but its description block lives
+        // inside the fields area a Route-B view replaces — so the view carries it, resolved the same way.
+        DescriptionKey is { } key && context.Localizer.Contains(key) ? context.Localizer[key] : Description,
+        AllIndexes ? null : context.Node?.Name);
+
+    /// <summary>These are the node's own verbs, not extras offered on it, so they render straight on the
+    /// context menu the way SSMS has them rather than under Tools ▸ (SE-253). The implementation being a
+    /// plugin is a fact about this codebase, and should not cost the user a click.</summary>
+    public bool IsNodeAction => true;
 
     /// <summary>Disabling an index makes it unusable until it is rebuilt — and disabling a clustered index
     /// takes the table's data offline with it — while dropping one is gone for good. Both get the host's

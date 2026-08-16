@@ -64,6 +64,17 @@ public static class NodeIcons
     public static readonly Geometry SettingsQuery = Icons.Play;
     public static readonly Geometry SettingsKeyboard = Icons.Keyboard;
     public static readonly Geometry SettingsPlugins = Icons.Puzzle;
+    public static readonly Geometry SettingsToolbar = Icons.SlidersHorizontal;
+
+    // --- Toolbars (SE-255). ---
+    public static readonly Geometry Search = Icons.Search;
+
+    /// <summary>The "…" that opens what did not fit. Filled dots, so render it with a Fill brush rather
+    /// than the Stroke the Lucide line-icons want. Not in the generated set.</summary>
+    public static readonly Geometry Overflow = Geometry.Parse(
+        "M3,12 a1.4,1.4 0 1 0 2.8,0 a1.4,1.4 0 1 0 -2.8,0 " +
+        "M10.6,12 a1.4,1.4 0 1 0 2.8,0 a1.4,1.4 0 1 0 -2.8,0 " +
+        "M18.2,12 a1.4,1.4 0 1 0 2.8,0 a1.4,1.4 0 1 0 -2.8,0");
 
     public static Geometry For(DbNodeKind kind) => kind switch
     {
