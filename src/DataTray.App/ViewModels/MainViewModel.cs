@@ -274,8 +274,7 @@ public partial class MainViewModel : ViewModelBase
                 continue;
             }
 
-            var document = NewDocument();
-            document.InitQuery(connection, tab.Database);
+            var document = NewQueryDocument(connection, tab.Database);
             // Restoring is not editing: load the buffer clean (no dirty ●), reattaching the .sql file when
             // the tab was file-backed. Otherwise a restart would mark every scratch tab dirty and nag to
             // save it on exit. Genuine edits after restore re-dirty the tab as usual.
@@ -564,8 +563,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         document.Sql = row.Sql;
         AddDocument(document);
     }
@@ -788,8 +786,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         document.LoadContent(text, path);
         AddDocument(document);
         _recentFiles.Add(path);
@@ -1214,8 +1211,7 @@ public partial class MainViewModel : ViewModelBase
     // Open a new query tab on a connection/database pre-filled with SQL (no file backing).
     private void OpenQueryWithContent(SavedConnection connection, string? database, string sql)
     {
-        var document = NewDocument();
-        document.InitQuery(connection, database);
+        var document = NewQueryDocument(connection, database);
         document.LoadContent(sql, null);
         AddDocument(document);
     }
@@ -2490,8 +2486,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         AddDocument(document);
     }
 
@@ -2626,8 +2621,7 @@ public partial class MainViewModel : ViewModelBase
     // object, so the user can inspect/edit and run it themselves.
     private void OpenDefinitionTab(SavedConnection connection, string sql, string title)
     {
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         document.Sql = sql;
         document.Title = title;
         AddDocument(document);
@@ -2720,8 +2714,8 @@ public partial class MainViewModel : ViewModelBase
     {
         if (document is { IsQueryMode: true, Connection: { } connection })
         {
-            var copy = NewDocument();
-            copy.InitQuery(connection);
+            // The duplicate keeps the source tab's database, not the tree's — the two can differ.
+            var copy = NewQueryDocument(connection, document.SelectedDatabase);
             copy.Sql = document.Sql;
             AddDocument(copy);
         }
@@ -2787,10 +2781,10 @@ public partial class MainViewModel : ViewModelBase
         // Remember closed query tabs so Ctrl+Shift+T can bring them back (browse tabs reopen from the tree).
         if (document.IsQueryMode && document.Connection is { } connection)
         {
-            _closedTabs.Push((connection, document.Sql));
+            _closedTabs.Push((connection, document.SelectedDatabase, document.Sql));
             if (_closedTabs.Count > ClosedTabHistory)
             {
-                _closedTabs = new Stack<(SavedConnection, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
+                _closedTabs = new Stack<(SavedConnection, string?, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
             }
         }
 
@@ -2809,9 +2803,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private const int ClosedTabHistory = 15;
-    private Stack<(SavedConnection Connection, string Sql)> _closedTabs = new();
+    private Stack<(SavedConnection Connection, string? Database, string Sql)> _closedTabs = new();
 
-    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL and connection restored.
+    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL, connection and database restored.
     [RelayCommand]
     private void ReopenClosedTab()
     {
@@ -2820,9 +2814,8 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var (connection, sql) = _closedTabs.Pop();
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var (connection, database, sql) = _closedTabs.Pop();
+        var document = NewQueryDocument(connection, database);
         document.Sql = sql;
         AddDocument(document);
     }
@@ -2872,8 +2865,9 @@ public partial class MainViewModel : ViewModelBase
         var connection = node.Connection;
         var provider = _providers.Get(connection.ProviderId);
         var dialect = provider.Dialect;
-        // Generated SQL opens in a free query tab with no database context, so qualify it fully — the
-        // dialect decides how far (SQL Server: three-part [db].[schema].[table]; Postgres: schema.table).
+        // Qualify as far as the dialect goes (SQL Server: three-part [db].[schema].[table]; Postgres:
+        // schema.table) — the tab is bound to the node's database below, but a fully qualified name
+        // survives being copied into another tab.
         var qualified = dialect.QualifyName(node.DatabaseName, node.SchemaName, node.Name);
 
         try
@@ -2891,10 +2885,7 @@ public partial class MainViewModel : ViewModelBase
                 _ => SqlTemplateBuilder.Build(kind ?? "Select", qualified, dialect, await FetchColumnsAsync(connection, node.DatabaseName, qualified))
             };
 
-            var document = NewDocument();
-            // Provider-owned text (e.g. a MongoDB db.coll.find()) isn't self-qualified with the database, so
-            // bind the tab to the node's database; host SQL is fully qualified and keeps a free-context tab.
-            document.InitQuery(connection, custom is not null ? node.DatabaseName : null);
+            var document = NewQueryDocument(connection, node.DatabaseName);
             document.Sql = sql;
             AddDocument(document);
 
@@ -2941,8 +2932,7 @@ public partial class MainViewModel : ViewModelBase
                 ? $"-- Data as INSERT for {qualified} — top {l} rows ({result.Rows.Count} scripted)\n\n"
                 : $"-- Data as INSERT for {qualified} — {result.Rows.Count} rows\n\n";
 
-            var document = NewDocument();
-            document.InitQuery(connection, null);
+            var document = NewQueryDocument(connection, node.DatabaseName);
             document.Sql = header + script;
             AddDocument(document);
         }
@@ -3104,6 +3094,23 @@ public partial class MainViewModel : ViewModelBase
 
         return document;
     }
+
+    // Every query tab is created here. A tab that carries no database of its own falls back to the
+    // connection's configured default (master/postgres) in RefreshDatabasesAsync, so an action started
+    // from the tree has to hand its node's database in or the tab lands in the wrong one (SE-267) —
+    // merely cosmetic where the generated SQL is three-part qualified, plain wrong on an engine that
+    // cannot reach across databases. Callers with no database of their own inherit the tree's context.
+    private DocumentViewModel NewQueryDocument(SavedConnection connection, string? database = null)
+    {
+        var document = NewDocument();
+        document.InitQuery(connection, database ?? SelectedTreeDatabase(connection));
+        return document;
+    }
+
+    // The database the tree is currently pointing at, but only on the same connection — the selected
+    // node says nothing about a tab opened on a different one.
+    private string? SelectedTreeDatabase(SavedConnection connection) =>
+        SelectedNode is { Connection: { } node } && node.Id == connection.Id ? SelectedNode.DatabaseName : null;
 
     // Colour a connection's status dot from query activity. Property-only: setting State recolours the LED
     // (via ConnectionStateBrushConverter) and drives the schema-cache observer — it never refreshes/reloads
