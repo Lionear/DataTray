@@ -309,9 +309,14 @@ public partial class App : Application
         var window = new FirstRunWindow(viewModel);
         // Owned by the wizard, not the main window: a dialog parented behind an open modal is a window the
         // user can see and not reach.
-        viewModel.StoreRequested = async () =>
+        viewModel.StoreRequested = async pluginId =>
         {
             var store = services.GetRequiredService<ViewModels.PluginStoreViewModel>();
+            store.PreselectPluginId = pluginId;
+            // The store's own "Restart now" goes through the wizard's: a restart started here takes the
+            // wizard down with it, so onboarding has to save its position first or it completes and never
+            // comes back (SE-268).
+            store.RestartRequested = () => viewModel.RestartNowCommand.Execute(null);
             await new PluginStoreWindow { DataContext = store }.ShowDialog(window);
         };
 

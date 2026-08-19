@@ -1905,6 +1905,9 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="FirstRunRestartNow" xml:space="preserve">
     <value>Nu opnieuw starten</value>
   </data>
+  <data name="FirstRunInstalled" xml:space="preserve">
+    <value>{0} is geïnstalleerd en klaar voor gebruik.</value>
+  </data>
   <data name="FirstRunImportFound" xml:space="preserve">
     <value>Gebruik je al een andere client? DataTray vond {0} opgeslagen connecties op deze machine.</value>
   </data>
