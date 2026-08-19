@@ -1905,6 +1905,9 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="FirstRunRestartNow" xml:space="preserve">
     <value>Restart now</value>
   </data>
+  <data name="FirstRunInstalled" xml:space="preserve">
+    <value>{0} is installed and ready to use.</value>
+  </data>
   <data name="FirstRunImportFound" xml:space="preserve">
     <value>Already using another client? DataTray found {0} saved connections on this machine.</value>
   </data>

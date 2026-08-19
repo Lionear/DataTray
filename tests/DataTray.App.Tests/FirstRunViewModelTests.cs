@@ -56,6 +56,49 @@ public class FirstRunViewModelTests
         Assert.True(vm.SelectedEngine?.IsSelected);
         Assert.NotNull(vm.Connection);                       // and the form is standing, not still to be built
         Assert.Equal("fake", vm.Connection!.SelectedProvider?.Id);
+
+        // SE-268: the install is confirmed by name, not left to be inferred from a highlighted tile.
+        Assert.NotEmpty(vm.InstalledNotice);
+    }
+
+    [Fact] // SE-268: every store tile shared one parameterless command, so the store never learned which
+           // engine was clicked and opened on whatever its own list sorted first.
+    public async Task Installing_a_store_engine_opens_the_store_on_that_engine()
+    {
+        var vm = Build(new FakeSettingsStore());
+        var storeEngine = new FirstRunEngine("clickhouse", "ClickHouse", isInstalled: false);
+        string? openedOn = "not called";
+        vm.StoreRequested = id => { openedOn = id; return Task.CompletedTask; };
+
+        await vm.OpenStoreCommand.ExecuteAsync(storeEngine);
+
+        Assert.Equal("clickhouse", openedOn);
+    }
+
+    [Fact] // SE-268: the store's own "Restart now" is routed through the wizard, which must write down the
+           // engine being installed — otherwise the resume has nothing to select.
+    public async Task A_restart_from_the_store_remembers_the_engine_being_installed()
+    {
+        var settings = new FakeSettingsStore();
+        var vm = Build(settings);
+        vm.RestartRequested = () => { };
+        var storeEngine = new FirstRunEngine("clickhouse", "ClickHouse", isInstalled: false);
+
+        vm.NextCommand.Execute(null);                        // -> Engine
+        // The store restarts from inside the hand-off, the way App wires it.
+        vm.StoreRequested = _ =>
+        {
+            vm.RestartNowCommand.Execute(null);
+            return Task.CompletedTask;
+        };
+
+        await vm.OpenStoreCommand.ExecuteAsync(storeEngine);
+
+        vm.FinishCommand.Execute(null);                      // the window closing on the way down
+
+        Assert.False(settings.Current.OnboardingCompleted);
+        Assert.Equal((int)FirstRunStep.Engine, settings.Current.OnboardingStep);
+        Assert.Equal("clickhouse", settings.Current.OnboardingProviderId);
     }
 
     [Fact] // A remembered provider whose plugin is gone (uninstalled between runs) must not resume into a

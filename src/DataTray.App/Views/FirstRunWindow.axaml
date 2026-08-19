@@ -132,6 +132,20 @@
       <!-- ===== Step 2: Engine ===== -->
       <ScrollViewer IsVisible="{Binding IsEngine}" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="9">
+          <!-- Coming back from the restart an install needed: confirm what landed. The selected tile below
+               says it too, but only to someone who already knows to look for it. -->
+          <Border IsVisible="{Binding InstalledNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                  CornerRadius="5" Padding="11,9" Margin="0,0,0,4"
+                  Background="{DynamicResource SEExtensibilityWashBrush}"
+                  BorderBrush="{DynamicResource SEExtensibilityWashBorderBrush}" BorderThickness="1">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                       Fill="{DynamicResource SEStatusConnectedBrush}" />
+              <TextBlock Text="{Binding InstalledNotice}" TextWrapping="Wrap" FontSize="12"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
           <TextBlock Classes="GroupLabel" Text="{Binding Loc[FirstRunIncluded]}" />
           <ItemsControl ItemsSource="{Binding Engines}">
             <ItemsControl.ItemsPanel>
@@ -166,7 +180,8 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:FirstRunEngine">
                   <Button Classes="Tile Store" Margin="0,0,8,8"
-                          Command="{Binding $parent[ItemsControl].DataContext.OpenStoreCommand}">
+                          Command="{Binding $parent[ItemsControl].DataContext.OpenStoreCommand}"
+                          CommandParameter="{Binding}">
                     <StackPanel Spacing="3">
                       <TextBlock Text="{Binding DisplayName}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding $parent[Window].DataContext.Loc[FirstRunInstall]}"
