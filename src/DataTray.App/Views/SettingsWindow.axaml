@@ -202,8 +202,25 @@
                  below takes its place and says where to get one. -->
             <Button Content="{Binding Loc[UpdateCheckNow]}" Command="{Binding CheckForUpdatesNowCommand}"
                     IsEnabled="{Binding !IsCheckingUpdate}" IsVisible="{Binding !IsUnmanagedInstall}" />
-            <Button Classes="Accent" Content="{Binding Loc[UpdateBannerViewChangelog]}"
-                    Command="{Binding ShowWhatsNewCommand}" IsVisible="{Binding Update.HasUpdate}" />
+            <!-- The found update, actionable from here as well as from the main-window banner (SE-266) —
+                 the same commands, so starting a download here is the download the banner shows. Which
+                 control is visible follows the banner's state: download, then progress, then install. -->
+            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding Update.HasUpdate}">
+              <Button Classes="Accent" Content="{Binding Loc[UpdateDownloadNow]}"
+                      Command="{Binding Update.DownloadCommand}" IsVisible="{Binding Update.CanDownload}" />
+              <ProgressBar Width="120" Height="4" Minimum="0" Maximum="1" VerticalAlignment="Center"
+                           Value="{Binding Update.DownloadProgress}" IsVisible="{Binding Update.IsDownloading}" />
+              <Button Classes="Accent" Content="{Binding Loc[UpdateBannerUpdateNow]}"
+                      Command="{Binding Update.InstallAndRestartCommand}"
+                      IsVisible="{Binding Update.IsReadyToInstall}" />
+              <!-- Covers downloading, ready and failed alike: the one state with nothing to say is
+                   Available, where the button beside it already says everything. -->
+              <TextBlock Text="{Binding Update.StatusMessage}" VerticalAlignment="Center" FontSize="11.5"
+                         IsVisible="{Binding !Update.IsAvailable}" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SETextSecondaryBrush}" />
+              <Button Content="{Binding Loc[UpdateBannerViewChangelog]}"
+                      Command="{Binding ShowWhatsNewCommand}" />
+            </StackPanel>
             <TextBlock Text="{Binding UpdateCheckStatus}" VerticalAlignment="Center" FontSize="11.5"
                        Foreground="{DynamicResource SETextSecondaryBrush}" />
           </StackPanel>

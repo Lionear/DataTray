@@ -148,9 +148,48 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Building $REF -> channel '$CHANNEL' (assets on '$RELEASE_TAG', manifest on '$TAG'), version $VERSION"
 
+  # The release notes, rendered once and shared. Every platform's package and the GitHub release body
+  # then say exactly the same thing, and — the point of SE-266 — the packages carry them at all: vpk
+  # writes them into the feed as NotesMarkdown, which is what the app's "What's new" reads.
+  #
+  # A job of its own rather than a step in `build`, because folding the changelog fragments needs
+  # python3 and the Windows runners have only `python`. Getting that wrong would not fail the build —
+  # it would silently ship Windows packages whose notes read "No changes recorded.".
+  notes:
+    name: Render release notes
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.ref }}
+
+      # The maintainer-curated CHANGELOG.md [Unreleased] section (Keep a Changelog), not the git log —
+      # the changelog is the source of truth for "what changed". An empty section falls back to a
+      # neutral line so a release never ships blank notes. On a Stable build the checked-out tree is the
+      # v-tag, whose [Unreleased] still holds the pending entries (the release job rolls them into
+      # [VERSION] after publishing).
+      # Fold the changelog fragments (changelog.d/, SE-185) in first: that is where the pending entries
+      # live between releases, so the notes below would otherwise be empty.
+      - name: Render notes.md
+        run: |
+          set -euo pipefail
+          python3 tools/changelog-render.py || true
+          CHANGELOG=CHANGELOG.md tools/changelog-unreleased.sh > notes.md || true
+          [ -s notes.md ] || echo "No changes recorded." > notes.md
+          cat notes.md
+
+      - name: Upload notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: notes.md
+          retention-days: 14
+          if-no-files-found: error
+
   build:
     name: ${{ matrix.name }}
-    needs: setup
+    needs: [setup, notes]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -277,6 +316,13 @@ jobs:
 
       # --- Packaging ---
 
+      # notes.md, landing in the workspace root for --releaseNotes below. Rendered once in the `notes`
+      # job so all four platforms embed identical notes (SE-266).
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
       - name: Package (vpk)
         shell: bash
         env:
@@ -316,6 +362,7 @@ jobs:
             --mainExe "$MAIN_EXE" \
             --icon "$ICON" \
             --channel "$CHANNEL" \
+            --releaseNotes notes.md \
             --outputDir artifacts
 
       # A second macOS download, alongside the .pkg vpk makes. Not a duplicate: Gatekeeper treats the
@@ -416,9 +463,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # One flat dir for the manifest scanner and the upload glob.
+          # One flat dir for the manifest scanner and the upload glob. notes.md rides along in the same
+          # download (the `release-notes` artifact) and is release *text*, not a release asset.
           mkdir -p assets
-          find dist -type f -exec cp {} assets/ \;
+          find dist -type f ! -name notes.md -exec cp {} assets/ \;
 
           # vpk also writes Squirrel's legacy RELEASES feed. Nothing we ship reads it — the pre-Velopack
           # client reads update.json and the current one reads releases.<channel>.json — and both Windows
@@ -427,18 +475,10 @@ jobs:
           # other's is worse than not publishing it, so it goes.
           rm -f assets/RELEASES assets/RELEASES-*
 
-          # Release notes are the maintainer-curated CHANGELOG.md [Unreleased] section (Keep a Changelog),
-          # not the git log — the changelog is the source of truth for "what changed". An empty section
-          # falls back to a neutral line so a release never ships blank notes. On a Stable build the
-          # checked-out tree is the v-tag, whose [Unreleased] still holds the pending entries (they are
-          # rolled into [VERSION] further down, after the release is published).
-          # Fold the changelog fragments (changelog.d/, SE-185) into [Unreleased] first — that is where
-          # the pending entries live between releases, so the notes below would otherwise be empty. It
-          # edits the working tree only; the roll further down commits the result.
-          python3 tools/changelog-render.py || true
-
-          CHANGELOG=CHANGELOG.md tools/changelog-unreleased.sh > notes.md || true
-          [ -s notes.md ] || echo "No changes recorded." > notes.md
+          # The notes the `notes` job rendered — the same bytes the packages embed, so the release page
+          # and the app's "What's new" can never disagree (SE-266). The roll further down renders the
+          # changelog again on its own checkout of main; that is a separate concern from these notes.
+          cp dist/release-notes/notes.md notes.md
 
           # HEAD_REF identifies the built commit for COMMIT/TARGET below: the tag for Stable, the branch
           # tip otherwise.
