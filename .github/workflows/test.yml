@@ -74,6 +74,11 @@ jobs:
       - name: Test (Tools.MsSqlAdmin)
         run: dotnet test tests/DataTray.Tools.MsSqlAdmin.Tests/DataTray.Tools.MsSqlAdmin.Tests.csproj -c Release
 
+      # Prometheus provider (SE-68): the response shaping — vector/matrix/scalar payloads flattened to
+      # <labels…>, timestamp, value. Pure JSON-to-grid work against captured payloads, no server.
+      - name: Test (Providers.Prometheus)
+        run: dotnet test tests/DataTray.Providers.Prometheus.Tests/DataTray.Providers.Prometheus.Tests.csproj -c Release
+
       # The steps above name their projects one by one, which is how DataTray.Tools.SchemaDiff.Tests
       # managed to sit outside CI from the day it was added: adding a test project doesn't fail anything,
       # it just quietly runs nowhere. This fails the build instead of letting the next one slip through.
