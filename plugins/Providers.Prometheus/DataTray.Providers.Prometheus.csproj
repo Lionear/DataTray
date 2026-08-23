@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Providers.Prometheus</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared contract only. Private=false keeps Sdk.dll OUT of the plugin folder so the host's copy
+         is used across the ALC boundary (single type identity for IDbProvider). -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+    <!-- No driver package: the Prometheus HTTP API is JSON over HTTP, which HttpClient +
+         System.Text.Json already cover. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Optional brand logo. Drop a square PNG here as icon.png and it is embedded automatically;
+         until then the provider falls back to a glyph. -->
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" Condition="Exists('icon.png')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SDK namespaces mirror its folders; import the sub-namespaces project-wide so consumer
+         files keep a single `using DataTray.Sdk` at the top. -->
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Sdk.Ddl" />
+    <Using Include="DataTray.Sdk.Branding" />
+  </ItemGroup>
+
+</Project>

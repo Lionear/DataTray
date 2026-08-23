@@ -5,6 +5,7 @@
     <Project Path="plugins/Providers.DuckDb/DataTray.Providers.DuckDb.csproj" />
     <Project Path="plugins/Providers.Elasticsearch/DataTray.Providers.Elasticsearch.csproj" />
     <Project Path="plugins/Providers.MongoDb/DataTray.Providers.MongoDb.csproj" />
+    <Project Path="plugins/Providers.Prometheus/DataTray.Providers.Prometheus.csproj" />
     <Project Path="plugins/Providers.Redis/DataTray.Providers.Redis.csproj" />
     <Project Path="plugins/Providers.Template/DataTray.Providers.Template.csproj" />
     <Project Path="plugins/Backends.Docker/DataTray.Backends.Docker.csproj" />
@@ -35,6 +36,7 @@
     <Project Path="tests/DataTray.App.Tests/DataTray.App.Tests.csproj" />
     <Project Path="tests/DataTray.Backends.Docker.Tests/DataTray.Backends.Docker.Tests.csproj" />
     <Project Path="tests/DataTray.Core.Tests/DataTray.Core.Tests.csproj" />
+    <Project Path="tests/DataTray.Providers.Prometheus.Tests/DataTray.Providers.Prometheus.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.CopyTable.Tests/DataTray.Tools.CopyTable.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.ErDiagram.Tests/DataTray.Tools.ErDiagram.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.GenerateScripts.Tests/DataTray.Tools.GenerateScripts.Tests.csproj" />
