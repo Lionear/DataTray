@@ -118,6 +118,10 @@
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>mongodb</PluginId>
       </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.Prometheus\bin\$(Configuration)\$(TargetFramework)\**\*"
+                          Condition="'$(Configuration)' == 'Debug'">
+        <PluginId>prometheus</PluginId>
+      </ProviderPluginFile>
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Providers.Redis\bin\$(Configuration)\$(TargetFramework)\**\*"
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>redis</PluginId>
