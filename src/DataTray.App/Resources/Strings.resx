@@ -1518,6 +1518,9 @@
   <data name="UpdateBannerDownload" xml:space="preserve">
     <value>Download</value>
   </data>
+  <data name="UpdateDownloadNow" xml:space="preserve">
+    <value>Download Now</value>
+  </data>
   <data name="UpdateBannerDownloading" xml:space="preserve">
     <value>Downloading {0}…</value>
   </data>

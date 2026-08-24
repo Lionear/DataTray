@@ -70,7 +70,7 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     // The inline download/install state (SE-151). The IsX bools drive which banner variant shows.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAvailable), nameof(IsDownloading), nameof(IsReadyToInstall),
-        nameof(IsFailed))]
+        nameof(IsFailed), nameof(CanDownload))]
     private BannerState _state = BannerState.Available;
 
     [ObservableProperty]
@@ -83,6 +83,11 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     public bool IsDownloading => State == BannerState.Downloading;
     public bool IsReadyToInstall => State == BannerState.ReadyToInstall;
     public bool IsFailed => State == BannerState.Failed;
+
+    /// <summary>Whether starting a download is the useful action right now. Failed counts: retrying
+    /// <em>is</em> downloading again, which is why the banner's Retry command is <c>Download</c>. Settings
+    /// shows one button for both (SE-266) rather than a second one that appears only after a failure.</summary>
+    public bool CanDownload => IsAvailable || IsFailed;
 
     /// <summary>The offered build's version, for Settings' inline status.</summary>
     public string? OfferedVersion => _current?.Build?.Version;
