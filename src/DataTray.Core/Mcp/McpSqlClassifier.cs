@@ -18,7 +18,8 @@ public enum SqlStatementKind
     /// <summary>A single data-modifying statement: INSERT / UPDATE / DELETE / MERGE / REPLACE.</summary>
     Dml,
 
-    /// <summary>A single schema/permission statement: CREATE / ALTER / DROP / TRUNCATE / GRANT / … Always
+    /// <summary>A single schema/permission statement: CREATE / ALTER / DROP / TRUNCATE / GRANT / a PRAGMA
+    /// that isn't provably read-only / … Always
     /// rejected over MCP regardless of access mode (plan §1 non-goal).</summary>
     Ddl,
 
@@ -39,7 +40,16 @@ public enum SqlStatementKind
 public static class McpSqlClassifier
 {
     private static readonly HashSet<string> ReadKeywords =
-        new(StringComparer.OrdinalIgnoreCase) { "SELECT", "EXPLAIN", "SHOW", "DESCRIBE", "DESC", "PRAGMA", "VALUES", "TABLE" };
+        new(StringComparer.OrdinalIgnoreCase) { "SELECT", "EXPLAIN", "SHOW", "DESCRIBE", "DESC", "VALUES", "TABLE" };
+
+    // PRAGMA is not read-only as a keyword (SE-273): SQLite's assignment forms — `PRAGMA user_version = 999`,
+    // `PRAGMA journal_mode(OFF)` — change persistent database/configuration state from a single statement.
+    // Only these introspection pragmas, without an assignment, count as a Read; every other PRAGMA is Ddl.
+    private static readonly HashSet<string> ReadOnlyPragmas =
+        new(StringComparer.OrdinalIgnoreCase)
+        { "table_info", "table_xinfo", "table_list", "index_list", "index_info", "index_xinfo", "foreign_key_list",
+          "database_list", "collation_list", "function_list", "module_list", "pragma_list", "compile_options",
+          "integrity_check", "quick_check", "foreign_key_check" };
 
     private static readonly HashSet<string> DmlKeywords =
         new(StringComparer.OrdinalIgnoreCase) { "INSERT", "UPDATE", "DELETE", "MERGE", "REPLACE", "UPSERT" };
@@ -90,6 +100,11 @@ public static class McpSqlClassifier
         if (DdlKeywords.Contains(leading))
         {
             return SqlStatementKind.Ddl;
+        }
+
+        if (leading.Equals("PRAGMA", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsReadOnlyPragma(statement) ? SqlStatementKind.Read : SqlStatementKind.Ddl;
         }
 
         if (leading.Equals("WITH", StringComparison.OrdinalIgnoreCase))
@@ -229,6 +244,27 @@ public static class McpSqlClassifier
         }
 
         return statement[start..end];
+    }
+
+    // `statement` is already comment/literal-stripped, so it reads `PRAGMA [schema.]name[(arg)] [= value]`.
+    // Anything but a bare allow-listed name — an assignment, the `name(value)` setter form, an unknown
+    // pragma — is treated as a write.
+    private static bool IsReadOnlyPragma(string statement)
+    {
+        var rest = statement[(statement.IndexOf("PRAGMA", StringComparison.OrdinalIgnoreCase) + "PRAGMA".Length)..];
+        if (rest.Contains('='))
+        {
+            return false;
+        }
+
+        var name = rest.Split('(')[0].Trim();
+        var dot = name.LastIndexOf('.');
+        if (dot >= 0)
+        {
+            name = name[(dot + 1)..].Trim();
+        }
+
+        return ReadOnlyPragmas.Contains(name);
     }
 
     private static bool ContainsWordFrom(string text, HashSet<string> words)
