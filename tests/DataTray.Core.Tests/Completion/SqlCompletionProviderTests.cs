@@ -202,6 +202,67 @@ public class SqlCompletionProviderTests
         Assert.Contains(result.Items, i => i.Kind == CompletionKind.Column);
     }
 
+    // ---- SE-269: schema qualifiers before a dot, and alias-dot inside ON -----------------------------
+
+    // Two schemas, so "only dbo's relations" is a claim that can actually fail.
+    private static readonly SchemaSnapshot Schemas = new(
+    [
+        new SchemaObject { Kind = DbNodeKind.Table, Schema = "dbo", Name = "Users", Columns = [new("Id", "int")] },
+        new SchemaObject { Kind = DbNodeKind.View, Schema = "dbo", Name = "UserView", Columns = [new("Id", "int")] },
+        new SchemaObject { Kind = DbNodeKind.Table, Schema = "audit", Name = "Trail", Columns = [new("Stamp", "datetime")] }
+    ]);
+
+    private static CompletionResult AtSchemas(string queryWithCaret)
+    {
+        var caret = queryWithCaret.IndexOf('|');
+        return SqlCompletionProvider.Suggest(queryWithCaret.Remove(caret, 1), caret, Schemas, Keywords, Funcs);
+    }
+
+    [Theory] // Every quoting style the tokenizer knows must read the schema the same way.
+    [InlineData("SELECT * FROM dbo.|")]
+    [InlineData("SELECT * FROM [dbo].|")]
+    [InlineData("SELECT * FROM `dbo`.|")]
+    [InlineData("SELECT * FROM \"dbo\".|")]
+    public void Schema_qualifier_in_from_offers_only_that_schemas_relations(string query)
+    {
+        var texts = Texts(AtSchemas(query));
+
+        // Bare names: the schema is already typed, so completing must not repeat it.
+        Assert.Equal(["UserView", "Users"], texts.OrderBy(x => x, System.StringComparer.Ordinal));
+        Assert.DoesNotContain("Trail", texts);                      // the other schema stays out
+        Assert.DoesNotContain("Id", texts);                         // and no columns at all
+    }
+
+    [Fact] // The insert text must not repeat the schema the user already typed.
+    public void Schema_qualifier_completions_are_relations_not_columns()
+    {
+        var items = AtSchemas("SELECT * FROM [dbo].|").Items;
+
+        Assert.All(items, i => Assert.Equal(CompletionKind.Table, i.Kind));
+        Assert.Equal("view", Assert.Single(items, i => i.Text == "UserView").Detail);
+    }
+
+    [Fact] // An unknown schema offers nothing — better an empty box than every table in the database.
+    public void Unknown_schema_qualifier_in_from_offers_nothing()
+    {
+        Assert.Empty(AtSchemas("SELECT * FROM nosuch.|").Items);
+    }
+
+    [Fact] // The typed fragment still filters within the schema.
+    public void Schema_qualifier_filters_on_the_fragment_after_the_dot()
+    {
+        Assert.Equal(["UserView"], Texts(AtSchemas("SELECT * FROM [dbo].UserV|")));
+    }
+
+    [Fact] // Repro from SE-269: the alias dot inside the ON condition itself.
+    public void Alias_dot_inside_an_on_condition_suggests_that_sources_columns()
+    {
+        var result = At("SELECT * FROM users u INNER JOIN orders o ON u.id = o.|");
+
+        Assert.Equal(["id", "total", "user_id"], Texts(result).OrderBy(x => x));
+        Assert.All(result.Items, i => Assert.Equal(CompletionKind.Column, i.Kind));
+    }
+
     [Fact]
     public void Replace_start_backs_up_over_the_typed_fragment()
     {

@@ -1322,6 +1322,12 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
         AvailableDatabases.Clear();
         SelectedDatabase = null;
+        // Put the target straight back: the picker stays empty until the list arrives, but the tab must
+        // keep running against its database in the meantime — listing the databases is a round-trip, and
+        // on a connection switch the clear above really does null _database out. A query run in that
+        // window (or on a provider whose listing fails, which never repopulates) would otherwise silently
+        // go to the connection's default. SE-267.
+        _database = target;
         OnPropertyChanged(nameof(HasDatabasePicker));
 
         try

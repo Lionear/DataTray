@@ -12,6 +12,8 @@ public class McpSqlClassifierTests
     [InlineData("SELECT * FROM t")]
     [InlineData("EXPLAIN SELECT 1")]
     [InlineData("WITH x AS (SELECT 1) SELECT * FROM x")]
+    [InlineData("PRAGMA table_info('x')")]                       // introspection pragma, no assignment
+    [InlineData("PRAGMA main.foreign_key_list('x')")]            // schema-qualified is still introspection
     public void Read_is_allowed_from_ReadOnly_upwards(string sql)
     {
         Assert.False(McpSqlClassifier.IsAllowed(sql, AiAccessMode.None));
@@ -36,6 +38,14 @@ public class McpSqlClassifierTests
     [InlineData("ALTER TABLE t ADD c int")]
     [InlineData("DROP TABLE t")]
     [InlineData("TRUNCATE TABLE t")]
+    // SE-273: a mutating PRAGMA changes persistent database state from one statement, so it must not pass
+    // the ReadOnly guard — in either the `= value` or the `name(value)` setter form.
+    [InlineData("PRAGMA user_version = 999")]
+    [InlineData("PRAGMA journal_mode = OFF")]
+    [InlineData("PRAGMA journal_mode(OFF)")]
+    [InlineData("PRAGMA main.user_version = 999")]
+    [InlineData("PRAGMA writable_schema = ON")]
+    [InlineData("PRAGMA table_info = 1")]                        // allow-listed name, but an assignment
     public void Ddl_is_allowed_only_in_Sandbox(string sql)
     {
         Assert.False(McpSqlClassifier.IsAllowed(sql, AiAccessMode.ReadOnly));

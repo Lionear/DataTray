@@ -37,28 +37,33 @@ public static class SqlCompletionProvider
         IReadOnlyList<SqlFunction>? functions = null)
     {
         caret = Math.Clamp(caret, 0, sql.Length);
-        var (start, fragment, alias) = SplitWord(sql, caret);
+        var (start, fragment, qualifier) = SplitWord(sql, caret);
         var scope = SqlScopeAnalyzer.Analyze(sql, caret);
         functions ??= [];
 
-        var items = alias is not null
-            ? ColumnsForAlias(alias, fragment, scope, snapshot)
-            : scope.Clause switch
-            {
-                SqlClause.From => TablesAndCtes(fragment, snapshot, scope),
-                SqlClause.On => OnClause(fragment, scope, snapshot, keywords, functions),
-                SqlClause.Select or SqlClause.Where
-                    or SqlClause.GroupBy or SqlClause.Having or SqlClause.OrderBy
-                    => ScopedColumns(fragment, scope, snapshot, keywords, functions),
-                _ => Broad(fragment, snapshot, keywords, functions)
-            };
+        var items = scope.Clause switch
+        {
+            // In FROM/JOIN a dot qualifies a relation ("[dbo].") — offer that schema's tables/views, and nothing
+            // when the schema is unknown. Never ColumnsForAlias here: its unknown-alias "show every column"
+            // fallback is for a mistyped alias in an expression, and a schema name would always trip it.
+            SqlClause.From => qualifier is not null
+                ? TablesInSchema(qualifier, fragment, snapshot)
+                : TablesAndCtes(fragment, snapshot, scope),
+            _ when qualifier is not null => ColumnsForAlias(qualifier, fragment, scope, snapshot),
+            SqlClause.On => OnClause(fragment, scope, snapshot, keywords, functions),
+            SqlClause.Select or SqlClause.Where
+                or SqlClause.GroupBy or SqlClause.Having or SqlClause.OrderBy
+                => ScopedColumns(fragment, scope, snapshot, keywords, functions),
+            _ => Broad(fragment, snapshot, keywords, functions)
+        };
 
         return new CompletionResult(start, items.Take(MaxItems).ToList());
     }
 
-    // The identifier fragment being typed at the caret, plus the alias before a "." if there is one
-    // (e.g. caret after "u.na" in "u.name" → fragment "na", alias "u").
-    private static (int Start, string Fragment, string? Alias) SplitWord(string sql, int caret)
+    // The identifier fragment being typed at the caret, plus the identifier qualifying it before a "." if there
+    // is one (e.g. caret after "u.na" in "u.name" → fragment "na", qualifier "u"). What counts as that
+    // qualifier is the tokenizer's business, so "[dbo]." and `dbo`. read the same as dbo. does.
+    private static (int Start, string Fragment, string? Qualifier) SplitWord(string sql, int caret)
     {
         var start = caret;
         while (start > 0 && IsWordChar(sql[start - 1]))
@@ -66,36 +71,11 @@ public static class SqlCompletionProvider
             start--;
         }
 
-        var fragment = sql[start..caret];
+        var qualifier = start > 0 && sql[start - 1] == '.'
+            ? SqlScopeAnalyzer.IdentifierBefore(sql, start - 1)
+            : null;
 
-        var alias = start > 0 && sql[start - 1] == '.' ? ExtractIdentifierBefore(sql, start - 1) : null;
-        return (start, fragment, alias);
-    }
-
-    // Scans backward from `end` (exclusive) over a plain identifier or a "quoted identifier" and
-    // returns its unquoted text — the alias in "Accounts". just as much as in u. — or null when
-    // there's nothing identifier-shaped there.
-    private static string? ExtractIdentifierBefore(string sql, int end)
-    {
-        if (end <= 0)
-        {
-            return null;
-        }
-
-        if (sql[end - 1] == '"')
-        {
-            var closeQuote = end - 1;
-            var openQuote = sql.LastIndexOf('"', closeQuote - 1);
-            return openQuote >= 0 && closeQuote > openQuote + 1 ? sql[(openQuote + 1)..closeQuote] : null;
-        }
-
-        var start = end;
-        while (start > 0 && IsWordChar(sql[start - 1]))
-        {
-            start--;
-        }
-
-        return end > start ? sql[start..end] : null;
+        return (start, sql[start..caret], qualifier);
     }
 
     // ---- clause behaviours ---------------------------------------------------------------------------
@@ -230,6 +210,13 @@ public static class SqlCompletionProvider
     private static IReadOnlyList<CompletionItem> AllColumns(SchemaSnapshot snapshot) =>
         snapshot.Objects
             .SelectMany(o => o.Columns.Select(c => new CompletionItem(c.Name, CompletionKind.Column, c.Type ?? o.QualifiedName)))
+            .ToList();
+
+    // FROM/JOIN right after a schema qualifier: only that schema's relations, ranked on the bare name and
+    // inserted as the bare name — the schema is already typed, so "[dbo]." + "dbo.users" would double it.
+    private static IReadOnlyList<CompletionItem> TablesInSchema(string schema, string fragment, SchemaSnapshot snapshot) =>
+        RankBy(snapshot.Objects.Where(o => schema.Equals(o.Schema, StringComparison.OrdinalIgnoreCase)), o => o.Name, fragment)
+            .Select(o => new CompletionItem(o.Name, CompletionKind.Table, o.Kind == DbNodeKind.View ? "view" : "table"))
             .ToList();
 
     private static IReadOnlyList<CompletionItem> Tables(string fragment, SchemaSnapshot snapshot) =>

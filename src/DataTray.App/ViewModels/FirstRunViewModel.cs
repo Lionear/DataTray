@@ -90,6 +90,11 @@ public partial class FirstRunViewModel : ViewModelBase
     [ObservableProperty]
     private string _connectionsAdded = string.Empty;
 
+    /// <summary>Non-empty once this run resumed after a restart that loaded a freshly installed engine —
+    /// step 2 confirms the install by name instead of leaving it implied by a selected tile.</summary>
+    [ObservableProperty]
+    private string _installedNotice = string.Empty;
+
     public FirstRunViewModel(
         IAppSettingsStore settingsStore,
         ConnectionService connections,
@@ -126,6 +131,9 @@ public partial class FirstRunViewModel : ViewModelBase
             if (SelectedEngine is { } resumed)
             {
                 resumed.IsSelected = true;
+                // A position only survives a restart-for-a-plugin, so getting here means an install landed.
+                // Say which engine outright — a highlighted tile is not confirmation.
+                InstalledNotice = Loc.Get("FirstRunInstalled", resumed.DisplayName);
             }
 
             Step = SelectedEngine is null ? FirstRunStep.Engine : (FirstRunStep)settings.OnboardingStep;
@@ -138,9 +146,10 @@ public partial class FirstRunViewModel : ViewModelBase
 
     public ILocalizer Loc { get; }
 
-    /// <summary>Opens the Plugin Store window. The store owns install: its capability-consent gate and
-    /// host-API check are not something onboarding may skip past.</summary>
-    public Func<Task>? StoreRequested { get; set; }
+    /// <summary>Opens the Plugin Store window on the given plugin id (null for no particular one). The store
+    /// owns install: its capability-consent gate and host-API check are not something onboarding may skip
+    /// past.</summary>
+    public Func<string?, Task>? StoreRequested { get; set; }
 
     /// <summary>Restarts the app (the same <c>AppRestart</c> the Plugin Store uses).</summary>
     public Action? RestartRequested { get; set; }
@@ -281,16 +290,25 @@ public partial class FirstRunViewModel : ViewModelBase
         Remember();
     }
 
-    /// <summary>Hand off to the Plugin Store to install an engine, then check what it staged.</summary>
+    /// <summary>Hand off to the Plugin Store to install an engine, then check what it staged. The engine whose
+    /// tile was clicked is passed on, so the store opens on that plugin rather than on whatever its own list
+    /// happened to select first.</summary>
     [RelayCommand]
-    private async Task OpenStore()
+    private async Task OpenStore(FirstRunEngine? engine)
     {
         if (StoreRequested is null)
         {
             return;
         }
 
-        await StoreRequested();
+        // Select it before handing off: the restart that a staged install needs is what writes the position
+        // down, and without this the wizard would come back with no engine chosen.
+        if (engine is not null)
+        {
+            SelectEngine(engine);
+        }
+
+        await StoreRequested(engine?.Id);
 
         // Anything staged only takes effect on the next start, so the wizard cannot continue into step 3
         // with that engine — it offers the restart it needs and resumes afterwards.
