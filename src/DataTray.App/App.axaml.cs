@@ -182,6 +182,13 @@ public partial class App : Application
 
                 _trayIcon = BuildTrayIcon(desktop, mainWindow, services.GetRequiredService<ILocalizer>(), OpenQueryLog);
 
+                // macOS application menu (the one under the Apple logo). Avalonia only falls back to its own
+                // — a hardcoded "About Avalonia" opening the framework's dialog — when the Application itself
+                // carries no NativeMenu, so supplying one is what replaces that item (SE-254). Setting
+                // Application.Name (SE-242) fixes the menu's *title* and the Hide/Quit items, not this one.
+                // No-op off macOS: only that backend exports an application menu.
+                NativeMenu.SetMenu(this, BuildAppMenu(services.GetRequiredService<ILocalizer>(), viewModel));
+
                 // Single-instance listener: a second launch (e.g. clicking the app again while it's hidden
                 // in the tray) signals us here instead of opening a new window. Marshal onto the UI thread.
                 SingleInstance.StartServer(
@@ -267,6 +274,19 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    // The only item we own in the macOS application menu — Services/Hide/Quit are added by the platform
+    // itself. The app name stays untranslated (macOS convention), so this reads "About DataTray" /
+    // "Over DataTray" and matches the Help menu's own About item.
+    private static NativeMenu BuildAppMenu(ILocalizer loc, MainViewModel viewModel)
+    {
+        var about = new NativeMenuItem($"{loc["About"]} DataTray");
+        about.Click += (_, _) => viewModel.ShowAboutCommand.Execute(null);
+
+        var menu = new NativeMenu();
+        menu.Add(about);
+        return menu;
     }
 
     private static TrayIcon BuildTrayIcon(IClassicDesktopStyleApplicationLifetime desktop, Window window, ILocalizer loc, Action openQueryLog)
