@@ -92,6 +92,25 @@ jobs:
           fi
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
 
+      # Before spending a build on it. A fine-grained PAT that expired, or was issued for the wrong
+      # repository, otherwise surfaces halfway through the matrix — after some plugins have a release
+      # and the index has none of them.
+      - name: Check the store token
+        if: steps.mode.outputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.STORE_TOKEN }}
+        run: |
+          set -euo pipefail
+          PUSH=$(gh api repos/Lionear/plugins.lionear.dev --jq .permissions.push 2>&1) || {
+            echo "::error::STORE_TOKEN cannot read Lionear/plugins.lionear.dev: $PUSH" >&2
+            exit 1
+          }
+          if [ "$PUSH" != true ]; then
+            echo "::error::STORE_TOKEN has no write access to Lionear/plugins.lionear.dev" >&2
+            exit 1
+          fi
+          echo "Store token can write to Lionear/plugins.lionear.dev."
+
       - name: Plan
         id: plan
         env:
