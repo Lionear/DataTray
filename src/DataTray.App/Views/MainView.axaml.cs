@@ -36,6 +36,13 @@ public partial class MainView : UserControl
             schemaTree.AddHandler(InputElement.PointerPressedEvent, OnTreePointerPressed, RoutingStrategies.Tunnel);
         }
 
+        // …and if that press hit no node, there is nothing for the menu to act on: every item binds to
+        // SelectedNode and would otherwise show an empty popup at best (SE-270).
+        if (TreeContextMenu is not null)
+        {
+            TreeContextMenu.Opening += (_, args) => args.Cancel = _viewModel?.SelectedNode is null;
+        }
+
         var historyList = this.FindControl<ListBox>("HistoryList");
         if (historyList is not null)
         {
@@ -300,23 +307,37 @@ public partial class MainView : UserControl
     // Handled in the tunnel (before the TreeViewItem), so we can act before its own selection/expand logic.
     private void OnTreePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_viewModel is null
-            || e.Source is not Visual source
-            || source.FindAncestorOfType<TreeViewItem>() is not { } item
-            || item.DataContext is not TreeNodeViewModel node)
+        if (_viewModel is null)
         {
             return;
         }
 
+        var item = (e.Source as Visual)?.FindAncestorOfType<TreeViewItem>();
+        var node = item?.DataContext as TreeNodeViewModel;
         var props = e.GetCurrentPoint(sender as Visual).Properties;
 
         // Right-click selects the node under the cursor so the context menu targets it. Set the VM's
         // SelectedNode directly (not only item.IsSelected) so it's updated synchronously before the
         // context menu's bindings (CanShowProperties, ApplicableTools, …) evaluate.
+        //
+        // The menu hangs off the TreeView rather than the TreeViewItem, so it also opens on the empty
+        // strip below the last row. A press that hits no node therefore has to CLEAR the selection:
+        // leaving the old one standing pointed every item — "Drop Schema…" included — at a node the
+        // user did not click, which is how a DROP could be confirmed against the wrong schema (SE-270).
+        // The menu's own Opening handler (wired in the constructor) then suppresses the empty menu.
         if (props.IsRightButtonPressed)
         {
-            item.IsSelected = true;
+            if (item is not null)
+            {
+                item.IsSelected = true;
+            }
+
             _viewModel.SelectedNode = node;
+            return;
+        }
+
+        if (node is null)
+        {
             return;
         }
 
