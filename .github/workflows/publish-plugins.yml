@@ -91,12 +91,14 @@ jobs:
             echo "::warning::No STORE_TOKEN secret — building and verifying only, nothing will be published."
           fi
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+          echo "have_token=$HAVE_TOKEN" >> "$GITHUB_OUTPUT"
 
-      # Before spending a build on it. A fine-grained PAT that expired, or was issued for the wrong
-      # repository, otherwise surfaces halfway through the matrix — after some plugins have a release
-      # and the index has none of them.
+      # Whenever there is a token to check, dry run or not: this read-only call is the only rehearsal
+      # the credential gets. Gated on the publish path instead, the first time a fine-grained PAT is
+      # tried would be the live publish — and it would surface halfway through the matrix, after some
+      # plugins have a release and the index has none of them.
       - name: Check the store token
-        if: steps.mode.outputs.dry_run != 'true'
+        if: steps.mode.outputs.have_token == 'yes'
         env:
           GH_TOKEN: ${{ secrets.STORE_TOKEN }}
         run: |
@@ -256,6 +258,25 @@ jobs:
           echo "sha256=$(sha256sum "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "size=$(stat -c%s "$ZIP")" >> "$GITHUB_OUTPUT"
 
+      # The store shows this as the plugin's per-version changelog. The subject of the commit that last
+      # bumped the manifest is what that version *is*, and it is already written in the house's
+      # conventional-commit style. Resolved in its own step, and outside the publish gate, so a dry run
+      # exercises it too — a note that only ever runs on the live path is a note nothing tests.
+      - name: Resolve the release note
+        id: notes
+        env:
+          PLUGIN_NAME: ${{ matrix.name }}
+          PLUGIN_DIR: ${{ matrix.dir }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          NOTES=$(git log -1 --pretty=%s -- "$PLUGIN_DIR/plugin.json" || true)
+          # Empty when the bump is older than the checkout window; the plugin's own name still beats
+          # publishing a version with no note at all.
+          [ -n "$NOTES" ] || NOTES="$PLUGIN_NAME $VERSION"
+          echo "value=$NOTES" >> "$GITHUB_OUTPUT"
+          echo "Note: $NOTES"
+
       - name: Create the release asset
         if: needs.plan.outputs.dry_run != 'true'
         env:
@@ -263,16 +284,13 @@ jobs:
           GH_REPO: Lionear/plugins.lionear.dev
           PLUGIN_ID: ${{ matrix.id }}
           PLUGIN_NAME: ${{ matrix.name }}
-          PLUGIN_DIR: ${{ matrix.dir }}
           VERSION: ${{ steps.version.outputs.value }}
+          NOTES: ${{ steps.notes.outputs.value }}
           ZIP: ${{ steps.pack.outputs.zip }}
         run: |
           set -euo pipefail
-          NOTES=$(git log -1 --pretty=%s -- "$PLUGIN_DIR/plugin.json" || true)
-          [ -n "$NOTES" ] || NOTES="$PLUGIN_NAME $VERSION"
           gh release create "${PLUGIN_ID}-v${VERSION}" "$ZIP" \
             --title "$PLUGIN_NAME $VERSION" --notes "$NOTES"
-          echo "notes=$NOTES" >> "$GITHUB_ENV"
 
       - name: Write the publish record
         env:
@@ -281,6 +299,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.value }}
           SHA256: ${{ steps.pack.outputs.sha256 }}
           SIZE: ${{ steps.pack.outputs.size }}
+          NOTES: ${{ steps.notes.outputs.value }}
         run: |
           set -euo pipefail
           mkdir -p records
@@ -297,7 +316,7 @@ jobs:
                              f"{plugin_id}-v{version}/{plugin_id}-{version}.zip",
               "sha256": os.environ["SHA256"],
               "size": int(os.environ["SIZE"]),
-              "notes": os.environ.get("notes") or None,
+              "notes": os.environ.get("NOTES") or None,
           }
           json.dump(record, open(f"records/{plugin_id}.json", "w"), indent=2)
           print(json.dumps(record, indent=2))
