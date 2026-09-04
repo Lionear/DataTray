@@ -356,6 +356,7 @@ public partial class DocumentViewModel : ViewModelBase
         var settings = _settingsStore.Load();
         EditorFontSize = settings.EditorFontSize;
         EditorWordWrap = settings.EditorWordWrap;
+        EditorHeight = settings.QueryEditorHeight;
         // Browse page size is a global preference read once per tab (like the editor font size); a changed
         // value applies to newly opened browse tabs. Guard against a zero/negative stored value.
         _pageSize = settings.BrowsePageSize > 0 ? settings.BrowsePageSize : 200;
@@ -369,12 +370,25 @@ public partial class DocumentViewModel : ViewModelBase
 
     public bool EditorWordWrap { get; }
 
+    /// <summary>Persisted query-editor row height (Query-editor/Result-grid split), read once from settings
+    /// at document creation like <see cref="EditorFontSize"/>. Null = no drag persisted yet, use the default.</summary>
+    public double? EditorHeight { get; }
+
     /// <summary>Persist a live editor-zoom change as the global font size, so it survives a restart and
     /// applies to newly opened tabs.</summary>
     public void PersistEditorFontSize(double size)
     {
         var settings = _settingsStore.Load();
         settings.EditorFontSize = size;
+        _settingsStore.Save(settings);
+    }
+
+    /// <summary>Persist a live drag of the Query-editor/Result-grid splitter as the global row height, so it
+    /// survives a restart and applies to newly opened tabs — same mechanism as <see cref="PersistEditorFontSize"/>.</summary>
+    public void PersistEditorHeight(double height)
+    {
+        var settings = _settingsStore.Load();
+        settings.QueryEditorHeight = height;
         _settingsStore.Save(settings);
     }
 

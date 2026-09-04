@@ -38,6 +38,19 @@ public partial class DocumentView : UserControl
     private EditableRow? _currentRow;
     private CompletionWindow? _completionWindow;
 
+    // Query-editor/Result-grid split (SE-283). One DocumentView instance is reused across all query tabs
+    // (DataContext just swaps), so the live height lives here — not on the VM — or switching tabs would
+    // snap the row back to whatever that tab's VM happened to load at construction time.
+    private const int EditorRowIndex = 1;
+    private const double DefaultEditorHeight = 260;
+    private const double EditorMinHeight = 120;
+    private const double ResultMinBody = 150; // grid space kept while dragging the editor taller
+    private double _editorHeight = DefaultEditorHeight;
+    private bool _editorHeightLoaded;
+    private bool _editorDragging;
+    private double _editorDragStartY;
+    private double _editorDragStartHeight;
+
     public DocumentView()
     {
         InitializeComponent();
@@ -164,6 +177,14 @@ public partial class DocumentView : UserControl
         _viewModel.ConfirmRequested = ShowConfirmAsync;
         _viewModel.CellActionRequested = ShowCellActionDialogAsync;
 
+        // Seed the live split height once from whichever tab is bound first — a persisted drag applies to
+        // every tab (see the field comment above), so later tabs must not overwrite it with their own read.
+        if (!_editorHeightLoaded)
+        {
+            _editorHeightLoaded = true;
+            _editorHeight = _viewModel.EditorHeight ?? DefaultEditorHeight;
+        }
+
         // The TabControl reuses one DocumentView across tabs (swapping DataContext), so the SQL
         // editor row must be set BOTH ways: collapsed for browse, restored for query. Otherwise a
         // browse tab collapses the row and every later query tab shows no SQL pane.
@@ -171,8 +192,8 @@ public partial class DocumentView : UserControl
         {
             // The SQL editor row only belongs to query mode — collapse it for browse AND monitor so the
             // grid isn't pushed down under a tall empty gap.
-            grid.RowDefinitions[1].Height = _viewModel.IsQueryMode
-                ? new GridLength(2, GridUnitType.Star)
+            grid.RowDefinitions[EditorRowIndex].Height = _viewModel.IsQueryMode
+                ? new GridLength(_editorHeight)
                 : new GridLength(0);
         }
 
@@ -183,6 +204,63 @@ public partial class DocumentView : UserControl
 
         PushSqlToEditor();
         RebuildResultColumns();
+    }
+
+    // --- Query-editor/Result-grid split (SE-283) ----------------------------------------------------------
+    // Same hand-rolled drag as the subsystem-panel splitter (MainView.axaml.cs, SE-170): the splitter's Auto
+    // neighbour (the edit toolbar row) isn't the row we want to trade pixels with, so we resize the editor
+    // row directly and let the result grid — the only remaining star row — absorb the difference.
+
+    private void OnEditorSplitterPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (this.FindControl<Grid>("RootGrid") is not { } grid)
+        {
+            return;
+        }
+
+        _editorDragging = true;
+        _editorDragStartY = e.GetPosition(grid).Y;
+        _editorDragStartHeight = grid.RowDefinitions[EditorRowIndex].ActualHeight;
+        e.Pointer.Capture(sender as IInputElement);
+        e.Handled = true;
+    }
+
+    private void OnEditorSplitterMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_editorDragging || this.FindControl<Grid>("RootGrid") is not { } grid)
+        {
+            return;
+        }
+
+        // The splitter sits below the editor, so dragging down (positive delta) grows it.
+        var delta = e.GetPosition(grid).Y - _editorDragStartY;
+        _editorHeight = Math.Clamp(_editorDragStartHeight + delta, EditorMinHeight, MaxEditorHeight(grid));
+        grid.RowDefinitions[EditorRowIndex].Height = new GridLength(_editorHeight);
+    }
+
+    private void OnEditorSplitterReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_editorDragging)
+        {
+            return;
+        }
+
+        _editorDragging = false;
+        e.Pointer.Capture(null);
+        e.Handled = true;
+        _viewModel?.PersistEditorHeight(_editorHeight);
+    }
+
+    // The tallest the editor may get: whatever is left after the toolbar, edit-toolbar, result-tab strip,
+    // paging bar and a minimum grid body — so growing it never squeezes the result grid to nothing.
+    private static double MaxEditorHeight(Grid grid)
+    {
+        var reserved = grid.RowDefinitions[0].ActualHeight
+                     + grid.RowDefinitions[3].ActualHeight
+                     + grid.RowDefinitions[4].ActualHeight
+                     + grid.RowDefinitions[6].ActualHeight
+                     + ResultMinBody;
+        return Math.Max(EditorMinHeight, grid.Bounds.Height - reserved);
     }
 
     private async Task<bool> ShowSaveReviewAsync(string sql)
