@@ -370,19 +370,16 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
     private static async Task<QueryResult> ReadResultAsync(SqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)
     {
-        var columns = BuildColumns(reader);
+        var (columns, fields) = BuildColumns(reader);
 
         var rows = new List<object?[]>();
         while (await reader.ReadAsync(ct))
         {
-            var row = new object?[reader.FieldCount];
-            reader.GetValues(row!);
-            for (var i = 0; i < row.Length; i++)
+            var row = new object?[fields.Length];
+            for (var i = 0; i < fields.Length; i++)
             {
-                if (row[i] is DBNull)
-                {
-                    row[i] = null;
-                }
+                var value = reader.GetValue(fields[i]);
+                row[i] = value is DBNull ? null : value;
             }
 
             rows.Add(row);
@@ -397,13 +394,22 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         };
     }
 
-    private static List<ResultColumn> BuildColumns(SqlDataReader reader)
+    // KeyInfo makes SqlClient append a hidden primary-key hint column purely to resolve key metadata — it is
+    // still counted in reader.FieldCount, so a query that doesn't select the PK (e.g. "SELECT Col1, Col2 FROM
+    // Tab1") got a phantom extra "Id" column, NULL in every row, unless it's filtered out here (SE-282).
+    private static (List<ResultColumn> Columns, int[] Fields) BuildColumns(SqlDataReader reader)
     {
         var schema = reader.GetColumnSchema();
         var columns = new List<ResultColumn>(reader.FieldCount);
+        var fields = new List<int>(reader.FieldCount);
         for (var i = 0; i < reader.FieldCount; i++)
         {
             var col = schema[i];
+            if (col.IsHidden == true)
+            {
+                continue;
+            }
+
             columns.Add(new ResultColumn(reader.GetName(i), reader.GetFieldType(i))
             {
                 BaseSchema = col.BaseSchemaName,
@@ -413,9 +419,10 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
                 IsReadOnly = col.IsReadOnly ?? false,
                 AllowDbNull = col.AllowDBNull ?? true
             });
+            fields.Add(i);
         }
 
-        return columns;
+        return (columns, [.. fields]);
     }
 
     public async Task<int> ExecuteBatchAsync(
