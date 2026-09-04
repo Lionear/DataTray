@@ -137,7 +137,15 @@ public static class ProviderHostApi
     //     SELECT that may already be ordered (DataGrip/DBeaver-style result paging); SQL Server overrides it
     //     to append OFFSET/FETCH to an existing ORDER BY. All three purely additive at the type level — the
     //     version bump exists purely to gate them away from a host that predates them.
-    public const int Version = 27;
+    // v28 (2026-09-04): added QueryResult.EditFilterPredicate (string?, default null, SE-280) — a trusted,
+    //                   provider-generated SQL boolean expression ANDed into every generated UPDATE/DELETE
+    //                   WHERE on top of the key predicate. Lets a provider expose a filtered/partial unique
+    //                   index (SQL Server: sys.indexes.filter_definition) as an edit key: the index columns
+    //                   alone are only unique among the rows the filter covers (e.g. a soft-delete table's
+    //                   "UNIQUE (OrgId, ItemId) WHERE IsDeleted = 0"), so without ANDing the filter in, the
+    //                   key could still match more than one row outside it. Purely additive: a provider that
+    //                   never sets it (every other provider, today) is unaffected.
+    public const int Version = 28;
 
     /// <summary>Oldest plugin ABI this host still loads. Additive bumps (v11→v22 style) keep this fixed;
     /// only a breaking change raises it. Raised to 23 by the v23 BuildNodeQuery signature change above —
