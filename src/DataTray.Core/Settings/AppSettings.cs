@@ -54,6 +54,10 @@ public sealed class AppSettings
     /// <summary>Restored width of the History tool-window (Edge.Right), in pixels. Null = default.</summary>
     public double? HistoryWidth { get; set; }
 
+    /// <summary>Restored height of the query-editor row in a query tab (DocumentView), in pixels, so the
+    /// Query-editor/Result-grid split survives a restart. Null = default.</summary>
+    public double? QueryEditorHeight { get; set; }
+
     /// <summary>Show only one bottom-docked tool panel at a time — Output, Containers and plugin panels
     /// (Edge.Bottom): opening one closes the others (SE-165). On by default; turn off to stack several.
     /// Right-edge windows (History) are never affected.</summary>

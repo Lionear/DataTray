@@ -85,7 +85,7 @@
       <Setter Property="TextElement.Foreground" Value="{DynamicResource SEAccentFgBrush}" />
     </Style>
   </UserControl.Styles>
-  <Grid x:Name="RootGrid" RowDefinitions="Auto,2*,Auto,Auto,Auto,3*,Auto">
+  <Grid x:Name="RootGrid" RowDefinitions="Auto,260,Auto,Auto,Auto,*,Auto">
 
     <!-- Row 0: mode-specific toolbar. Query = connection/database switcher + Run/Format; Browse = paging + filter.
          Each bar lays out on an OverflowPanel (SE-255 §4): whatever does not fit at this window width moves
@@ -279,8 +279,17 @@
       </ae:TextEditor>
     </Border>
 
-    <!-- Row 2 is intentionally empty (Auto → 0 height): execution outcomes now surface only in the
-         host's Output panel, not inline under the editor. -->
+    <!-- Row 2: Query-editor/Result-grid splitter (SE-283). Not a GridSplitter: its neighbours are the
+         editor (row 1, a persisted pixel height) and the edit toolbar (row 3, Auto) — a GridSplitter would
+         trade pixels with that Auto row instead of the grid, the same wrong-neighbour problem SE-170 hit
+         for the subsystem-panel splitter. So this drags row 1 directly; the result grid (row 5, the only
+         remaining star row) absorbs the difference. -->
+    <Border Grid.Row="2" x:Name="EditorSplitter" Height="4"
+            Background="{DynamicResource SEHairlineBrush}" Cursor="SizeNorthSouth"
+            IsVisible="{Binding IsQueryMode}"
+            PointerPressed="OnEditorSplitterPressed"
+            PointerMoved="OnEditorSplitterMoved"
+            PointerReleased="OnEditorSplitterReleased" />
 
     <!-- Row 3: edit toolbar + pending-changes bar (shared by both modes). Equal space above and below. -->
     <Grid Grid.Row="3" Margin="0,8,0,8"
