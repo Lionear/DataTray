@@ -20,8 +20,14 @@ public sealed record PageableStatement(string Sql, bool Ordered);
 public static class QueryPaging
 {
     // Keywords whose top-level presence means the statement already bounds itself or isn't a plain result set.
+    // BEGIN/COMMIT/ROLLBACK are here for SE-281: SqlStatementSplitter only splits on top-level `;`/GO, so it
+    // has no idea a BEGIN…END (or IF…BEGIN…END) block exists — a script like
+    // "BEGIN TRANSACTION; IF EXISTS (...) BEGIN UPDATE t SET x=1; SELECT * FROM t END COMMIT;" splits its last
+    // statement as "SELECT * FROM t\nEND\nCOMMIT" (no `;` before END), which still starts with SELECT and
+    // carries no other blocker — so it was getting paged, appending ORDER BY/OFFSET/FETCH onto something that
+    // is not actually a standalone SELECT. These three keywords never appear, unquoted, inside a real one.
     private static readonly HashSet<string> Blockers = new(StringComparer.OrdinalIgnoreCase)
-        { "TOP", "LIMIT", "OFFSET", "FETCH", "INTO", "FOR" };
+        { "TOP", "LIMIT", "OFFSET", "FETCH", "INTO", "FOR", "BEGIN", "COMMIT", "ROLLBACK" };
 
     // DML that a leading WITH may drive instead of a SELECT — not pageable.
     private static readonly HashSet<string> Dml = new(StringComparer.OrdinalIgnoreCase)
@@ -63,7 +69,7 @@ public static class QueryPaging
             && words.Any(w => w.Equals("SELECT", StringComparison.OrdinalIgnoreCase))
             && !words.Any(Dml.Contains);
 
-        if ((!isSelect && !isCteSelect) || words.Any(Blockers.Contains))
+        if ((!isSelect && !isCteSelect) || words.Any(Blockers.Contains) || HasUnbalancedEnd(words))
         {
             return false;
         }
@@ -185,6 +191,32 @@ public static class QueryPaging
         }
 
         return trimmed;
+    }
+
+    // An END with no matching top-level CASE means this "statement" is really a fragment of a BEGIN…END/
+    // IF…END block that the semicolon-only splitter couldn't see the shape of (SE-281) — a genuine single
+    // SELECT only ever pairs END with CASE.
+    private static bool HasUnbalancedEnd(List<string> words)
+    {
+        var caseDepth = 0;
+        foreach (var word in words)
+        {
+            if (word.Equals("CASE", StringComparison.OrdinalIgnoreCase))
+            {
+                caseDepth++;
+            }
+            else if (word.Equals("END", StringComparison.OrdinalIgnoreCase))
+            {
+                if (caseDepth == 0)
+                {
+                    return true;
+                }
+
+                caseDepth--;
+            }
+        }
+
+        return false;
     }
 
     // The bare identifier/keyword words that sit at paren depth 0, outside strings, comments, dollar-quotes and
