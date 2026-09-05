@@ -8,6 +8,7 @@ using DataTray.Core.Plugins;
 using DataTray.Core.Providers;
 using DataTray.Infrastructure.Extensibility;
 using DataTray.Providers.MsSql;
+using DataTray.Sdk.Extensibility;
 
 namespace DataTray.Core.Tests.Extensibility;
 
@@ -194,6 +195,71 @@ public class DockerSubsystemIntegrationTests
             var item = Assert.Single(menu!.MenuItems);
             Assert.Equal("new-container", item.Id);
             Assert.Equal("New Local Container…", item.Title);
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot))
+            {
+                Directory.Delete(storageRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact] // The plugin declares `toolbar` + implements IToolbarPlugin, so the activator surfaces its
+           // application-toolbar contribution with the identity the host needs to namespace and label it.
+    public void Activator_surfaces_the_docker_toolbar_contribution()
+    {
+        var activation = LoadDockerActivation();
+        var storageRoot = Path.Combine(Path.GetTempPath(), "se255-int-" + Guid.NewGuid().ToString("N"));
+        var (service, _) = NewConnectionService();
+        try
+        {
+            var activator = new SubsystemActivator(
+                [activation],
+                id => new JsonPluginStorage(id, storageRoot),
+                id => new ManagedConnections(id, service));
+
+            var toolbar = activator.ActivateAll().Toolbars.SingleOrDefault();
+
+            Assert.NotNull(toolbar);
+            Assert.Equal("local-containers", toolbar!.PluginId);
+            Assert.Equal("Local Containers (Docker)", toolbar.PluginName);
+            // Identity only, deliberately: reading ToolbarItems builds the contribution's Geometry, and a
+            // Geometry needs Avalonia's render interface — which this test host has no display for. Same
+            // reason the panel test never calls CreatePanel.
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot))
+            {
+                Directory.Delete(storageRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact] // "toolbar" is its own consent, not something "menu" implies: strip the capability and the
+           // contribution is withheld even though the plugin still implements the interface.
+    public void Activator_withholds_the_toolbar_contribution_without_the_capability()
+    {
+        var activation = LoadDockerActivation();
+        var withoutToolbar = activation with
+        {
+            Capabilities = [.. activation.Capabilities.Where(c => c != PluginCapabilities.Toolbar)],
+        };
+        var storageRoot = Path.Combine(Path.GetTempPath(), "se255-int-" + Guid.NewGuid().ToString("N"));
+        var (service, _) = NewConnectionService();
+        try
+        {
+            var activator = new SubsystemActivator(
+                [withoutToolbar],
+                id => new JsonPluginStorage(id, storageRoot),
+                id => new ManagedConnections(id, service));
+
+            var result = activator.ActivateAll();
+
+            Assert.Empty(result.Toolbars);
+            // The menu contribution still comes through, so this is the capability gate and not a dead plugin.
+            Assert.Single(result.Menus);
         }
         finally
         {

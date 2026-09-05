@@ -61,6 +61,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     public const string CategoryTools = "Tools";
     public const string CategoryMcpTools = "McpTools";
     public const string CategoryExtensions = "Extensions";
+    public const string CategoryViewers = "Viewers";
     public const string CategoryOther = "Other";
 
     [ObservableProperty]
@@ -154,6 +155,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     public int ToolsCount => _allBrowse.Count(i => TabForItem(i) == CategoryTools);
     public int McpToolsCount => _allBrowse.Count(i => TabForItem(i) == CategoryMcpTools);
     public int ExtensionsCount => _allBrowse.Count(i => TabForItem(i) == CategoryExtensions);
+    public int ViewersCount => _allBrowse.Count(i => TabForItem(i) == CategoryViewers);
     public int OtherCount => _allBrowse.Count(i => !i.IsBundle && TabForItem(i) == CategoryOther);
     public bool HasUserPlugins => UserPlugins.Count > 0;
     public bool HasBundledPlugins => BundledPlugins.Count > 0;
@@ -162,6 +164,11 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     public string UpdateAllLabel => Loc.Get("StoreUpdateAll", UpdateCount);
     public int InstalledCount => BundledPlugins.Count + UserPlugins.Count + UpdatablePlugins.Count;
     public string InstalledCountLabel => Loc.Get("StoreInstalledCount", InstalledCount);
+
+    /// <summary>Plugin to open the detail pane on, set by whoever opens the store (the first-run wizard's
+    /// per-engine "Install…"). Consumed by the first list build so a later filter change doesn't yank the
+    /// selection back; an id the catalog doesn't carry just leaves the usual first-card default.</summary>
+    public string? PreselectPluginId { get; set; }
 
     /// <summary>Set by the view: pick a local .zip to install; returns null if cancelled.</summary>
     public Func<Task<string?>>? InstallFromFileRequested { get; set; }
@@ -367,6 +374,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         OnPropertyChanged(nameof(ToolsCount));
         OnPropertyChanged(nameof(McpToolsCount));
         OnPropertyChanged(nameof(ExtensionsCount));
+        OnPropertyChanged(nameof(ViewersCount));
         OnPropertyChanged(nameof(OtherCount));
         OnPropertyChanged(nameof(HasOtherItems));
 
@@ -421,6 +429,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         CategoryOptions.Add(new CategoryOption(CategoryTools, $"{Loc["StoreCategoryTools"]} ({ToolsCount})"));
         CategoryOptions.Add(new CategoryOption(CategoryMcpTools, $"{Loc["StoreCategoryMcpTools"]} ({McpToolsCount})"));
         CategoryOptions.Add(new CategoryOption(CategoryExtensions, $"{Loc["StoreCategoryExtensions"]} ({ExtensionsCount})"));
+        CategoryOptions.Add(new CategoryOption(CategoryViewers, $"{Loc["StoreCategoryViewers"]} ({ViewersCount})"));
         if (HasOtherItems)
         {
             CategoryOptions.Add(new CategoryOption(CategoryOther, $"{Loc["StoreCategoryOther"]} ({OtherCount})"));
@@ -469,6 +478,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         PluginManifest.Types.Tool => CategoryTools,
         PluginManifest.Types.Mcp => CategoryMcpTools,
         PluginManifest.Types.Extension => CategoryExtensions,
+        PluginManifest.Types.Viewer => CategoryViewers,
         _ => CategoryOther
     };
 
@@ -490,6 +500,13 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(HasOtherItems));
+
+        if (PreselectPluginId is { } wanted)
+        {
+            PreselectPluginId = null;
+            SelectedBrowseItem = BrowseItems.FirstOrDefault(
+                i => string.Equals(i.Id, wanted, StringComparison.OrdinalIgnoreCase)) ?? SelectedBrowseItem;
+        }
 
         // Default to the first card, and keep it selected if the current one was filtered out.
         if (SelectedBrowseItem is null || !BrowseItems.Contains(SelectedBrowseItem))

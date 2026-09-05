@@ -21,13 +21,17 @@ public sealed class ResxLocalizer : ILocalizer
     public string Get(string key, params object[] args)
     {
         var format = this[key];
-        return args.Length == 0 ? format : string.Format(_culture, format, args);
+        // Wording from the UI language, the values inside it in the machine's format — same split as
+        // SetCulture below.
+        return args.Length == 0 ? format : string.Format(CultureInfo.CurrentCulture, format, args);
     }
 
     public void SetCulture(CultureInfo culture)
     {
+        // UI language only. CurrentCulture is deliberately left on the OS setting so dates and numbers
+        // keep the machine's format: assigning it here made picking English render every result-grid
+        // timestamp as "12/2/2025 11:10:40 AM" regardless of where the user is (SE-276).
         _culture = culture;
-        CultureInfo.CurrentCulture = culture;
         CultureInfo.CurrentUICulture = culture;
 
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));

@@ -16,7 +16,7 @@ namespace DataTray.Core.Shortcuts;
 public sealed class KeymapService
 {
     private readonly IKeymapStore _store;
-    private readonly IReadOnlyList<PluginShortcut> _pluginShortcuts;
+    private readonly List<PluginShortcut> _pluginShortcuts;
     private Dictionary<string, string?> _overrides;
 
     public KeymapService(IKeymapStore store, IEnumerable<PluginShortcut>? pluginShortcuts = null)
@@ -37,6 +37,32 @@ public sealed class KeymapService
 
     /// <summary>Plugin-contributed shortcuts, grouped by owning plugin in the settings UI.</summary>
     public IReadOnlyList<PluginShortcut> PluginShortcuts => _pluginShortcuts;
+
+    /// <summary>
+    /// Add shortcuts discovered after construction. Providers and tools are known while the container is
+    /// being built, but standing-subsystem plugins are activated once it exists — so their toolbar actions
+    /// (SE-255 §3.4) register here. Ids already known are ignored. Raises <see cref="Changed"/> so the main
+    /// window rebinds.
+    /// </summary>
+    public void Register(IEnumerable<PluginShortcut> shortcuts)
+    {
+        var added = false;
+        foreach (var shortcut in shortcuts)
+        {
+            if (_pluginShortcuts.Any(p => p.Id == shortcut.Id) || ShortcutCatalog.All.Any(c => c.Id == shortcut.Id))
+            {
+                continue;
+            }
+
+            _pluginShortcuts.Add(shortcut);
+            added = true;
+        }
+
+        if (added)
+        {
+            Changed?.Invoke();
+        }
+    }
 
     /// <summary>Whether the platform primary modifier is Cmd (macOS) rather than Ctrl (Windows/Linux).</summary>
     public static bool UsesCommandKey { get; set; } = OperatingSystem.IsMacOS();

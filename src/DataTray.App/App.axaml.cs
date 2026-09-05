@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using DataTray.App.DependencyInjection;
@@ -27,7 +28,47 @@ public partial class App : Application
     // short-circuits after the base call.
     public static bool ScreenshotMode { get; set; }
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    // The macOS application-menu items ("About DataTray", "Preferences…"), created here and filled in
+    // once OnFrameworkInitializationCompleted has services — see the SE-278 comment on Initialize().
+    private NativeMenuItem? _appMenuAboutItem;
+    private NativeMenuItem? _appMenuSettingsItem;
+
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+
+        // What macOS puts next to the Apple logo, and in "About …", "Hide …" and "Quit …". Avalonia
+        // builds that menu itself and reads Application.Name for it — not the bundle's CFBundleName,
+        // which is why a correct Info.plist still left it saying "Avalonia Application" (the property's
+        // default when unset). No other platform shows this string.
+        Name = "DataTray";
+
+        // The application menu itself (the "About DataTray" item) has to be attached here too, not in
+        // OnFrameworkInitializationCompleted where SE-254 originally put it (PR #180). Avalonia.Native's
+        // menu exporter for the Apple-logo menu resets its layout in its own constructor, which runs
+        // during platform init — before OnFrameworkInitializationCompleted's DI/subsystem setup even
+        // starts. If NativeMenu.GetMenu(Application.Current) is still null then, it commits to its own
+        // hardcoded "About Avalonia" fallback and never looks again (unlike the Dock-menu target, this
+        // one has no subscription for a later change) — so SE-254's fix compiled and shipped but never
+        // actually replaced the fallback on screen (SE-278). Setting an (empty) item now, before that
+        // exporter constructs, is what makes it pick up ours on its first look. The item's Header and
+        // Click are filled in later, once ILocalizer/MainViewModel exist — NativeMenuItem.Header changes
+        // propagate live to the native menu (the native proxy subscribes to HeaderProperty), and Click
+        // is a plain event, so binding it late is safe.
+        //
+        // Preferences moved in here too (SE-278, macOS convention: app menu, Cmd+,) out of the in-window
+        // Edit menu, which held nothing else. Avalonia.Native appends Services/Hide/Quit after whatever
+        // is already in this NativeMenu (AvaloniaNativeMenuExporter.PopulateStandardOSXMenuItems), so
+        // About/Preferences land above them, matching the usual macOS app-menu order.
+        _appMenuAboutItem = new NativeMenuItem();
+        _appMenuSettingsItem = new NativeMenuItem { Gesture = new KeyGesture(Key.OemComma, KeyModifiers.Meta) };
+        NativeMenu.SetMenu(this, new NativeMenu
+        {
+            _appMenuAboutItem,
+            new NativeMenuItemSeparator(),
+            _appMenuSettingsItem
+        });
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {
@@ -120,6 +161,31 @@ public partial class App : Application
             }
         }
 
+        // Mount any application-toolbar contributions (SE-255). They join the action catalog, so the strip
+        // and Settings ▸ Toolbar see them in one pass — and, being absent from the saved layout, a freshly
+        // installed plugin's button shows up rather than waiting to be ticked on.
+        foreach (var contributor in subsystems.Toolbars)
+        {
+            foreach (var item in contributor.Plugin.ToolbarItems)
+            {
+                var invoke = item.InvokeAsync;
+                var id = $"{contributor.PluginId}:{item.Id}";
+                viewModel.AddToolbarAction(
+                    id, item.Title, contributor.PluginName, item.Icon, item.Tooltip, () => invoke(hostUi));
+
+                // Every toolbar action is bindable (SE-255 §3.4), which is what makes hiding one harmless.
+                // DefaultGesture is only a suggestion: null ships it unbound but still rebindable.
+                keymap.Register([new Core.Shortcuts.PluginShortcut(
+                    id, contributor.PluginId, contributor.PluginName, item.Title, item.DefaultGesture,
+                    _ => invoke(hostUi))]);
+            }
+        }
+
+        // Query-window toolbar contributions (SE-255): handed to every document, which filters them with
+        // their own AppliesTo predicate per tab.
+        viewModel.MountQueryToolbarContributions(
+            [.. subsystems.QueryToolbars.SelectMany(p => p.QueryToolbarItems)], hostUi);
+
         // Start any background loops (SE-164) under the shutdown token — fire-and-forget, like the update
         // checks; they stop cleanly when _shutdownCts cancels at exit (desktop.Exit, below).
         foreach (var background in subsystems.Background)
@@ -147,6 +213,21 @@ public partial class App : Application
                 }
 
                 _trayIcon = BuildTrayIcon(desktop, mainWindow, services.GetRequiredService<ILocalizer>(), OpenQueryLog);
+
+                // Fill in the macOS application-menu items created in Initialize() (SE-278) now that
+                // services exist. Services/Hide/Quit stay with the platform. No-op off macOS: only that
+                // backend exports an application menu, so the items are null elsewhere.
+                var appMenuLoc = services.GetRequiredService<ILocalizer>();
+                if (_appMenuAboutItem is not null)
+                {
+                    _appMenuAboutItem.Header = $"{appMenuLoc["About"]} DataTray";
+                    _appMenuAboutItem.Click += (_, _) => viewModel.ShowAboutCommand.Execute(null);
+                }
+                if (_appMenuSettingsItem is not null)
+                {
+                    _appMenuSettingsItem.Header = appMenuLoc["Preferences"];
+                    _appMenuSettingsItem.Click += (_, _) => viewModel.OpenSettingsCommand.Execute(null);
+                }
 
                 // Single-instance listener: a second launch (e.g. clicking the app again while it's hidden
                 // in the tray) signals us here instead of opening a new window. Marshal onto the UI thread.
@@ -190,10 +271,24 @@ public partial class App : Application
                 // user actually connects, so the empty shell behind the modal reveals nothing.
                 var masterPassword = services.GetRequiredService<Core.Security.MasterPasswordService>();
                 var loc = services.GetRequiredService<ILocalizer>();
-                if (masterPassword.IsEnabled)
+                // The first-run wizard (SE-239) rides the same handler rather than its own, so it can never
+                // stack a second modal on top of the unlock prompt: unlock first, onboarding only after.
+                mainWindow.Opened += async (_, _) =>
                 {
-                    mainWindow.Opened += async (_, _) => await GateUnlockAsync(mainWindow, masterPassword, desktop, loc);
-                }
+                    if (masterPassword.IsEnabled)
+                    {
+                        await GateUnlockAsync(mainWindow, masterPassword, desktop, loc);
+                        if (!masterPassword.IsUnlocked)
+                        {
+                            return;
+                        }
+                    }
+
+                    if (!settingsStore.Load().OnboardingCompleted)
+                    {
+                        await ShowFirstRunAsync(mainWindow, services, _shutdownCts.Token);
+                    }
+                };
                 services.GetRequiredService<Core.Security.IMasterKeyProvider>().Locked += () =>
                     Avalonia.Threading.Dispatcher.UIThread.Post(
                         () => _ = GateUnlockAsync(mainWindow, masterPassword, desktop, loc));
@@ -248,6 +343,34 @@ public partial class App : Application
         // Left-click the tray icon also restores the window (a common convention on Windows/Linux).
         tray.Clicked += (_, _) => ShowWindow(window);
         return tray;
+    }
+
+    // The first-run wizard (SE-239). Modal over the main window, so the empty shell behind it can't be
+    // clicked into a confusing half-state. Installing an engine hands off to the Plugin Store window — its
+    // capability-consent gate and host-API check are not something onboarding may route around.
+    private static async Task ShowFirstRunAsync(Window owner, IServiceProvider services, CancellationToken ct)
+    {
+        var viewModel = services.GetRequiredService<ViewModels.FirstRunViewModel>();
+        viewModel.RestartRequested = AppRestart.Restart;
+
+        var window = new FirstRunWindow(viewModel);
+        // Owned by the wizard, not the main window: a dialog parented behind an open modal is a window the
+        // user can see and not reach.
+        viewModel.StoreRequested = async pluginId =>
+        {
+            var store = services.GetRequiredService<ViewModels.PluginStoreViewModel>();
+            store.PreselectPluginId = pluginId;
+            // The store's own "Restart now" goes through the wizard's: a restart started here takes the
+            // wizard down with it, so onboarding has to save its position first or it completes and never
+            // comes back (SE-268).
+            store.RestartRequested = () => viewModel.RestartNowCommand.Execute(null);
+            await new PluginStoreWindow { DataContext = store }.ShowDialog(window);
+        };
+
+        // Scanning for other clients' connections and fetching the store catalog both touch the world, so
+        // they run once the window is up rather than delaying it.
+        window.Opened += async (_, _) => await viewModel.InitializeAsync(ct);
+        await window.ShowDialog(owner);
     }
 
     private bool _unlocking;

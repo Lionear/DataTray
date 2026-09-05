@@ -59,6 +59,37 @@ public interface IToolPlugin
     bool IsDestructive => false;
 
     /// <summary>
+    /// True when this tool <b>is</b> the connection's Activity Monitor — an engine-specific replacement for
+    /// the host's own built-in one (SQL Server's, which is SSMS-shaped and lives in the mssql-admin plugin).
+    /// The host's existing "Activity Monitor…" item on a connection root then opens this tool instead of its
+    /// built-in monitor, and the tool is left out of the node's Tools submenu so it appears exactly once.
+    /// </summary>
+    /// <remarks>
+    /// This exists because a feature that a provider hands to a plugin should not also move in the menu.
+    /// A tool is normally offered under a node's <c>Tools</c> submenu, which is right for a tool that adds
+    /// something and wrong for one that replaces something the user already knows the place of. The flag is
+    /// the host's, not a plugin's opinion about its own importance: it only redirects a menu item the host
+    /// already owns, and a provider that declares <see cref="IDbProvider.SupportsActivityMonitor"/> keeps
+    /// its built-in monitor and ignores this. If two tools claim it for one node the first wins.
+    /// </remarks>
+    bool IsActivityMonitor => false;
+
+    /// <summary>
+    /// True when this tool is one of the node's <b>own actions</b> rather than something extra offered on it
+    /// — Rebuild or Drop on an index, where SSMS puts the verb straight on the context menu. Such a tool is
+    /// rendered as a plain item on the node's menu and left out of its Tools submenu, so it appears once.
+    /// </summary>
+    /// <remarks>
+    /// The general form of <see cref="IsActivityMonitor"/>, for the case where the host has no menu item to
+    /// redirect. The line is what the action *is*, not how important it is: a tool that adds a capability to
+    /// a node (backup, schema diff, shrink — SSMS buries the equivalents under <c>Tasks ▸</c> itself) belongs
+    /// under Tools, and one that is the node's own verb belongs where a user right-clicks to reach it.
+    /// <see cref="MenuPath"/> is ignored for these — a node action with a submenu path is a tool that has not
+    /// made up its mind — and the items keep the order the registry returns them in.
+    /// </remarks>
+    bool IsNodeAction => false;
+
+    /// <summary>
     /// Optionally produce a short summary for a chosen file the moment its <see cref="ToolFieldType.File"/>
     /// field changes (e.g. read a backup's plaintext header), shown under that field before Execute runs.
     /// Return null (the default) for no preview. <paramref name="filePath"/> is the current field value.

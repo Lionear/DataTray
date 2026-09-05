@@ -1,0 +1,359 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DataTray.App.ViewModels"
+        x:Class="DataTray.App.Views.FirstRunWindow"
+        x:DataType="vm:FirstRunViewModel"
+        Title="{Binding Loc[FirstRunTitle]}"
+        Width="660" Height="620"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False">
+  <Window.Resources>
+    <!-- One row per ConnectionField. A near-copy of the Connection Manager's template, minus the pieces the
+         wizard never shows; SQLite's path field is basic, so Browse has to work here too. -->
+    <DataTemplate x:Key="FieldTemplate">
+      <StackPanel Spacing="2" Margin="0,4,0,0">
+        <TextBlock Text="{Binding Label}" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Grid.Column="0"
+                   Text="{Binding Value}"
+                   PlaceholderText="{Binding Watermark}"
+                   PasswordChar="{Binding PasswordChar}"
+                   IsVisible="{Binding IsText}" />
+          <CheckBox Grid.Column="0"
+                    IsChecked="{Binding BoolValue}"
+                    IsVisible="{Binding IsBool}" />
+          <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding Choices}"
+                    SelectedItem="{Binding Value}"
+                    IsVisible="{Binding IsChoice}" />
+          <Button Grid.Column="1" Margin="6,0,0,0"
+                  Content="{Binding $parent[Window].DataContext.Loc[Browse]}"
+                  IsVisible="{Binding IsFile}"
+                  Click="OnBrowseClick" />
+        </Grid>
+      </StackPanel>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Window.Styles>
+    <!-- Steps 1 and 4 carry the brand (SE-209: the brand lives where the data isn't). SEBrandBrush is the
+         brand primary, deliberately not the app accent the working steps use. -->
+    <Style Selector="Button.Brand">
+      <Setter Property="Background" Value="{DynamicResource SEBrandBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEBrandBrush}" />
+      <Setter Property="Foreground" Value="#FFFFFF" />
+      <Setter Property="Padding" Value="16,6" />
+    </Style>
+    <Style Selector="Button.Brand:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEBrandHoverBrush}" />
+      <Setter Property="TextElement.Foreground" Value="#FFFFFF" />
+    </Style>
+
+    <!-- An engine tile. Store tiles get a dashed cyan edge: cyan means extensibility in this product and
+         nothing else, so the plugin model is legible before it is explained. -->
+    <Style Selector="Button.Tile">
+      <Setter Property="Background" Value="{DynamicResource SEWindowBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="11,9" />
+      <Setter Property="Width" Value="146" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.Tile:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+    </Style>
+    <Style Selector="Button.Tile.Chosen">
+      <Setter Property="BorderBrush" Value="{DynamicResource SEAccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
+    </Style>
+    <Style Selector="Button.Tile.Store">
+      <Setter Property="BorderBrush" Value="{DynamicResource SEExtensibilityTextBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.GroupLabel">
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ===== Stepper ===== -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="18" Margin="26,16,26,0">
+      <StackPanel Orientation="Horizontal" Spacing="7">
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEAccentBrush}" IsVisible="{Binding IsWelcome}" />
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEHairlineBrush}" IsVisible="{Binding !IsWelcome}" />
+        <TextBlock Text="{Binding Loc[FirstRunStepWelcome]}" FontSize="11.5" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="7">
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEAccentBrush}" IsVisible="{Binding IsEngine}" />
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEHairlineBrush}" IsVisible="{Binding !IsEngine}" />
+        <TextBlock Text="{Binding Loc[FirstRunStepEngine]}" FontSize="11.5" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="7">
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEAccentBrush}" IsVisible="{Binding IsConnection}" />
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEHairlineBrush}" IsVisible="{Binding !IsConnection}" />
+        <TextBlock Text="{Binding Loc[FirstRunStepConnection]}" FontSize="11.5" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="7">
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEAccentBrush}" IsVisible="{Binding IsDone}" />
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEHairlineBrush}" IsVisible="{Binding !IsDone}" />
+        <TextBlock Text="{Binding Loc[FirstRunStepDone]}" FontSize="11.5" VerticalAlignment="Center" />
+      </StackPanel>
+    </StackPanel>
+
+    <Panel Grid.Row="1" Margin="26,18">
+
+      <!-- ===== Step 1: Welcome ===== -->
+      <StackPanel IsVisible="{Binding IsWelcome}" VerticalAlignment="Center"
+                  HorizontalAlignment="Center" Spacing="4" MaxWidth="420">
+        <!-- The real app icon, same asset as the tray and About — not a stand-in glyph. -->
+        <Image Width="76" Height="76" Margin="0,0,0,14" HorizontalAlignment="Center"
+               RenderOptions.BitmapInterpolationMode="HighQuality"
+               Source="avares://DataTray.App/Assets/icon.png" />
+        <TextBlock Text="DataTray" FontSize="26" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding Loc[FirstRunTagline]}" FontSize="14" HorizontalAlignment="Center"
+                   TextAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Loc[FirstRunIntro]}" FontSize="12.5" Margin="0,8,0,0"
+                   TextAlignment="Center" TextWrapping="Wrap"
+                   Foreground="{DynamicResource SETextSecondaryBrush}" />
+      </StackPanel>
+
+      <!-- ===== Step 2: Engine ===== -->
+      <ScrollViewer IsVisible="{Binding IsEngine}" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="9">
+          <!-- Coming back from the restart an install needed: confirm what landed. The selected tile below
+               says it too, but only to someone who already knows to look for it. -->
+          <Border IsVisible="{Binding InstalledNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                  CornerRadius="5" Padding="11,9" Margin="0,0,0,4"
+                  Background="{DynamicResource SEExtensibilityWashBrush}"
+                  BorderBrush="{DynamicResource SEExtensibilityWashBorderBrush}" BorderThickness="1">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                       Fill="{DynamicResource SEStatusConnectedBrush}" />
+              <TextBlock Text="{Binding InstalledNotice}" TextWrapping="Wrap" FontSize="12"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <TextBlock Classes="GroupLabel" Text="{Binding Loc[FirstRunIncluded]}" />
+          <ItemsControl ItemsSource="{Binding Engines}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:FirstRunEngine">
+                <Button Classes="Tile" Classes.Chosen="{Binding IsSelected}" Margin="0,0,8,8"
+                        Command="{Binding $parent[ItemsControl].DataContext.SelectEngineCommand}"
+                        CommandParameter="{Binding}">
+                  <StackPanel Spacing="3">
+                    <TextBlock Text="{Binding DisplayName}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding $parent[Window].DataContext.Loc[FirstRunIncludedTag]}"
+                               FontSize="10.5" Foreground="{DynamicResource SETextFaintBrush}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <StackPanel Spacing="9" Margin="0,8,0,0" IsVisible="{Binding HasStoreEngines}">
+            <TextBlock Classes="GroupLabel" Foreground="{DynamicResource SEExtensibilityTextBrush}"
+                       Text="{Binding Loc[FirstRunFromStore]}" />
+            <ItemsControl ItemsSource="{Binding StoreEngines}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FirstRunEngine">
+                  <Button Classes="Tile Store" Margin="0,0,8,8"
+                          Command="{Binding $parent[ItemsControl].DataContext.OpenStoreCommand}"
+                          CommandParameter="{Binding}">
+                    <StackPanel Spacing="3">
+                      <TextBlock Text="{Binding DisplayName}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding $parent[Window].DataContext.Loc[FirstRunInstall]}"
+                                 FontSize="10.5" Foreground="{DynamicResource SEExtensibilityTextBrush}" />
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- A staged install only loads on the next start, so say so and offer the restart rather than
+               walking into step 3 with a provider that isn't there. -->
+          <Border IsVisible="{Binding RestartNeeded}" CornerRadius="5" Padding="11,9" Margin="0,4,0,0"
+                  Background="{DynamicResource SEExtensibilityWashBrush}"
+                  BorderBrush="{DynamicResource SEExtensibilityWashBorderBrush}" BorderThickness="1">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Loc[FirstRunRestartNeeded]}" TextWrapping="Wrap" FontSize="12" />
+              <Button Classes="Accent" HorizontalAlignment="Left"
+                      Content="{Binding Loc[FirstRunRestartNow]}" Command="{Binding RestartNowCommand}" />
+            </StackPanel>
+          </Border>
+
+          <!-- The import hand-off. Anyone installing a SQL client already has one; offering this only after
+               they have typed a hostname would waste the time this step exists to save. -->
+          <Border IsVisible="{Binding HasDiscovered}" CornerRadius="5" Padding="11,9" Margin="0,4,0,0"
+                  Background="{DynamicResource SEPanelBgBrush}"
+                  BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="{Binding DiscoveredLine}" TextWrapping="Wrap" FontSize="12"
+                         VerticalAlignment="Center" Margin="0,0,10,0" />
+              <Button Grid.Column="1" Classes="Subtle" VerticalAlignment="Center"
+                      Foreground="{DynamicResource SEAccentBrush}"
+                      Content="{Binding Loc[FirstRunImportThem]}" Command="{Binding StartImportCommand}" />
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ===== Step 3a: the connection form (basic fields only) ===== -->
+      <Grid IsVisible="{Binding IsManualConnection}" RowDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Row="0" Text="{Binding ConnectionIntro}" Margin="0,0,0,12" FontSize="12.5"
+                   Foreground="{DynamicResource SETextSecondaryBrush}" />
+
+        <ScrollViewer Grid.Row="1" DataContext="{Binding Connection}" HorizontalScrollBarVisibility="Disabled">
+          <!-- Right margin so the scrollbar doesn't sit on top of the field borders. -->
+          <StackPanel Spacing="10" Margin="0,0,10,0">
+            <TextBlock Text="{Binding Loc[ConnectionName]}" />
+            <TextBox Text="{Binding Name}" />
+            <!-- BasicFields only: colour, folder, read-only and MCP access are all real settings and all
+                 noise on a first screen. They live in the Connection Manager. -->
+            <ItemsControl ItemsSource="{Binding BasicFields}" ItemTemplate="{StaticResource FieldTemplate}" />
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
+              <Button Content="{Binding Loc[Test]}" Command="{Binding TestCommand}" />
+              <TextBlock Text="{Binding TestResult}" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SETextSecondaryBrush}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,12,0,0">
+          <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SEAiBrush}"
+                   VerticalAlignment="Top" Margin="0,5,8,0" />
+          <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunAiHint]}" FontSize="11.5" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+        </Grid>
+      </Grid>
+
+      <!-- ===== Step 3b: import =====
+           IsVisible sits on the outer panel and DataContext on the inner one, deliberately: both on the same
+           element resolves IsVisible against the new DataContext, the binding fails silently, and the step
+           renders on top of every other one. -->
+      <Panel IsVisible="{Binding IsImporting}">
+      <Grid RowDefinitions="Auto,*,Auto" DataContext="{Binding Import}">
+        <TextBlock Grid.Row="0" Text="{Binding Loc[ImportConnectionsHint]}" TextWrapping="Wrap"
+                   FontSize="11.5" Margin="0,0,0,10"
+                   Foreground="{DynamicResource SETextFaintBrush}" />
+
+        <ListBox Grid.Row="1" ItemsSource="{Binding Rows}" Background="Transparent" BorderThickness="1"
+                 BorderBrush="{DynamicResource SEHairlineBrush}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:ImportConnectionRow">
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanImport}"
+                          VerticalAlignment="Center" Margin="0,0,6,0" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                             IsEnabled="{Binding CanImport}" />
+                  <TextBlock Text="{Binding Detail}" FontSize="11" TextTrimming="CharacterEllipsis"
+                             Foreground="{DynamicResource SETextFaintBrush}" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding Source}" VerticalAlignment="Center" FontSize="11"
+                           Foreground="{DynamicResource SETextFaintBrush}" Margin="8,0,0,0" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="2" Spacing="8" Margin="0,8,0,0">
+          <Grid ColumnDefinitions="Auto,Auto,*">
+            <Button Grid.Column="0" Classes="Subtle" Content="{Binding Loc[SelectAll]}"
+                    Command="{Binding SelectAllCommand}" Margin="0,0,6,0" />
+            <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[SelectNone]}"
+                    Command="{Binding SelectNoneCommand}" />
+            <TextBlock Grid.Column="2" Text="{Binding Summary}" VerticalAlignment="Center"
+                       HorizontalAlignment="Right" FontSize="11"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </Grid>
+          <!-- SE-238, same opt-in as the Connection Manager's picker. -->
+          <StackPanel Spacing="3" IsVisible="{Binding CanFetchPasswords}">
+            <Button Classes="Subtle" HorizontalAlignment="Left"
+                    Foreground="{DynamicResource SEAccentBrush}"
+                    Content="{Binding FetchPasswordsLabel}" Command="{Binding FetchPasswordsCommand}" />
+            <TextBlock Text="{Binding Loc[ImportFetchPasswordsHint]}" TextWrapping="Wrap" FontSize="11"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+      </Panel>
+
+      <!-- ===== Step 4: Done ===== -->
+      <StackPanel IsVisible="{Binding IsDone}" VerticalAlignment="Center" Spacing="4"
+                  HorizontalAlignment="Center" MaxWidth="440">
+        <Image Width="52" Height="52" Margin="0,0,0,10" HorizontalAlignment="Center"
+               RenderOptions.BitmapInterpolationMode="HighQuality"
+               Source="avares://DataTray.App/Assets/icon.png" />
+        <TextBlock Text="{Binding Loc[FirstRunDoneTitle]}" FontSize="20" FontWeight="SemiBold"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding ConnectionsAdded}" FontSize="12.5" HorizontalAlignment="Center"
+                   Foreground="{DynamicResource SETextSecondaryBrush}" />
+
+        <!-- The three things nobody discovers on their own. The tray one is not a nicety: an app that keeps
+             running after you close its window is surprising, and that surprise is how a new user is lost.
+             Grid, not a horizontal StackPanel: a StackPanel measures its children with infinite width, so
+             TextWrapping never fires and the sentence runs off the window. -->
+        <StackPanel Spacing="11" Margin="0,16,0,0">
+          <Grid ColumnDefinitions="Auto,*">
+            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SETextSecondaryBrush}"
+                     VerticalAlignment="Top" Margin="0,6,9,0" />
+            <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneTray]}" FontSize="12.5" TextWrapping="Wrap" />
+          </Grid>
+          <Grid ColumnDefinitions="Auto,*">
+            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SEAiBrush}"
+                     VerticalAlignment="Top" Margin="0,6,9,0" />
+            <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneAi]}" FontSize="12.5" TextWrapping="Wrap" />
+          </Grid>
+          <Grid ColumnDefinitions="Auto,*">
+            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SEExtensibilityTextBrush}"
+                     VerticalAlignment="Top" Margin="0,6,9,0" />
+            <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneStore]}" FontSize="12.5" TextWrapping="Wrap" />
+          </Grid>
+        </StackPanel>
+      </StackPanel>
+    </Panel>
+
+    <!-- ===== Footer ===== -->
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="16,10"
+          Background="Transparent">
+      <TextBlock Grid.Column="0" Text="{Binding Loc[FirstRunShownOnce]}" VerticalAlignment="Center"
+                 FontSize="11" IsVisible="{Binding IsWelcome}"
+                 Foreground="{DynamicResource SETextFaintBrush}" />
+      <Button Grid.Column="2" Classes="Subtle" Content="{Binding Loc[FirstRunBack]}"
+              Command="{Binding BackCommand}" IsVisible="{Binding CanGoBack}" Margin="0,0,8,0" />
+      <Button Grid.Column="3" Classes="Subtle" Content="{Binding Loc[FirstRunSkip]}"
+              Command="{Binding SkipCommand}" IsVisible="{Binding ShowSkip}" Margin="0,0,8,0" />
+      <Button Grid.Column="4" Classes="Brand" Content="{Binding Loc[FirstRunStart]}"
+              Command="{Binding NextCommand}" IsVisible="{Binding IsWelcome}" IsDefault="True" />
+      <Button Grid.Column="4" Classes="Accent" Content="{Binding Loc[FirstRunNext]}"
+              Command="{Binding NextCommand}" IsEnabled="{Binding CanGoNext}"
+              IsVisible="{Binding ShowNext}" IsDefault="True" />
+      <Button Grid.Column="4" Classes="Brand" Content="{Binding Loc[FirstRunOpen]}"
+              Command="{Binding CloseCommand}" IsVisible="{Binding IsDone}" IsDefault="True" />
+    </Grid>
+  </Grid>
+</Window>

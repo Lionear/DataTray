@@ -31,17 +31,23 @@ public static class NodeIcons
     public static readonly Geometry Function = Icons.SquareFunction;
     public static readonly Geometry Trigger = Icons.Zap;
     public static readonly Geometry User = Icons.User;
+    public static readonly Geometry AgentJob = Icons.Clock;
 
     // --- Toolbar action glyphs (Connection Manager). ---
     public static readonly Geometry Plus = Icons.Plus;
     public static readonly Geometry FolderPlus = Icons.FolderPlus;
     public static readonly Geometry Duplicate = Icons.Copy;
     public static readonly Geometry Trash = Icons.Trash2;
+    public static readonly Geometry ImportConnections = Icons.Download;
 
     // --- Document tab-strip glyphs. ---
     public static readonly Geometry TabQuery = Icons.FileCode;
     public static readonly Geometry TabBrowse = Icons.Table;
     public static readonly Geometry TabMonitor = Icons.Clock;
+
+    /// <summary>Fallback for a plugin-owned tab that supplies no icon of its own (SE-216). The puzzle
+    /// piece is already the product's mark for "this came from a plugin".</summary>
+    public static readonly Geometry TabPlugin = Icons.Puzzle;
 
     // --- Tool-window glyphs (status-bar / stripe toggles). ---
     public static readonly Geometry ToolOutput = Icons.Terminal;
@@ -58,6 +64,17 @@ public static class NodeIcons
     public static readonly Geometry SettingsQuery = Icons.Play;
     public static readonly Geometry SettingsKeyboard = Icons.Keyboard;
     public static readonly Geometry SettingsPlugins = Icons.Puzzle;
+    public static readonly Geometry SettingsToolbar = Icons.SlidersHorizontal;
+
+    // --- Toolbars (SE-255). ---
+    public static readonly Geometry Search = Icons.Search;
+
+    /// <summary>The "…" that opens what did not fit. Filled dots, so render it with a Fill brush rather
+    /// than the Stroke the Lucide line-icons want. Not in the generated set.</summary>
+    public static readonly Geometry Overflow = Geometry.Parse(
+        "M3,12 a1.4,1.4 0 1 0 2.8,0 a1.4,1.4 0 1 0 -2.8,0 " +
+        "M10.6,12 a1.4,1.4 0 1 0 2.8,0 a1.4,1.4 0 1 0 -2.8,0 " +
+        "M18.2,12 a1.4,1.4 0 1 0 2.8,0 a1.4,1.4 0 1 0 -2.8,0");
 
     public static Geometry For(DbNodeKind kind) => kind switch
     {
@@ -87,6 +104,8 @@ public static class NodeIcons
         DbNodeKind.Function => Function,
         DbNodeKind.Trigger => Trigger,
         DbNodeKind.Object => Object,
+        DbNodeKind.AgentJob => AgentJob,
+        DbNodeKind.AgentJobFolder => Folder,
         _ => Connection
     };
 }

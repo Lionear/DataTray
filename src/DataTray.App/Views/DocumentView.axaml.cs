@@ -38,6 +38,19 @@ public partial class DocumentView : UserControl
     private EditableRow? _currentRow;
     private CompletionWindow? _completionWindow;
 
+    // Query-editor/Result-grid split (SE-283). One DocumentView instance is reused across all query tabs
+    // (DataContext just swaps), so the live height lives here — not on the VM — or switching tabs would
+    // snap the row back to whatever that tab's VM happened to load at construction time.
+    private const int EditorRowIndex = 1;
+    private const double DefaultEditorHeight = 260;
+    private const double EditorMinHeight = 120;
+    private const double ResultMinBody = 150; // grid space kept while dragging the editor taller
+    private double _editorHeight = DefaultEditorHeight;
+    private bool _editorHeightLoaded;
+    private bool _editorDragging;
+    private double _editorDragStartY;
+    private double _editorDragStartHeight;
+
     public DocumentView()
     {
         InitializeComponent();
@@ -46,6 +59,14 @@ public partial class DocumentView : UserControl
         if (_sqlEditor is not null)
         {
             _sqlEditor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("TSQL");
+
+            // AvaloniaEdit turns anything that looks like a mail address or a URL into a hyperlink, which
+            // recolours it — so 'click@codesnippets.com' inside a string literal came out link-blue while
+            // '333@sss' stayed string-coloured. This is SQL, not prose: nothing here is clickable, so the
+            // syntax highlighting alone decides the colour.
+            _sqlEditor.Options.EnableEmailHyperlinks = false;
+            _sqlEditor.Options.EnableHyperlinks = false;
+
             ApplyEditorSyntaxTheme();
             ActualThemeVariantChanged += (_, _) => ApplyEditorSyntaxTheme();
             _sqlEditor.TextChanged += OnEditorTextChanged;
@@ -121,6 +142,11 @@ public partial class DocumentView : UserControl
         {
             _currentColumnIndex = columnIndex;
             _currentRow = row;
+            // Feed the column half of the selection through; the row half rides on VM.SelectedRow.
+            if (_viewModel is not null)
+            {
+                _viewModel.SelectedColumnIndex = columnIndex;
+            }
         }
     }
 
@@ -164,6 +190,14 @@ public partial class DocumentView : UserControl
         _viewModel.ConfirmRequested = ShowConfirmAsync;
         _viewModel.CellActionRequested = ShowCellActionDialogAsync;
 
+        // Seed the live split height once from whichever tab is bound first — a persisted drag applies to
+        // every tab (see the field comment above), so later tabs must not overwrite it with their own read.
+        if (!_editorHeightLoaded)
+        {
+            _editorHeightLoaded = true;
+            _editorHeight = _viewModel.EditorHeight ?? DefaultEditorHeight;
+        }
+
         // The TabControl reuses one DocumentView across tabs (swapping DataContext), so the SQL
         // editor row must be set BOTH ways: collapsed for browse, restored for query. Otherwise a
         // browse tab collapses the row and every later query tab shows no SQL pane.
@@ -171,8 +205,8 @@ public partial class DocumentView : UserControl
         {
             // The SQL editor row only belongs to query mode — collapse it for browse AND monitor so the
             // grid isn't pushed down under a tall empty gap.
-            grid.RowDefinitions[1].Height = _viewModel.IsQueryMode
-                ? new GridLength(2, GridUnitType.Star)
+            grid.RowDefinitions[EditorRowIndex].Height = _viewModel.IsQueryMode
+                ? new GridLength(_editorHeight)
                 : new GridLength(0);
         }
 
@@ -183,6 +217,64 @@ public partial class DocumentView : UserControl
 
         PushSqlToEditor();
         RebuildResultColumns();
+        RebuildViewerControl();
+    }
+
+    // --- Query-editor/Result-grid split (SE-283) ----------------------------------------------------------
+    // Same hand-rolled drag as the subsystem-panel splitter (MainView.axaml.cs, SE-170): the splitter's Auto
+    // neighbour (the edit toolbar row) isn't the row we want to trade pixels with, so we resize the editor
+    // row directly and let the result grid — the only remaining star row — absorb the difference.
+
+    private void OnEditorSplitterPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (this.FindControl<Grid>("RootGrid") is not { } grid)
+        {
+            return;
+        }
+
+        _editorDragging = true;
+        _editorDragStartY = e.GetPosition(grid).Y;
+        _editorDragStartHeight = grid.RowDefinitions[EditorRowIndex].ActualHeight;
+        e.Pointer.Capture(sender as IInputElement);
+        e.Handled = true;
+    }
+
+    private void OnEditorSplitterMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_editorDragging || this.FindControl<Grid>("RootGrid") is not { } grid)
+        {
+            return;
+        }
+
+        // The splitter sits below the editor, so dragging down (positive delta) grows it.
+        var delta = e.GetPosition(grid).Y - _editorDragStartY;
+        _editorHeight = Math.Clamp(_editorDragStartHeight + delta, EditorMinHeight, MaxEditorHeight(grid));
+        grid.RowDefinitions[EditorRowIndex].Height = new GridLength(_editorHeight);
+    }
+
+    private void OnEditorSplitterReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_editorDragging)
+        {
+            return;
+        }
+
+        _editorDragging = false;
+        e.Pointer.Capture(null);
+        e.Handled = true;
+        _viewModel?.PersistEditorHeight(_editorHeight);
+    }
+
+    // The tallest the editor may get: whatever is left after the toolbar, edit-toolbar, result-tab strip,
+    // paging bar and a minimum grid body — so growing it never squeezes the result grid to nothing.
+    private static double MaxEditorHeight(Grid grid)
+    {
+        var reserved = grid.RowDefinitions[0].ActualHeight
+                     + grid.RowDefinitions[3].ActualHeight
+                     + grid.RowDefinitions[4].ActualHeight
+                     + grid.RowDefinitions[6].ActualHeight
+                     + ResultMinBody;
+        return Math.Max(EditorMinHeight, grid.Bounds.Height - reserved);
     }
 
     private async Task<bool> ShowSaveReviewAsync(string sql)
@@ -468,7 +560,13 @@ public partial class DocumentView : UserControl
         var text = _viewModel.BuildExportText(format, selected.Count > 0 ? selected : null);
         if (text.Length > 0)
         {
-            await CopyFeedback.CopyAsync(this, text, _viewModel.Loc["CopiedToClipboard"]);
+            // The HTML copy goes on the clipboard as HTML too, so pasting into mail or a document gives a
+            // table instead of the markup. The markup stays the plain-text form for text-only targets.
+            await CopyFeedback.CopyAsync(
+                this,
+                text,
+                _viewModel.Loc["CopiedToClipboard"],
+                format == ExportFormat.Html ? text : null);
         }
     }
 
@@ -491,6 +589,47 @@ public partial class DocumentView : UserControl
         else if (e.PropertyName == nameof(DocumentViewModel.Sql))
         {
             PushSqlToEditor();
+        }
+        else if (e.PropertyName == nameof(DocumentViewModel.ViewerContext))
+        {
+            RebuildViewerControl();
+        }
+    }
+
+    // Mounts the selected viewer's control (SE-75), or clears the host when the grid is showing. Building
+    // the control is the plugin's job and the one place its code runs on our UI thread outside its own
+    // event handlers, so a viewer that throws here loses its slot instead of taking the tab down.
+    private void RebuildViewerControl()
+    {
+        if (this.FindControl<ContentControl>("ViewerHost") is not { } host)
+        {
+            return;
+        }
+
+        var context = _viewModel?.ViewerContext;
+        var plugin = _viewModel?.SelectedView?.Plugin;
+        if (context is null || plugin is null)
+        {
+            host.Content = null;
+            return;
+        }
+
+        try
+        {
+            host.Content = plugin.CreateView(context);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[viewer] {plugin.Id}: CreateView threw — {ex.Message}");
+            host.Content = new TextBlock
+            {
+                Text = ex.Message,
+                Margin = new Thickness(12),
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            _viewModel!.SelectedView = _viewModel.AvailableViews.FirstOrDefault(v => v.IsGrid);
         }
     }
 
@@ -704,56 +843,102 @@ public partial class DocumentView : UserControl
             return;
         }
 
-        grid.Columns.Clear();
-
         var editable = _viewModel?.Editable;
         if (editable is null)
         {
+            grid.Columns.Clear();
             grid.ItemsSource = null;
+            _currentColumnIndex = 0;
+            _currentRow = null;
             return;
         }
 
         var browse = _viewModel!.IsBrowseMode;
         var monitor = _viewModel.IsMonitorMode;
+
+        // Header text and sortability per column, resolved once: the headers double as the "did the shape
+        // change?" fingerprint below.
+        var headers = new string[editable.Columns.Count];
+        var sortables = new bool[editable.Columns.Count];
         for (var i = 0; i < editable.Columns.Count; i++)
         {
             var column = editable.Columns[i];
             var baseName = column.BaseColumn ?? column.Name;
             // Browse sorts on the base column (server-side); monitor sorts any column by its display name
             // (client-side). Both drive the same header-arrow + Tag path below.
-            var sortable = (browse && column.BaseColumn is not null) || monitor;
+            sortables[i] = (browse && column.BaseColumn is not null) || monitor;
 
             // Show the active sort direction with an arrow in the header (the built-in sort glyph is
             // bypassed since we sort server-side).
-            var arrow = sortable && _viewModel.SortColumn == baseName
+            var arrow = sortables[i] && _viewModel.SortColumn == baseName
                 ? _viewModel.SortDescending ? " ▼" : " ▲"
                 : string.Empty;
+            headers[i] = column.Name + arrow;
+        }
 
-            // Resolve the column's action-capability once here (cheap, by name) rather than per cell.
-            var mayHaveActions = _viewModel.ColumnMayHaveCellActions(column.Name);
-            var gridColumn = new DataGridTemplateColumn
+        // A monitor tab lands here every auto-refresh (5s) with the exact same columns. Clearing and
+        // re-adding them is the destructive part — it tears the grid's columns down under whatever the
+        // user is doing (the same hazard OnGridSorting already defers around) and drops the column widths
+        // with it. Unchanged shape → keep the columns and swap only the rows. The sort arrow rides in the
+        // header, so a re-sort still counts as a change and rebuilds.
+        if (!ColumnsUnchanged(grid, editable, headers, sortables))
+        {
+            grid.Columns.Clear();
+            for (var i = 0; i < editable.Columns.Count; i++)
             {
-                Header = column.Name + arrow,
-                IsReadOnly = column.IsReadOnly,
-                CanUserSort = sortable,
-                CellTemplate = BuildCellTemplate(i, mayHaveActions),
-                CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i, column)
-            };
+                var column = editable.Columns[i];
+                // Resolve the column's action-capability once here (cheap, by name) rather than per cell.
+                var mayHaveActions = _viewModel.ColumnMayHaveCellActions(column.Name);
+                var gridColumn = new DataGridTemplateColumn
+                {
+                    Header = headers[i],
+                    IsReadOnly = column.IsReadOnly,
+                    CanUserSort = sortables[i],
+                    CellTemplate = BuildCellTemplate(i, mayHaveActions),
+                    CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i, column)
+                };
 
-            // The Tag carries the base column name the server-side ORDER BY needs.
-            if (sortable)
-            {
-                gridColumn.Tag = baseName;
+                // The Tag carries the base column name the server-side ORDER BY needs.
+                if (sortables[i])
+                {
+                    gridColumn.Tag = column.BaseColumn ?? column.Name;
+                }
+
+                grid.Columns.Add(gridColumn);
             }
-
-            grid.Columns.Add(gridColumn);
         }
 
         grid.ItemsSource = editable.Rows;
 
-        // Fresh result: forget the previously tracked cell.
+        // Fresh rows: forget the previously tracked cell — it points into the snapshot we just replaced,
+        // and the row actions (Kill/Cancel on a monitor row) act on whatever it holds.
         _currentColumnIndex = 0;
         _currentRow = null;
+    }
+
+    // The grid already shows this shape when the count, headers, read-only flags and sortability all line
+    // up. The cell templates bind by index and resolve their action-capability from the column name, both
+    // pinned down by the header (which carries the sort arrow too). Sortability needs its own check: the
+    // same column names can arrive sortable in a browse tab and not sortable in a query one, and a stale
+    // CanUserSort would leave a header clickable that OnGridSorting no longer handles.
+    private static bool ColumnsUnchanged(DataGrid grid, EditableResultSet editable, string[] headers, bool[] sortables)
+    {
+        if (grid.Columns.Count != headers.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < headers.Length; i++)
+        {
+            if (grid.Columns[i].Header as string != headers[i]
+                || grid.Columns[i].IsReadOnly != editable.Columns[i].IsReadOnly
+                || grid.Columns[i].CanUserSort != sortables[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // Per-row template: a cell the provider marks actionable (ICustomCellActionUi — e.g. MSSQL's

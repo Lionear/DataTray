@@ -4,7 +4,7 @@
 
 A provider plugin teaches the host how to talk to one database engine. It
 implements a single interface, `IDbProvider`, from the public SDK project
-`src/Sdk` (namespace `DataTray.Sdk`). `Sdk` is
+`src/DataTray.Sdk` (namespace `DataTray.Sdk`). `Sdk` is
 MIT-licensed specifically so third parties can build and ship their own
 providers freely — it is the *only* assembly a provider plugin references
 from this repository; no reference to `Core`, `App`, or any driver-specific
@@ -193,22 +193,63 @@ own engine before you assume the defaults hold:
 and nullability expressed as `Nullable(T)` rather than a `NOT NULL` suffix — a
 reminder that the `CreateObjectSpec` → DDL mapping is genuinely per-engine.
 
+#### Owning a "New …" dialog (`ICustomCreateUi`, host API v30)
+
+`CreateCapabilities` gets you the host's generic Create dialog: it collects a
+`CreateObjectSpec`, hands it to `BuildCreateStatement`, previews the SQL and runs
+it. That is the right trade for most objects — one dialog, every engine.
+
+When it is not, `ICustomCreateUi` lets a provider replace it for a single
+`DbObjectKind` and keep the rest:
+
+```csharp
+public bool HasCreateUiFor(DbObjectKind kind) => kind == DbObjectKind.Index;
+public string CreateTitle(DbObjectKind kind) => "New Index";
+public Control BuildCreateView(DbObjectKind kind, NodeInfoContext context) => new MyIndexView(context);
+```
+
+SQL Server is the first user: included columns, per-column sort order, filters
+and filegroups are not things `CreateObjectSpec` models, and modelling them for
+one engine would grow controls the other three cannot honour. PostgreSQL, MySQL
+and SQLite answer `false` and keep the generic dialog untouched.
+
+Unlike the generic flow there is no spec and no returned SQL — the view runs its
+own DDL through `context.Provider` and closes itself, exactly as an
+`ICustomSecurityUi` view does. The host reloads the node afterwards either way.
+
+`NodeInfoContext` is shared with `ICustomNodeInfoUi` rather than duplicated, and
+carries what a view opened on a node actually needs:
+
+- **`NodePath` / `Ancestor(kind)`** — the ancestry. `Node` alone does not identify
+  an object: an index is named within its table, and an "Indexes" folder is called
+  "Indexes" under every table. Same gap `ToolExecutionContext.NodePath` closed for
+  tools. Empty on an older host, so read it and say what is missing rather than
+  guess.
+- **`OpenQueryEditor`** — hand SQL to a new query tab, for a Script button. Null
+  on an older host; check before showing the button.
+- **`ICustomNodeInfoUi.InfoViewOwnsActionBar(node)`** — return true when the view
+  brings its own footer. The host then leaves off its Close row (two rows of
+  buttons read as two different ways out) and refreshes the node's parent when the
+  dialog closes, since a view that writes may have changed what the tree shows.
+
 ### Host API versioning
 
-`ProviderHostApi.Version` (currently `25`) is the contract version. Every
+`ProviderHostApi.Version` (currently `30`) is the contract version. Every
 plugin declares the version it was built against in its manifest
 (`hostApiVersion`); the loader accepts any version in `[MinimumSupported,
 Version]` — additive bumps (new default-interface members, enum values, DTOs)
 stay binary-compatible, so an older plugin keeps loading. A breaking change
-raises `MinimumSupported`. Check `src/Sdk/ProviderHostApi.cs` for the current
+raises `MinimumSupported`. Check `src/DataTray.Sdk/ProviderHostApi.cs` for the current
 values and its changelog comments before starting a new provider.
 
 ## Building a provider plugin, step by step
 
 ### 1. Create the project
 
-Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
-**only** `Sdk`:
+Add a new project, referencing **only** `Sdk`. In-tree providers live in one of
+two places: `src/DataTray.Providers.<Engine>/` for one that ships bundled with
+the app, or `plugins/Providers.<Engine>/` for a store-only one that is installed
+from the Plugin Store (Debug builds stage those too, Release builds do not).
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -242,11 +283,11 @@ Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
 
 ### 2. Implement `IDbProvider` and `ISqlDialect`
 
-Use `src/Providers.Sqlite/SqliteProvider.cs` and `SqliteDialect.cs` as the
+Use `src/DataTray.Providers.Sqlite/SqliteProvider.cs` and `SqliteDialect.cs` as the
 simplest reference implementation (no server/database/schema layers — SQLite
 exposes Tables/Views/Sequences directly under the connection root). For an
 engine with server → database → schema layering, see
-`src/Providers.Postgres` or `src/Providers.MsSql`.
+`src/DataTray.Providers.Postgres` or `src/DataTray.Providers.MsSql`.
 
 Minimal skeleton:
 
@@ -298,7 +339,7 @@ Every plugin folder needs a `plugin.json` describing it:
   "type": "provider",
   "name": "MyEngine",
   "version": "1.0.0",
-  "hostApiVersion": 25,
+  "hostApiVersion": 28,
   "entryAssembly": "DataTray.Providers.MyEngine.dll"
 }
 ```
@@ -310,7 +351,7 @@ Every plugin folder needs a `plugin.json` describing it:
 | `type` | Plugin kind discriminator. Must be `"provider"` — the only value the loader currently accepts. |
 | `name` | Display name (informational; `IDbProvider.DisplayName` is what the UI actually shows). |
 | `version` | Your plugin's own version string. |
-| `hostApiVersion` | The `ProviderHostApi.Version` you built against (currently 25). The host loads any version in `[MinimumSupported, Version]`, so an additive bump doesn't force a rebuild — but declare the newest whose members you use. |
+| `hostApiVersion` | The `ProviderHostApi.Version` you built against (currently 28). The host loads any version in `[MinimumSupported, Version]`, so an additive bump doesn't force a rebuild — but declare the newest whose members you use. |
 | `entryAssembly` | Path (relative to the plugin's own folder) to the compiled plugin DLL. |
 
 ### 4. Ship it
@@ -328,7 +369,7 @@ plugins/
 ```
 
 For the first-party providers this copy is automated by an MSBuild target,
-`StageProviderPlugins`, in `src/Desktop/DataTray.Desktop.csproj`,
+`StageProviderPlugins`, in `src/DataTray.Desktop/DataTray.Desktop.csproj`,
 which runs after build and copies each `Providers.*` project's full output
 into `<TargetDir>/plugins/<id>/`. A genuinely third-party/out-of-tree plugin
 ships the same way manually — just place the built output (including the

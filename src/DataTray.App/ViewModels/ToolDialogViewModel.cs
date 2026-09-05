@@ -39,6 +39,7 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     private IPluginLocalizer _pluginLoc = EmptyPluginLocalizer.Instance;
     private ConnectionProfile _profile = null!;
     private DbNodeRef? _node;
+    private IReadOnlyList<DbNodeRef> _nodePath = [];
     private IDbProvider _provider = null!;
     private string _providerId = string.Empty;
     private CancellationTokenSource? _cts;
@@ -301,12 +302,19 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     public bool CanExecute => !IsRunning && !IsCompleted && Fields.All(f => f.IsFilled);
 
     /// <summary>Prepare the dialog for one tool run against the given connection/node.</summary>
-    public void Configure(IToolPlugin tool, ConnectionProfile profile, DbNodeRef? node, IDbProvider provider, string providerId)
+    public void Configure(
+        IToolPlugin tool,
+        ConnectionProfile profile,
+        DbNodeRef? node,
+        IDbProvider provider,
+        string providerId,
+        IReadOnlyList<DbNodeRef>? nodePath = null)
     {
         _tool = tool;
         _pluginLoc = _tools.LocalizerFor(tool.Id);
         _profile = profile;
         _node = node;
+        _nodePath = nodePath ?? [];
         _provider = provider;
         _providerId = providerId;
         Title = _pluginLoc.Resolve(tool.DialogTitleKey, tool.DialogTitle);
@@ -400,7 +408,8 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
         var inputs = HasCustomView
             ? _customValues
             : Fields.ToDictionary(f => f.Field.Key, f => f.Value);
-        var context = new ToolExecutionContext(_profile, _node, _provider, _providerId, this, _pluginLoc);
+        var context = new ToolExecutionContext(
+            _profile, _node, _provider, _providerId, this, _pluginLoc, _nodePath);
         Lifecycle?.OnRunStarted();
         var progress = new Progress<ToolProgress>(p =>
         {
@@ -482,6 +491,7 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     IDbProvider IToolUiContext.Provider => _provider;
     ConnectionProfile IToolUiContext.Profile => _profile;
     DbNodeRef? IToolUiContext.Node => _node;
+    IReadOnlyList<DbNodeRef> IToolUiContext.NodePath => _nodePath;
 
     Task<string?> IToolUiContext.PickSaveFileAsync(string suggestedName, params string[] extensions) =>
         SaveFilePicker?.Invoke(suggestedName, extensions) ?? Task.FromResult<string?>(null);

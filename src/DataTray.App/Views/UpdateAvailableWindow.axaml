@@ -9,14 +9,10 @@
 
   <DockPanel Margin="20">
 
-    <!-- Header: version, date, commit -->
+    <!-- Header: version. The publish date and commit lines came from our own update manifest; a
+         Velopack feed carries neither, so they went with it (SE-245). -->
     <StackPanel DockPanel.Dock="Top" Spacing="3" Margin="0,0,0,12">
       <TextBlock Text="{Binding VersionLine}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
-      <TextBlock Text="{Binding PublishedLine}" IsVisible="{Binding HasPublished}" TextWrapping="Wrap"
-                 FontSize="11.5" Foreground="{DynamicResource SETextSecondaryBrush}" />
-      <TextBlock Text="{Binding CommitLine}" IsVisible="{Binding HasCommit}" TextWrapping="Wrap"
-                 FontSize="11.5" Foreground="{DynamicResource SETextFaintBrush}"
-                 FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
     </StackPanel>
 
     <!-- Footer: close only. Download/install live in the main-window banner now (SE-151). -->

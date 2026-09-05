@@ -153,6 +153,15 @@
   <data name="RefreshOff" xml:space="preserve">
     <value>Uit</value>
   </data>
+  <data name="MonitorDatabase" xml:space="preserve">
+    <value>Database</value>
+  </data>
+  <data name="MonitorAllDatabases" xml:space="preserve">
+    <value>(alle)</value>
+  </data>
+  <data name="MonitorBlockingOnly" xml:space="preserve">
+    <value>Alleen blokkerend</value>
+  </data>
   <data name="KillSession" xml:space="preserve">
     <value>Sessie beëindigen</value>
   </data>
@@ -1152,6 +1161,24 @@
   <data name="ConfirmDeleteConnection" xml:space="preserve">
     <value>Connectie "{0}" verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
   </data>
+  <data name="SettingsToolbar" xml:space="preserve">
+    <value>Werkbalk</value>
+  </data>
+  <data name="ToolbarDesc" xml:space="preserve">
+    <value>Sleep om te herschikken. Vink uit om te verbergen — verborgen acties blijven bereikbaar via de menu's en kunnen nog steeds een sneltoets krijgen.</value>
+  </data>
+  <data name="ToolbarResetDefaults" xml:space="preserve">
+    <value>Terug naar standaard</value>
+  </data>
+  <data name="ToolbarSavedTo" xml:space="preserve">
+    <value>Opgeslagen in toolbar.json</value>
+  </data>
+  <data name="ToolbarOverflow" xml:space="preserve">
+    <value>Meer acties</value>
+  </data>
+  <data name="ToolbarCustomize" xml:space="preserve">
+    <value>Werkbalk aanpassen…</value>
+  </data>
   <data name="SettingsKeyboard" xml:space="preserve">
     <value>Toetsenbord</value>
   </data>
@@ -1253,6 +1280,15 @@
   </data>
   <data name="StoreCategoryExtensions" xml:space="preserve">
     <value>Extensies</value>
+  </data>
+  <data name="StoreCategoryViewers" xml:space="preserve">
+    <value>Weergaven</value>
+  </data>
+  <data name="ViewLabel" xml:space="preserve">
+    <value>Weergave</value>
+  </data>
+  <data name="ViewGrid" xml:space="preserve">
+    <value>Raster</value>
   </data>
   <data name="StoreCategoryOther" xml:space="preserve">
     <value>Overig</value>
@@ -1482,6 +1518,9 @@
   <data name="UpdateBannerDownload" xml:space="preserve">
     <value>Downloaden</value>
   </data>
+  <data name="UpdateDownloadNow" xml:space="preserve">
+    <value>Nu downloaden</value>
+  </data>
   <data name="UpdateBannerDownloading" xml:space="preserve">
     <value>{0} downloaden…</value>
   </data>
@@ -1491,32 +1530,17 @@
   <data name="UpdateBannerUpdateNow" xml:space="preserve">
     <value>Nu updaten</value>
   </data>
-  <data name="UpdateBannerOpenFolder" xml:space="preserve">
-    <value>Map openen</value>
-  </data>
   <data name="UpdateBannerCancel" xml:space="preserve">
     <value>Annuleren</value>
   </data>
   <data name="UpdateBannerRetry" xml:space="preserve">
     <value>Opnieuw</value>
   </data>
-  <data name="UpdateBannerRefetched" xml:space="preserve">
-    <value>Nieuwere build {0} gedownload — nu installeren en herstarten?</value>
-  </data>
-  <data name="UpdateBannerUpToDate" xml:space="preserve">
-    <value>Je hebt al de nieuwste build.</value>
-  </data>
   <data name="UpdateDialogTitle" xml:space="preserve">
     <value>Update beschikbaar</value>
   </data>
   <data name="UpdateDialogVersion" xml:space="preserve">
     <value>Versie {0}</value>
-  </data>
-  <data name="UpdateDialogPublished" xml:space="preserve">
-    <value>Gepubliceerd {0}</value>
-  </data>
-  <data name="UpdateDialogCommit" xml:space="preserve">
-    <value>Commit {0}</value>
   </data>
   <data name="UpdateDialogDownload" xml:space="preserve">
     <value>Downloaden</value>
@@ -1527,17 +1551,8 @@
   <data name="UpdateDialogInstalling" xml:space="preserve">
     <value>Bezig met installeren…</value>
   </data>
-  <data name="UpdateDialogGuided" xml:space="preserve">
-    <value>Gedownload — sleep DataTray naar Programma's en open het opnieuw.</value>
-  </data>
-  <data name="UpdateRollback" xml:space="preserve">
-    <value>Terug naar de vorige versie</value>
-  </data>
   <data name="UpdateDialogDownloading" xml:space="preserve">
     <value>Bezig met downloaden…</value>
-  </data>
-  <data name="UpdateDialogDownloaded" xml:space="preserve">
-    <value>Gedownload — map wordt geopend.</value>
   </data>
   <data name="UpdateDialogDownloadFailed" xml:space="preserve">
     <value>De download is mislukt.</value>
@@ -1595,6 +1610,24 @@
   </data>
   <data name="FormatCasingPreserve" xml:space="preserve">
     <value>Behouden</value>
+  </data>
+  <data name="HtmlTableStyleLabel" xml:space="preserve">
+    <value>Opmaak HTML-tabel</value>
+  </data>
+  <data name="HtmlTableStyleHint" xml:space="preserve">
+    <value>Geldt voor "Copy as HTML" en de HTML-export. Een opgemaakte tabel zet getallen rechts en schrijft NULL uit; de kale laat elke keuze over aan waar je in plakt.</value>
+  </data>
+  <data name="HtmlTableStylePlain" xml:space="preserve">
+    <value>Kaal</value>
+  </data>
+  <data name="HtmlTableStyleHairlines" xml:space="preserve">
+    <value>Haarlijnen</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFill" xml:space="preserve">
+    <value>Gevulde kop</value>
+  </data>
+  <data name="HtmlTableStyleHeaderFillZebra" xml:space="preserve">
+    <value>Gevulde kop + streeprijen</value>
   </data>
   <data name="PluginUpdatesBadge" xml:space="preserve">
     <value>Updates</value>
@@ -1692,6 +1725,27 @@
   <data name="UpdateIntervalManual" xml:space="preserve">
     <value>Alleen bij opstarten</value>
   </data>
+  <data name="UpdateUnmanagedInstall" xml:space="preserve">
+    <value>Deze kopie wordt niet door de updater beheerd en kan zichzelf niet vervangen. Download een nieuwe build van de releasepagina.</value>
+  </data>
+  <data name="UpdateLegacyInstallNotice" xml:space="preserve">
+    <value>Er staat nog een oudere DataTray-installatie op deze pc. De snelkoppeling daarvan start de vorige versie op dezelfde gegevens.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemove" xml:space="preserve">
+    <value>Oude installatie verwijderen</value>
+  </data>
+  <data name="UpdateLegacyInstallKeep" xml:space="preserve">
+    <value>Allebei houden</value>
+  </data>
+  <data name="UpdateLegacyInstallTitle" xml:space="preserve">
+    <value>Oude installatie verwijderen?</value>
+  </data>
+  <data name="UpdateLegacyInstallMessage" xml:space="preserve">
+    <value>Hiermee draait het verwijderprogramma van de vorige installatie. Dat haalt de oude programmabestanden en de snelkoppeling weg. Je verbindingen, instellingen en geïnstalleerde plugins staan los daarvan en blijven staan.</value>
+  </data>
+  <data name="UpdateLegacyInstallRemoving" xml:space="preserve">
+    <value>Bezig met verwijderen van de vorige DataTray-installatie.</value>
+  </data>
   <data name="UpdateCheckNow" xml:space="preserve">
     <value>Controleren op updates</value>
   </data>
@@ -1717,9 +1771,6 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   </data>
   <data name="UpdateChannelDowngradeAccepted" xml:space="preserve">
     <value>{0} staat klaar — sluit Instellingen om 'm te downloaden en installeren.</value>
-  </data>
-  <data name="UpdateChannelDowngradeNoAsset" xml:space="preserve">
-    <value>{0} heeft geen download voor dit platform; het kanaal is gewisseld maar er valt hier niets te installeren.</value>
   </data>
   <data name="UpdateCheckChecking" xml:space="preserve">
     <value>Bezig met controleren…</value>
@@ -1781,5 +1832,143 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   </data>
   <data name="SaveCloseDontSave" xml:space="preserve">
     <value>Niet opslaan</value>
+  </data>
+  <data name="SelectNone" xml:space="preserve">
+    <value>Niets selecteren</value>
+  </data>
+  <data name="ImportConnectionsTitle" xml:space="preserve">
+    <value>Importeren uit een andere client</value>
+  </data>
+  <data name="ImportConnectionsHint" xml:space="preserve">
+    <value>Connecties gevonden in de andere databaseclients op deze machine. Een wachtwoord komt alleen mee waar de client het in platte tekst had staan — hieronder staat per regel welke. De rest bewaart het in een sleutelopslag die DataTray niet opent, en vraagt er bij de eerste verbinding één keer om.</value>
+  </data>
+  <data name="ImportConnectionsNone" xml:space="preserve">
+    <value>Geen connecties van een andere databaseclient gevonden op deze machine.</value>
+  </data>
+  <data name="ImportConnectionsFound" xml:space="preserve">
+    <value>{0} van {1} kunnen worden geïmporteerd</value>
+  </data>
+  <data name="ImportConnectionsWithPassword" xml:space="preserve">
+    <value>met wachtwoord</value>
+  </data>
+  <data name="FirstRunTitle" xml:space="preserve">
+    <value>Welkom bij DataTray</value>
+  </data>
+  <data name="FirstRunStepWelcome" xml:space="preserve">
+    <value>Welkom</value>
+  </data>
+  <data name="FirstRunStepEngine" xml:space="preserve">
+    <value>Engine</value>
+  </data>
+  <data name="FirstRunStepConnection" xml:space="preserve">
+    <value>Connectie</value>
+  </data>
+  <data name="FirstRunStepDone" xml:space="preserve">
+    <value>Klaar</value>
+  </data>
+  <data name="FirstRunTagline" xml:space="preserve">
+    <value>Elke database-engine is een plug-in.</value>
+  </data>
+  <data name="FirstRunIntro" xml:space="preserve">
+    <value>Twee stappen: kies een engine, voeg je eerste connectie toe. Alles hier kun je later aanpassen.</value>
+  </data>
+  <data name="FirstRunShownOnce" xml:space="preserve">
+    <value>Wordt één keer getoond, bij de eerste start.</value>
+  </data>
+  <data name="FirstRunStart" xml:space="preserve">
+    <value>Beginnen</value>
+  </data>
+  <data name="FirstRunSkip" xml:space="preserve">
+    <value>Overslaan</value>
+  </data>
+  <data name="FirstRunBack" xml:space="preserve">
+    <value>Terug</value>
+  </data>
+  <data name="FirstRunNext" xml:space="preserve">
+    <value>Volgende</value>
+  </data>
+  <data name="FirstRunOpen" xml:space="preserve">
+    <value>DataTray openen</value>
+  </data>
+  <data name="FirstRunIncluded" xml:space="preserve">
+    <value>MEEGELEVERD</value>
+  </data>
+  <data name="FirstRunIncludedTag" xml:space="preserve">
+    <value>Direct te gebruiken</value>
+  </data>
+  <data name="FirstRunFromStore" xml:space="preserve">
+    <value>UIT DE PLUG-INSTORE</value>
+  </data>
+  <data name="FirstRunInstall" xml:space="preserve">
+    <value>Installeren…</value>
+  </data>
+  <data name="FirstRunRestartNeeded" xml:space="preserve">
+    <value>DataTray laadt plug-ins bij het opstarten, dus moet de app opnieuw starten voordat je de zojuist geïnstalleerde engine kunt gebruiken. Je komt terug bij deze stap.</value>
+  </data>
+  <data name="FirstRunRestartNow" xml:space="preserve">
+    <value>Nu opnieuw starten</value>
+  </data>
+  <data name="FirstRunInstalled" xml:space="preserve">
+    <value>{0} is geïnstalleerd en klaar voor gebruik.</value>
+  </data>
+  <data name="FirstRunImportFound" xml:space="preserve">
+    <value>Gebruik je al een andere client? DataTray vond {0} opgeslagen connecties op deze machine.</value>
+  </data>
+  <data name="FirstRunImportThem" xml:space="preserve">
+    <value>Overnemen</value>
+  </data>
+  <data name="FirstRunConnectionIntro" xml:space="preserve">
+    <value>Je eerste {0}-connectie.</value>
+  </data>
+  <data name="FirstRunAiHint" xml:space="preserve">
+    <value>AI-toegang staat uit voor deze connectie. Je zet het later per connectie aan, als je dat wilt.</value>
+  </data>
+  <data name="FirstRunDoneTitle" xml:space="preserve">
+    <value>Je bent klaar</value>
+  </data>
+  <data name="FirstRunDoneCount" xml:space="preserve">
+    <value>{0} connecties klaar voor gebruik.</value>
+  </data>
+  <data name="FirstRunDoneCountOne" xml:space="preserve">
+    <value>Eén connectie klaar voor gebruik.</value>
+  </data>
+  <data name="FirstRunDoneNone" xml:space="preserve">
+    <value>Nog geen connecties — je voegt er altijd nog een toe via het connectiebeheer.</value>
+  </data>
+  <data name="FirstRunDoneTray" xml:space="preserve">
+    <value>DataTray blijft in het systeemvak draaien. Het venster sluiten stopt de app niet — klik op het pictogram om terug te komen, of rechtsklik om af te sluiten.</value>
+  </data>
+  <data name="FirstRunDoneAi" xml:space="preserve">
+    <value>AI-toegang staat overal uit. Een AI-client ziet alleen een connectie die je zelf aanzet, één voor één.</value>
+  </data>
+  <data name="FirstRunDoneStore" xml:space="preserve">
+    <value>Meer engines en gereedschap vind je onder Extra › Plug-instore — diagrammen, back-ups, schemavergelijking.</value>
+  </data>
+  <data name="ImportFetchPasswords" xml:space="preserve">
+    <value>Ook {0} wachtwoorden uit de systeemsleutelhanger halen…</value>
+  </data>
+  <data name="ImportFetchPasswordsHint" xml:space="preserve">
+    <value>DataGrip bewaart deze in de sleutelhanger van je besturingssysteem, niet in zijn eigen bestanden. Je systeem bepaalt of het ze afgeeft en kan er eerst om vragen. Wat terugkomt gaat rechtstreeks naar DataTray's eigen sleutelhanger.</value>
+  </data>
+  <data name="NewIndex" xml:space="preserve">
+    <value>Nieuwe index…</value>
+  </data>
+  <data name="IndexUnique" xml:space="preserve">
+    <value>Uniek</value>
+  </data>
+  <data name="IndexUniqueHint" xml:space="preserve">
+    <value>De index staat geen dubbele waarden toe in zijn sleutelkolommen. Aanmaken mislukt als de tabel er al heeft.</value>
+  </data>
+  <data name="IndexColumn" xml:space="preserve">
+    <value>Kolom</value>
+  </data>
+  <data name="IndexDescending" xml:space="preserve">
+    <value>Afl.</value>
+  </data>
+  <data name="IndexDescendingHint" xml:space="preserve">
+    <value>Sla deze kolom aflopend op. Van belang voor query's die zo sorteren of bereiken scannen; oplopend is de standaard.</value>
+  </data>
+  <data name="AddIndexColumn" xml:space="preserve">
+    <value>+ Kolom toevoegen</value>
   </data>
 </root>

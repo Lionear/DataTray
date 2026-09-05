@@ -21,8 +21,10 @@ using DataTray.Core.Schema;
 using DataTray.Core.Session;
 using DataTray.Core.Settings;
 using DataTray.Core.Shortcuts;
+using DataTray.Core.Toolbar;
 using DataTray.Core.Tools;
 using DataTray.Sdk;
+using DataTray.Sdk.Extensibility;
 using DataTray.Sdk.Localization;
 using DataTray.Sdk.Scripting;
 using DataTray.Sdk.Tools;
@@ -57,11 +59,13 @@ public partial class MainViewModel : ViewModelBase
     private readonly Func<PluginStoreViewModel> _pluginStoreFactory;
     private readonly Core.Plugins.PluginCatalogService _pluginCatalog;
     private readonly IToolRegistry _tools;
+    private readonly Core.Viewers.IViewerRegistry _viewers;
     private readonly Func<ToolDialogViewModel> _toolDialogFactory;
     private readonly Func<RoutineParametersDialogViewModel> _routineParamsDialogFactory;
     private readonly IAppSettingsStore _settingsStore;
     private readonly IOpenTabsStore _openTabsStore;
     private readonly IRecentFilesStore _recentFiles;
+    private readonly ToolbarLayoutService _toolbarLayout;
 
     // Selected tree node drives the active connection: any node knows its owning connection.
     [ObservableProperty]
@@ -72,6 +76,21 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private DocumentViewModel? _selectedDocument;
+
+    // Only the tab you can actually see polls: a backgrounded Activity Monitor querying the server every
+    // 5s is waste, and one less thing rebuilding a grid nobody is watching.
+    partial void OnSelectedDocumentChanged(DocumentViewModel? oldValue, DocumentViewModel? newValue)
+    {
+        if (oldValue is { IsMonitorMode: true } previous)
+        {
+            previous.PauseMonitor();
+        }
+
+        if (newValue is { IsMonitorMode: true } current)
+        {
+            current.ResumeMonitor();
+        }
+    }
 
     [ObservableProperty]
     private string _historySearch = string.Empty;
@@ -100,6 +119,7 @@ public partial class MainViewModel : ViewModelBase
         Func<ImportCsvDialogViewModel> importCsvDialogFactory,
         Func<SettingsViewModel> settingsDialogFactory,
         IToolRegistry tools,
+        Core.Viewers.IViewerRegistry viewers,
         Func<ToolDialogViewModel> toolDialogFactory,
         Func<RoutineParametersDialogViewModel> routineParamsDialogFactory,
         Func<PluginStoreViewModel> pluginStoreFactory,
@@ -109,6 +129,7 @@ public partial class MainViewModel : ViewModelBase
         IRecentFilesStore recentFiles,
         AppUpdateViewModel appUpdate,
         PluginUpdatesViewModel pluginUpdates,
+        ToolbarLayoutService toolbarLayout,
         ILocalizer localizer)
     {
         _providers = providers;
@@ -128,6 +149,7 @@ public partial class MainViewModel : ViewModelBase
         _importCsvDialogFactory = importCsvDialogFactory;
         _settingsDialogFactory = settingsDialogFactory;
         _tools = tools;
+        _viewers = viewers;
         _toolDialogFactory = toolDialogFactory;
         _routineParamsDialogFactory = routineParamsDialogFactory;
         _pluginStoreFactory = pluginStoreFactory;
@@ -136,6 +158,8 @@ public partial class MainViewModel : ViewModelBase
         _openTabsStore = openTabsStore;
         _recentFiles = recentFiles;
         _recentFiles.Changed += OnRecentFilesChanged;
+        _toolbarLayout = toolbarLayout;
+        _toolbarLayout.Changed += BuildToolbar;
         Update = appUpdate;
         PluginUpdates = pluginUpdates;
         // The update badge opens the Store straight on its Installed tab, where the updates live.
@@ -169,6 +193,68 @@ public partial class MainViewModel : ViewModelBase
         RestoreOpenTabs();
         RefreshRecentFiles();
         EvaluatePluginRestart();
+        BuildToolbar();
+    }
+
+    // --- Application toolbar (SE-255) --------------------------------------------------------------
+
+    /// <summary>The user's resolved toolbar: the visible catalog entries, in the user's order. Rebuilt
+    /// whenever Settings ▸ Toolbar saves, so a change lands without a restart.</summary>
+    public ObservableCollection<ToolbarActionViewModel> ToolbarActions { get; } = [];
+
+    // Plugin-contributed toolbar actions, keyed by their namespaced id. Mounted after activation, so the
+    // strip is rebuilt around them rather than rebuilt from scratch.
+    private readonly Dictionary<string, ToolbarActionViewModel> _pluginToolbarActions = [];
+
+    private void BuildToolbar()
+    {
+        ToolbarActions.Clear();
+        foreach (var entry in _toolbarLayout.VisibleActions())
+        {
+            // Host entries carry a resx key; plugin entries arrive already localized by the plugin.
+            if (ToolbarActionFor(entry) is { } action)
+            {
+                ToolbarActions.Add(action);
+            }
+        }
+    }
+
+    private ToolbarActionViewModel? ToolbarActionFor(ToolbarActionEntry entry) => entry.Id switch
+    {
+        ToolbarCatalog.Ids.NewQueryTab =>
+            new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), NewQueryTabCommand, isAccent: true),
+        ToolbarCatalog.Ids.GoToObject =>
+            new ToolbarActionViewModel(entry.Id, Loc[entry.Title], ToolbarIcons.For(entry), ToggleSearchCommand, detail: "⌘K"),
+        _ => _pluginToolbarActions.GetValueOrDefault(entry.Id),
+    };
+
+    /// <summary>
+    /// Mount a plugin's application-toolbar contribution (SE-255 §2.5). The action joins the catalog, so it
+    /// appears in Settings ▸ Toolbar and — being absent from the saved layout — shows up straight away.
+    /// </summary>
+    public void AddToolbarAction(string id, string title, string pluginTitle, Geometry? icon, string? tooltip, Func<Task> invoke)
+    {
+        _pluginToolbarActions[id] = new ToolbarActionViewModel(
+            id, title, icon, new AsyncRelayCommand(invoke), detail: pluginTitle, tooltip: tooltip);
+        ToolbarIcons.Register(id, icon);
+        _toolbarLayout.RegisterPluginActions([new ToolbarActionEntry(id, title, ToolbarActionSource.Plugin, pluginTitle)]);
+    }
+
+    // --- Query-window toolbar contributions (SE-255 §2.5) ------------------------------------------
+
+    private IReadOnlyList<QueryToolbarContribution> _queryToolbarContributions = [];
+    private IHostUi? _pluginHostUi;
+
+    /// <summary>Hand the registered query-toolbar contributions to every document, now and in future. Tabs
+    /// restored at startup exist before plugins finish activating, so they are caught up here.</summary>
+    public void MountQueryToolbarContributions(IReadOnlyList<QueryToolbarContribution> contributions, IHostUi hostUi)
+    {
+        _queryToolbarContributions = contributions;
+        _pluginHostUi = hostUi;
+        foreach (var document in Documents)
+        {
+            document.MountQueryToolbar(contributions, hostUi);
+        }
     }
 
 
@@ -188,8 +274,7 @@ public partial class MainViewModel : ViewModelBase
                 continue;
             }
 
-            var document = NewDocument();
-            document.InitQuery(connection, tab.Database);
+            var document = NewQueryDocument(connection, tab.Database);
             // Restoring is not editing: load the buffer clean (no dirty ●), reattaching the .sql file when
             // the tab was file-backed. Otherwise a restart would mark every scratch tab dirty and nag to
             // save it on exit. Genuine edits after restore re-dirty the tab as usual.
@@ -478,8 +563,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         document.Sql = row.Sql;
         AddDocument(document);
     }
@@ -702,8 +786,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         document.LoadContent(text, path);
         AddDocument(document);
         _recentFiles.Add(path);
@@ -965,18 +1048,53 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasApplicableTools => ApplicableTools.Count > 0;
 
+    /// <summary>The tool that supplies this node's Activity Monitor, when one claims it (SE-251). Kept out
+    /// of <see cref="ApplicableTools"/> so it appears once, on the host's own menu item, where the
+    /// built-in monitor has always been.</summary>
+    private IToolPlugin? _activityMonitorTool;
+
+    /// <summary>Whether the tree's "Activity Monitor…" item is shown: the provider has a built-in monitor
+    /// (Postgres/MySQL) or a tool supplies one (SQL Server). Lives here rather than on the node because
+    /// only this view-model can see the tool registry.</summary>
+    public bool CanShowActivityMonitor =>
+        SelectedNode?.CanShowActivityMonitor == true || _activityMonitorTool is not null;
+
+    /// <summary>Tools that are the selected node's own actions (SE-253) rather than extras offered on it —
+    /// SSMS' Rebuild/Reorganize/Disable/Drop on an index. Flat by design, and kept out of
+    /// <see cref="ApplicableTools"/> so each appears once, on the node's menu instead of under Tools. The
+    /// view splices these into the context menu, which XAML cannot do for a bound collection.</summary>
+    public ObservableCollection<ToolMenuNode> NodeActions { get; } = [];
+
     // A tool applies to a connection node or a schema-object node; recompute whenever selection changes.
     private void RefreshApplicableTools(TreeNodeViewModel? node)
     {
         ApplicableTools.Clear();
+        NodeActions.Clear();
+        _activityMonitorTool = null;
 
         if (node is not null && (node.IsConnectionNode || node.NodeKind is not null) && node.Connection is { } connection)
         {
             foreach (var tool in _tools.Applicable(connection.ProviderId, node.NodeKind))
             {
+                // A tool that IS the Activity Monitor is reached from the host's own menu item instead, so
+                // it must not also show up under Tools — one feature, one entry.
+                if (tool.IsActivityMonitor)
+                {
+                    _activityMonitorTool ??= tool;
+                    continue;
+                }
+
                 var captured = tool;
                 var title = _tools.LocalizerFor(tool.Id).Resolve(tool.TitleKey, tool.Title);
                 var leaf = new ToolMenuNode(title, new RelayCommand(() => RunToolCommand.Execute(captured)));
+
+                // Same rule one step further out: a tool that is the node's own verb goes on the node's menu,
+                // not into Tools. MenuPath is ignored here — a node action has nowhere to nest.
+                if (tool.IsNodeAction)
+                {
+                    NodeActions.Add(leaf);
+                    continue;
+                }
 
                 // Walk the tool's MenuPath, creating or reusing a group node per segment, so tools that
                 // share a path (even from different plugins) land in the same submenu.
@@ -993,6 +1111,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(HasApplicableTools));
+        OnPropertyChanged(nameof(CanShowActivityMonitor));
     }
 
     private static ToolMenuNode AddTo(ObservableCollection<ToolMenuNode> collection, ToolMenuNode node)
@@ -1014,8 +1133,16 @@ public partial class MainViewModel : ViewModelBase
         var profile = _connections.Resolve(connection, node.DatabaseName);
         DbNodeRef? nodeRef = node.NodeKind is { } kind ? new DbNodeRef(kind, node.Name) : null;
 
+        // A tool that supplies a document opens as a tab instead of a dialog (SE-216). Its ExecuteAsync is
+        // never called — opening the tab is the action — so this returns before the dialog is built.
+        if (tool is IToolDocumentUi document)
+        {
+            OpenPluginDocument(tool, document, connection, node.DatabaseName, nodeRef, profile, provider);
+            return;
+        }
+
         var dialog = _toolDialogFactory();
-        dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId);
+        dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId, node.NodePath);
         // Let a tool hand generated SQL to a query tab on the launched connection/database (SchemaDiff).
         dialog.OpenQueryRequested = sql => OpenQueryWithContent(connection, node.DatabaseName, sql);
         // ...or on a picked secondary connection/database, for a tool that scripts to the destination (Copy Table).
@@ -1023,17 +1150,80 @@ public partial class MainViewModel : ViewModelBase
         await ToolDialogRequested(dialog);
     }
 
+    /// <summary>
+    /// Open (or focus) a plugin-owned tab for a tool that implements <see cref="IToolDocumentUi"/>.
+    ///
+    /// <para>Identity is the tool plus what it was launched on, so reopening the same diagram on the same
+    /// schema focuses the tab that is already there rather than stacking a second copy of it — the same
+    /// rule browse and monitor tabs follow.</para>
+    ///
+    /// <para>A plugin that throws while building its view must not take the window with it: the tab is
+    /// simply not opened and the error is reported the way any other tool failure is.</para>
+    /// </summary>
+    private void OpenPluginDocument(
+        IToolPlugin tool,
+        IToolDocumentUi documentUi,
+        SavedConnection connection,
+        string? database,
+        DbNodeRef? node,
+        ConnectionProfile profile,
+        IDbProvider provider)
+    {
+        var key = $"{tool.Id}|{connection.Id}|{database}|{node?.Name}";
+
+        var existing = Documents.FirstOrDefault(d => d.MatchesPluginDocument(key));
+        if (existing is not null)
+        {
+            SelectedDocument = existing;
+            return;
+        }
+
+        var document = NewDocument();
+        var context = new ToolDocumentContext(
+            provider,
+            connection.ProviderId,
+            profile,
+            node,
+            _tools.LocalizerFor(tool.Id),
+            title => document.Title = title,
+            sql => OpenQueryWithContent(connection, database, sql),
+            () => CloseTabCommand.Execute(document),
+            (name, extensions) => DocumentSaveFileRequested?.Invoke(name, extensions)
+                                  ?? Task.FromResult<string?>(null),
+            extensions => DocumentOpenFileRequested?.Invoke(extensions)
+                          ?? Task.FromResult<string?>(null));
+
+        Avalonia.Controls.Control view;
+        try
+        {
+            view = documentUi.CreateDocument(context);
+        }
+        catch (Exception ex)
+        {
+            ReportError(tool.Title, ex.Message);
+            return;
+        }
+
+        document.InitPluginDocument(connection, database, key, tool.Title, view, documentUi.Icon);
+        AddDocument(document);
+    }
+
     // Open a new query tab on a connection/database pre-filled with SQL (no file backing).
     private void OpenQueryWithContent(SavedConnection connection, string? database, string sql)
     {
-        var document = NewDocument();
-        document.InitQuery(connection, database);
+        var document = NewQueryDocument(connection, database);
         document.LoadContent(sql, null);
         AddDocument(document);
     }
 
     /// <summary>Set by the view so the VM can show the generic tool dialog.</summary>
     public Func<ToolDialogViewModel, Task>? ToolDialogRequested { get; set; }
+
+    /// <summary>Set by the view: file pickers for a plugin-owned tab (SE-216). Only the view owns a
+    /// TopLevel, and a document tab lives long enough that it cannot borrow the tool dialog's.</summary>
+    public Func<string, string[], Task<string?>>? DocumentSaveFileRequested { get; set; }
+
+    public Func<string[], Task<string?>>? DocumentOpenFileRequested { get; set; }
 
     // Full rebuild — used only at startup. Add/edit/delete go through the targeted helpers below so
     // that touching one connection never collapses the whole tree (loses every other node's expand +
@@ -1698,19 +1888,96 @@ public partial class MainViewModel : ViewModelBase
         await CreateObjectAsync(node, DbObjectKind.Table, node.SchemaName, node.DatabaseName);
     }
 
+    // "New Index…" on a table's Indexes folder. Unlike the three above, the dialog needs to know what it
+    // can index, so the table's columns are read first and offered as the picker's list — typing a column
+    // name that does not exist is a failure the database reports seconds later, and there is no reason to
+    // let it get that far.
+    [RelayCommand]
+    private async Task NewIndexAsync()
+    {
+        if (SelectedNode is not { CanCreateIndex: true } node || node.TableName is not { } table)
+        {
+            return;
+        }
+
+        // A provider that owns this dialog (SQL Server's Index Properties) reads the table's columns itself,
+        // with the types and nullability its grid shows — so don't pay for the host's name-only list first.
+        IReadOnlyList<string> columns = OwnsCreateUi(node, DbObjectKind.Index)
+            ? []
+            : await LoadTableColumnsAsync(node);
+
+        await CreateObjectAsync(node, DbObjectKind.Index, node.SchemaName, node.DatabaseName, table, columns);
+    }
+
+    private bool OwnsCreateUi(TreeNodeViewModel node, DbObjectKind kind) =>
+        _providers.Get(node.Connection.ProviderId) is ICustomCreateUi create && create.HasCreateUiFor(kind);
+
+    // The table's column names, for the New Index picker. Best-effort: the dialog's column box is editable,
+    // so a provider that cannot list them (or a permission error) costs the suggestions, not the feature.
+    private async Task<IReadOnlyList<string>> LoadTableColumnsAsync(TreeNodeViewModel node)
+    {
+        try
+        {
+            var provider = _providers.Get(node.Connection.ProviderId);
+            var profile = _connections.Resolve(node.Connection, node.DatabaseName);
+            // The Indexes folder's own path with its last step swapped for the Columns folder beside it:
+            // providers dispatch on the last node's kind and read the table from the ancestry above it.
+            var path = node.NodePath
+                .Take(node.NodePath.Count - 1)
+                .Append(new DbNodeRef(DbNodeKind.ColumnFolder, "Columns"))
+                .ToList();
+
+            var columns = await provider.GetChildNodesAsync(profile, path, CancellationToken.None);
+            return [.. columns.Select(c => c.Name)];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     // Shared DDL Create flow: open the dialog pre-configured for `kind`, run the (possibly user-edited)
     // SQL it returns via ExecuteDdlAsync, then refresh `node` so the new object appears in the tree —
     // `node` is always the one the "New …" menu item appeared on, i.e. already the right parent to reload.
-    private async Task CreateObjectAsync(TreeNodeViewModel node, DbObjectKind kind, string? parentSchema, string? database)
+    private async Task CreateObjectAsync(
+        TreeNodeViewModel node,
+        DbObjectKind kind,
+        string? parentSchema,
+        string? database,
+        string? table = null,
+        IReadOnlyList<string>? tableColumns = null)
     {
+        var provider = _providers.Get(node.Connection.ProviderId);
+
+        // Route B: the provider brings its own "New …" dialog for this kind and runs its own DDL, so there
+        // is no spec to collect and no SQL coming back. Everything the host still owns — which node to
+        // reload afterwards — is the same either way.
+        if (provider is ICustomCreateUi create && create.HasCreateUiFor(kind) && NodeInfoRequested is not null
+            && node.NodeKind is { } parentKind)
+        {
+            try
+            {
+                var customProfile = _connections.Resolve(node.Connection, database);
+                var context = NodeContextFor(node, customProfile, new DbNodeRef(parentKind, node.Name), provider);
+                await NodeInfoRequested(new NodeInfoDialogViewModel(
+                    create.CreateTitle(kind), create.BuildCreateView(kind, context), Loc, viewOwnsActionBar: true));
+                await node.RefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                ReportError(node.Connection.Name, ex.Message);
+            }
+
+            return;
+        }
+
         if (CreateObjectDialogRequested is null)
         {
             return;
         }
 
-        var provider = _providers.Get(node.Connection.ProviderId);
         var dialog = _createDialogFactory();
-        dialog.Configure(provider, kind, parentSchema);
+        dialog.Configure(provider, kind, parentSchema, table, tableColumns);
 
         var sql = await CreateObjectDialogRequested(dialog);
         if (string.IsNullOrWhiteSpace(sql))
@@ -2219,8 +2486,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         AddDocument(document);
     }
 
@@ -2258,6 +2524,14 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ActivityMonitor()
     {
+        // An engine whose monitor comes from a plugin (SQL Server, SE-248) opens that tool's tab from this
+        // same item: the feature changed owner, not place.
+        if (_activityMonitorTool is { } tool)
+        {
+            RunToolCommand.Execute(tool);
+            return;
+        }
+
         if (SelectedNode is not { CanShowActivityMonitor: true } node || node.Connection is not { } connection)
         {
             return;
@@ -2347,8 +2621,7 @@ public partial class MainViewModel : ViewModelBase
     // object, so the user can inspect/edit and run it themselves.
     private void OpenDefinitionTab(SavedConnection connection, string sql, string title)
     {
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var document = NewQueryDocument(connection);
         document.Sql = sql;
         document.Title = title;
         AddDocument(document);
@@ -2378,15 +2651,34 @@ public partial class MainViewModel : ViewModelBase
             var provider = _providers.Get(connection.ProviderId);
             var profile = _connections.Resolve(connection, node.DatabaseName);
             var nodeRef = new DbNodeRef(kind, node.Name);
-            var view = info.CreateInfoView(new NodeInfoContext(profile, nodeRef, provider));
-            var dialog = new NodeInfoDialogViewModel(info.InfoTitle(nodeRef), view, Loc);
+            var view = info.CreateInfoView(NodeContextFor(node, profile, nodeRef, provider));
+            var dialog = new NodeInfoDialogViewModel(info.InfoTitle(nodeRef), view, Loc,
+                info.InfoViewOwnsActionBar(nodeRef));
             await NodeInfoRequested(dialog);
+
+            // A view that owns its action bar writes as well as reads (SQL Server's Index Properties), so
+            // whatever it changed has to reach the tree. Read-only views make this a no-op refresh.
+            if (info.InfoViewOwnsActionBar(nodeRef))
+            {
+                await (node.Parent ?? node).RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
             ReportError(connection.Name, ex.Message);
         }
     }
+
+    // The context every provider-owned node view gets: the resolved profile, the node, the provider, the
+    // ancestry that actually identifies the object (an "Indexes" folder is called that under every table),
+    // and a way to hand SQL to a query tab for a Script button.
+    private NodeInfoContext NodeContextFor(
+        TreeNodeViewModel node, ConnectionProfile profile, DbNodeRef nodeRef, IDbProvider provider) =>
+        new(profile, nodeRef, provider)
+        {
+            NodePath = node.NodePath,
+            OpenQueryEditor = sql => OpenQueryWithContent(node.Connection, node.DatabaseName, sql)
+        };
 
     /// <summary>Set by the view so the VM can show the node-info (properties) dialog.</summary>
     public Func<NodeInfoDialogViewModel, Task>? NodeInfoRequested { get; set; }
@@ -2422,8 +2714,8 @@ public partial class MainViewModel : ViewModelBase
     {
         if (document is { IsQueryMode: true, Connection: { } connection })
         {
-            var copy = NewDocument();
-            copy.InitQuery(connection);
+            // The duplicate keeps the source tab's database, not the tree's — the two can differ.
+            var copy = NewQueryDocument(connection, document.SelectedDatabase);
             copy.Sql = document.Sql;
             AddDocument(copy);
         }
@@ -2489,12 +2781,15 @@ public partial class MainViewModel : ViewModelBase
         // Remember closed query tabs so Ctrl+Shift+T can bring them back (browse tabs reopen from the tree).
         if (document.IsQueryMode && document.Connection is { } connection)
         {
-            _closedTabs.Push((connection, document.Sql));
+            _closedTabs.Push((connection, document.SelectedDatabase, document.Sql));
             if (_closedTabs.Count > ClosedTabHistory)
             {
-                _closedTabs = new Stack<(SavedConnection, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
+                _closedTabs = new Stack<(SavedConnection, string?, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
             }
         }
+
+        // A plugin tab's content outlives the tab unless it is told not to (SE-216).
+        document.DisposePluginView();
 
         var index = Documents.IndexOf(document);
         Documents.Remove(document);
@@ -2508,9 +2803,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private const int ClosedTabHistory = 15;
-    private Stack<(SavedConnection Connection, string Sql)> _closedTabs = new();
+    private Stack<(SavedConnection Connection, string? Database, string Sql)> _closedTabs = new();
 
-    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL and connection restored.
+    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL, connection and database restored.
     [RelayCommand]
     private void ReopenClosedTab()
     {
@@ -2519,9 +2814,8 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var (connection, sql) = _closedTabs.Pop();
-        var document = NewDocument();
-        document.InitQuery(connection);
+        var (connection, database, sql) = _closedTabs.Pop();
+        var document = NewQueryDocument(connection, database);
         document.Sql = sql;
         AddDocument(document);
     }
@@ -2571,8 +2865,9 @@ public partial class MainViewModel : ViewModelBase
         var connection = node.Connection;
         var provider = _providers.Get(connection.ProviderId);
         var dialect = provider.Dialect;
-        // Generated SQL opens in a free query tab with no database context, so qualify it fully — the
-        // dialect decides how far (SQL Server: three-part [db].[schema].[table]; Postgres: schema.table).
+        // Qualify as far as the dialect goes (SQL Server: three-part [db].[schema].[table]; Postgres:
+        // schema.table) — the tab is bound to the node's database below, but a fully qualified name
+        // survives being copied into another tab.
         var qualified = dialect.QualifyName(node.DatabaseName, node.SchemaName, node.Name);
 
         try
@@ -2590,10 +2885,7 @@ public partial class MainViewModel : ViewModelBase
                 _ => SqlTemplateBuilder.Build(kind ?? "Select", qualified, dialect, await FetchColumnsAsync(connection, node.DatabaseName, qualified))
             };
 
-            var document = NewDocument();
-            // Provider-owned text (e.g. a MongoDB db.coll.find()) isn't self-qualified with the database, so
-            // bind the tab to the node's database; host SQL is fully qualified and keeps a free-context tab.
-            document.InitQuery(connection, custom is not null ? node.DatabaseName : null);
+            var document = NewQueryDocument(connection, node.DatabaseName);
             document.Sql = sql;
             AddDocument(document);
 
@@ -2640,8 +2932,7 @@ public partial class MainViewModel : ViewModelBase
                 ? $"-- Data as INSERT for {qualified} — top {l} rows ({result.Rows.Count} scripted)\n\n"
                 : $"-- Data as INSERT for {qualified} — {result.Rows.Count} rows\n\n";
 
-            var document = NewDocument();
-            document.InitQuery(connection, null);
+            var document = NewQueryDocument(connection, node.DatabaseName);
             document.Sql = header + script;
             AddDocument(document);
         }
@@ -2759,6 +3050,11 @@ public partial class MainViewModel : ViewModelBase
         EvaluatePluginRestart();
     }
 
+    /// <summary>Jump straight to Settings ▸ Toolbar from the strip's own gear (SE-255) — the toolbar is the
+    /// one setting you want to change while looking at it.</summary>
+    [RelayCommand]
+    private Task CustomizeToolbar() => OpenSettingsOnAsync("Toolbar");
+
     // Opens Settings pre-navigated to a given category key. Used by the Plugin Store's deep-link.
     private async Task OpenSettingsOnAsync(string categoryKey)
     {
@@ -2786,13 +3082,35 @@ public partial class MainViewModel : ViewModelBase
 
     private DocumentViewModel NewDocument()
     {
-        var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _queryLog, _schemaCache, _serverVersions, _settingsStore, Loc);
+        var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _queryLog, _schemaCache, _serverVersions, _settingsStore, Loc, _viewers);
         // Surface every execution outcome (row counts, cancellations, failures) in the shared Output panel.
         document.Reported += (level, message) => ReportOutput(level, document.Connection?.Name, message);
         // A query auto-connects outside the tree's connect flow, so reflect that on the connection's status dot.
         document.ConnectionActivity += SetConnectionState;
+        if (_pluginHostUi is { } hostUi)
+        {
+            document.MountQueryToolbar(_queryToolbarContributions, hostUi);
+        }
+
         return document;
     }
+
+    // Every query tab is created here. A tab that carries no database of its own falls back to the
+    // connection's configured default (master/postgres) in RefreshDatabasesAsync, so an action started
+    // from the tree has to hand its node's database in or the tab lands in the wrong one (SE-267) —
+    // merely cosmetic where the generated SQL is three-part qualified, plain wrong on an engine that
+    // cannot reach across databases. Callers with no database of their own inherit the tree's context.
+    private DocumentViewModel NewQueryDocument(SavedConnection connection, string? database = null)
+    {
+        var document = NewDocument();
+        document.InitQuery(connection, database ?? SelectedTreeDatabase(connection));
+        return document;
+    }
+
+    // The database the tree is currently pointing at, but only on the same connection — the selected
+    // node says nothing about a tab opened on a different one.
+    private string? SelectedTreeDatabase(SavedConnection connection) =>
+        SelectedNode is { Connection: { } node } && node.Id == connection.Id ? SelectedNode.DatabaseName : null;
 
     // Colour a connection's status dot from query activity. Property-only: setting State recolours the LED
     // (via ConnectionStateBrushConverter) and drives the schema-cache observer — it never refreshes/reloads

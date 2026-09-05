@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Tools.ErDiagram</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contract only: the diagram reads the schema through the host's IDbProvider and draws it. Nothing
+         is written, so there is no driver dependency. Private=false keeps Sdk.dll out of the plugin folder
+         so the host's copy is used across the ALC boundary. -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- TableDef/ForeignKeyDef and the reader are shared with Schema Diff, Copy Table and Generate
+         Scripts, source-linked rather than packaged. See plugins/Shared.Schema/README.md. -->
+    <Compile Include="..\Shared.Schema\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The diagram is a Route-B style view (IToolDocumentUi), so it returns an Avalonia Control.
+         ExcludeAssets="runtime" keeps Avalonia out of the plugin folder — the host's copy is shared across
+         the ALC so the control has one type identity with the window that hosts it. -->
+    <PackageReference Include="Avalonia" Version="12.0.5" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Plugin icon, embedded so the plugin ships as one DLL — same as Tools.MsSqlBacpac. -->
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" Condition="Exists('icon.png')" />
+    <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
+    <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The layout engine is provider-agnostic graph work and is tested directly. -->
+    <InternalsVisibleTo Include="DataTray.Tools.ErDiagram.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DataTray.Sdk" />
+    <Using Include="DataTray.Sdk.Connections" />
+    <Using Include="DataTray.Sdk.Schema" />
+    <Using Include="DataTray.Sdk.Query" />
+    <Using Include="DataTray.Plugins.Schema" />
+    <Using Include="DataTray.Sdk.Tools" />
+  </ItemGroup>
+
+</Project>

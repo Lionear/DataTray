@@ -2,17 +2,20 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="DataTray.App.Views.NodeInfoDialog"
         Title="{Binding Title}"
-        Width="640" Height="580" MinWidth="480" MinHeight="360"
+        Width="1080" Height="700" MinWidth="760" MinHeight="460"
         WindowStartupLocation="CenterOwner">
+  <!-- Wider and taller than it was (900x620): these views are page rails over seven-column grids, and the
+       widest column of the widest page had nowhere to go. -->
   <Grid RowDefinitions="*,Auto">
 
-    <!-- Provider-supplied read-only view (ICustomNodeInfoUi). -->
-    <ScrollViewer Grid.Row="0">
-      <ContentControl Content="{Binding View}" Margin="18,16" />
-    </ScrollViewer>
+    <!-- Provider-supplied view (ICustomNodeInfoUi). Deliberately not wrapped in a ScrollViewer: these views
+         are page rails, and scrolling the whole thing takes the rail off-screen along with the page. Each
+         view scrolls its own detail area instead. -->
+    <ContentControl Grid.Row="0" Content="{Binding View}" Margin="18,16" />
 
-    <!-- Action bar: Close only (no Execute — this is informational). -->
-    <Grid Grid.Row="1" Margin="18,12" ColumnDefinitions="*,Auto">
+    <!-- Action bar: Close only (no Execute — this is informational). Hidden when the provider view owns its
+         own footer (an editable properties dialog brings OK/Cancel), so there is one row of buttons, not two. -->
+    <Grid Grid.Row="1" Margin="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowCloseBar}">
       <Button Grid.Column="1" Classes="Accent" Content="{Binding Loc[Close]}"
               Command="{Binding CloseCommand}" IsDefault="True" IsCancel="True" />
     </Grid>

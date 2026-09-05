@@ -217,6 +217,38 @@ public class QueryPagingTests
         Assert.False(ordered);
     }
 
+    // --- SE-281: a mis-split fragment of a BEGIN…END/IF…END block must not look like a plain SELECT ---
+
+    [Theory] // A trailing SELECT with no `;` before END is glued to END/COMMIT by the semicolon-only
+             // splitter into one "statement" that still starts with SELECT — must still be rejected.
+    [InlineData("BEGIN TRANSACTION;\nIF EXISTS (SELECT 1 FROM t WHERE flag = 1)\nBEGIN\n    UPDATE t1 SET x = 1;\n    SELECT * FROM t1 WHERE flag = 1\nEND\nCOMMIT;")]
+    [InlineData("BEGIN\n    UPDATE t1 SET x = 1;\n    SELECT * FROM t1\nEND")]
+    public void Rejects_a_select_glued_to_a_block_end_by_the_splitter(string sql)
+    {
+        Assert.False(QueryPaging.TryGetPageableSelect(sql, out _, out _));
+        Assert.Equal(sql, QueryPaging.CapPageableStatements(sql, SqlServer, 200, out var capped));
+        Assert.Equal(0, capped);
+    }
+
+    [Fact] // BEGIN/COMMIT/ROLLBACK never appear unquoted inside a real standalone SELECT.
+    public void Rejects_transaction_control_keywords_inside_the_statement()
+    {
+        Assert.False(QueryPaging.TryGetPageableSelect("SELECT * FROM t\nEND\nCOMMIT", out _, out _));
+        Assert.False(QueryPaging.TryGetPageableSelect("SELECT * FROM t\nEND\nROLLBACK", out _, out _));
+    }
+
+    [Fact] // A legitimate CASE…END (including nested) must keep paging — END alone isn't the signal, only
+           // an END with no matching CASE is.
+    public void A_case_end_select_still_pages()
+    {
+        Assert.True(QueryPaging.TryGetPageableSelect(
+            "SELECT CASE WHEN x = 1 THEN 'a' ELSE 'b' END AS label FROM t", out var stmt, out _));
+        Assert.Equal("SELECT CASE WHEN x = 1 THEN 'a' ELSE 'b' END AS label FROM t", stmt);
+
+        Assert.True(QueryPaging.TryGetPageableSelect(
+            "SELECT CASE WHEN x = 1 THEN CASE WHEN y = 2 THEN 'a' END ELSE 'b' END AS label FROM t", out _, out _));
+    }
+
     [Fact]
     public void Empty_or_blank_is_not_pageable()
     {

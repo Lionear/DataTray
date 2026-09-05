@@ -11,10 +11,12 @@ using Microsoft.Data.SqlClient;
 
 namespace DataTray.Providers.MsSql;
 
-public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNodeInfoUi, ICustomCellActionUi, ICustomSecurityUi
+public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNodeInfoUi, ICustomCellActionUi, ICustomSecurityUi, ICustomCreateUi
 {
-    // Route B, fourth capability: make the Activity Monitor's blocking_session_id cell actionable when it
-    // points at a real blocker (> 0) — click opens the blocking session's details with a Kill button.
+    // Route B, fourth capability: make a blocking_session_id cell actionable when it points at a real
+    // blocker (> 0) — click opens the blocking session's details with a Kill button. It rides on the column
+    // name, so it fires wherever that column is selected (a query tab over sys.dm_exec_requests), not only
+    // where it was first useful.
     // Column-level pre-filter (keeps the grid's per-cell/scroll path free of provider calls on every other
     // column): only blocking_session_id is ever actionable.
     public bool ColumnMayHaveCellActions(string columnName) => columnName == "blocking_session_id";
@@ -86,12 +88,41 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     public Control CreateAdvancedView(IConnectionUiContext context) => new MsSqlAdvancedView(context);
 
     // Route B, third capability: SQL Server's "Database Properties" dialog on a Database node. Read-only,
-    // no Execute/progress — the host shows the view in generic info-dialog chrome.
-    public bool HasInfoFor(DbNodeRef node) => node.Kind == DbNodeKind.Database;
+    // no Execute/progress — the host shows the view in generic info-dialog chrome. Job and Index properties
+    // write as well, and bring their own OK/Cancel (see InfoViewOwnsActionBar).
+    public bool HasInfoFor(DbNodeRef node) =>
+        node.Kind is DbNodeKind.Database or DbNodeKind.AgentJob or DbNodeKind.Index;
 
-    public string InfoTitle(DbNodeRef node) => "Database Properties";
+    public string InfoTitle(DbNodeRef node) => node.Kind switch
+    {
+        DbNodeKind.AgentJob => "Job Properties",
+        DbNodeKind.Index => $"Index Properties - {node.Name}",
+        _ => "Database Properties"
+    };
 
-    public Control CreateInfoView(NodeInfoContext context) => new DatabasePropertiesView(context);
+    public Control CreateInfoView(NodeInfoContext context) => context.Node.Kind switch
+    {
+        DbNodeKind.AgentJob => new AgentJobPropertiesView(context),
+        DbNodeKind.Index => new IndexPropertiesView(context, creating: false),
+        _ => new DatabasePropertiesView(context)
+    };
+
+    // Both dialogs commit on OK rather than per page, so a Close button beside their OK would be a second
+    // way out with different consequences. For the index that is because one CREATE INDEX … DROP_EXISTING
+    // carries the whole definition; for the database because several pages change at once and a page that
+    // saved itself on the way past would leave the dialog half-applied when the next one failed.
+    public bool InfoViewOwnsActionBar(DbNodeRef node) => node.Kind is DbNodeKind.Index or DbNodeKind.Database;
+
+    // Route B: SQL Server replaces the host's generic "New Index…" dialog with the same Index Properties
+    // view the Properties entry point opens (SE-252) — included columns, per-column sort order and filters
+    // are not things CreateObjectSpec models, and would not be worth modelling for one engine. The other
+    // providers declare no create UI and keep the host's dialog.
+    public bool HasCreateUiFor(DbObjectKind kind) => kind == DbObjectKind.Index;
+
+    public string CreateTitle(DbObjectKind kind) => "New Index";
+
+    public Control BuildCreateView(DbObjectKind kind, NodeInfoContext context) =>
+        new IndexPropertiesView(context, creating: true);
 
     public string DisplayName => "Microsoft SQL Server";
 
@@ -376,19 +407,16 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
     private static async Task<QueryResult> ReadResultAsync(SqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)
     {
-        var columns = BuildColumns(reader);
+        var (columns, fields) = BuildColumns(reader);
 
         var rows = new List<object?[]>();
         while (await reader.ReadAsync(ct))
         {
-            var row = new object?[reader.FieldCount];
-            reader.GetValues(row!);
-            for (var i = 0; i < row.Length; i++)
+            var row = new object?[fields.Length];
+            for (var i = 0; i < fields.Length; i++)
             {
-                if (row[i] is DBNull)
-                {
-                    row[i] = null;
-                }
+                var value = reader.GetValue(fields[i]);
+                row[i] = value is DBNull ? null : value;
             }
 
             rows.Add(row);
@@ -403,13 +431,22 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         };
     }
 
-    private static List<ResultColumn> BuildColumns(SqlDataReader reader)
+    // KeyInfo makes SqlClient append a hidden primary-key hint column purely to resolve key metadata — it is
+    // still counted in reader.FieldCount, so a query that doesn't select the PK (e.g. "SELECT Col1, Col2 FROM
+    // Tab1") got a phantom extra "Id" column, NULL in every row, unless it's filtered out here (SE-282).
+    private static (List<ResultColumn> Columns, int[] Fields) BuildColumns(SqlDataReader reader)
     {
         var schema = reader.GetColumnSchema();
         var columns = new List<ResultColumn>(reader.FieldCount);
+        var fields = new List<int>(reader.FieldCount);
         for (var i = 0; i < reader.FieldCount; i++)
         {
             var col = schema[i];
+            if (col.IsHidden == true)
+            {
+                continue;
+            }
+
             columns.Add(new ResultColumn(reader.GetName(i), reader.GetFieldType(i))
             {
                 BaseSchema = col.BaseSchemaName,
@@ -419,9 +456,10 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
                 IsReadOnly = col.IsReadOnly ?? false,
                 AllowDbNull = col.AllowDBNull ?? true
             });
+            fields.Add(i);
         }
 
-        return columns;
+        return (columns, [.. fields]);
     }
 
     // Runs only when the driver found no primary key/unique constraint for the result's one base table —
@@ -572,6 +610,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             DbNodeKind.Group => await LoadGroupAsync(profile, ancestors, ct),
             DbNodeKind.UserFolder => await LoadUsersAsync(profile, ancestors, ct),
             // Server logins as manageable Login leaves (SQL + Windows logins; skip system ## principals).
+            DbNodeKind.AgentJobFolder => await LoadAgentJobsAsync(profile, ct),
             DbNodeKind.LoginFolder => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type IN ('S','U','G','C','K') " +
                 "AND name NOT LIKE '##%' ORDER BY name", ct, DbNodeKind.Login),
@@ -636,13 +675,9 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
                 new() { Kind = DbNodeKind.LoginFolder, Name = Logins, HasChildren = true },
                 new() { Kind = DbNodeKind.Group, Name = ServerRoles, HasChildren = true }
             ],
-            Administration =>
-            [
-                new() { Kind = DbNodeKind.Group, Name = AgentJobs, HasChildren = true }
-            ],
+            Administration => [await AgentJobsFolderAsync(profile, ct)],
             ServerRoles => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type = 'R' AND name NOT LIKE '##%' ORDER BY name", ct),
-            AgentJobs => await LoadAgentJobsAsync(profile, ct),
             _ => []
         };
 
@@ -696,6 +731,35 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         return nodes;
     }
 
+    /// <summary>
+    /// The "Agent Jobs" folder, badged when the Agent service is not running. Worth the extra round trip on
+    /// an expand the user asked for: a stopped Agent still has its jobs sitting in msdb, so without this the
+    /// folder looks live while every action on it comes back with "SQLServerAgent is not currently running".
+    /// </summary>
+    private static async Task<DbTreeNode> AgentJobsFolderAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        string? badge = null;
+        try
+        {
+            await using var connection = await OpenAsync(profile, ct);
+            await using var command = new SqlCommand(
+                """
+                SELECT TOP 1 status_desc FROM sys.dm_server_services
+                WHERE servicename LIKE 'SQL Server Agent%'
+                """, connection);
+
+            // Anything other than a confirmed "Running" is left unbadged rather than guessed at.
+            badge = await command.ExecuteScalarAsync(ct) is string status && status != "Running" ? "stopped" : null;
+        }
+        catch (SqlException)
+        {
+            // The DMV needs VIEW SERVER STATE and does not exist on Azure SQL Database at all. Not knowing
+            // is not worth failing the expand over — the folder just carries no badge.
+        }
+
+        return new DbTreeNode { Kind = DbNodeKind.AgentJobFolder, Name = AgentJobs, HasChildren = true, Badge = badge };
+    }
+
     private static async Task<IReadOnlyList<DbTreeNode>> LoadAgentJobsAsync(ConnectionProfile profile, CancellationToken ct)
     {
         var nodes = new List<DbTreeNode>();
@@ -710,11 +774,28 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             }
         }
 
-        await using var command = new SqlCommand("SELECT name FROM msdb.dbo.sysjobs ORDER BY name", connection);
+        // Name plus the two things you look at a job list for: is it on, and did the last run go wrong.
+        // sysjobservers holds the per-server last-run summary; LEFT JOIN so a job with no server row (an
+        // unpushed multi-server job) still lists, just without status.
+        await using var command = new SqlCommand(
+            """
+            SELECT j.name, j.enabled, s.last_run_outcome, s.last_run_date, s.last_run_time
+            FROM msdb.dbo.sysjobs j
+            LEFT JOIN msdb.dbo.sysjobservers s ON s.job_id = j.job_id
+            ORDER BY j.name
+            """, connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            nodes.Add(new DbTreeNode { Kind = DbNodeKind.Object, Name = reader.GetString(0) });
+            var lastRunDate = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+            nodes.Add(new DbTreeNode
+            {
+                Kind = DbNodeKind.AgentJob,
+                Name = reader.GetString(0),
+                Detail = reader.GetByte(1) == 1 ? null : "disabled",
+                Badge = reader.IsDBNull(2) ? null : AgentJobStatus.Badge(reader.GetByte(2), lastRunDate),
+                Tooltip = AgentJobStatus.LastRun(lastRunDate, reader.IsDBNull(4) ? 0 : reader.GetInt32(4))
+            });
         }
 
         return nodes;
@@ -1433,7 +1514,8 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     [
         new(DbObjectKind.Database, DbNodeKind.DatabaseFolder),
         new(DbObjectKind.Schema, DbNodeKind.SchemaFolder),
-        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+        new(DbObjectKind.Table, DbNodeKind.TableFolder),
+        new(DbObjectKind.Index, DbNodeKind.IndexFolder)
     ];
 
     public IReadOnlyList<string> ColumnTypes { get; } =
@@ -1447,11 +1529,18 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             // Must be the only statement in its batch — ExecuteDdlAsync runs one statement, no "GO".
             DbObjectKind.Schema => $"CREATE SCHEMA {Dialect.QuoteIdentifier(spec.Name)}",
             DbObjectKind.Table => BuildCreateTable(spec),
+            DbObjectKind.Index => BuildCreateIndex(spec),
             _ => throw new NotSupportedException($"SQL Server cannot create a {spec.Kind}.")
         };
 
         return new SqlStatement(sql, []);
     }
+
+    // CREATE INDEX is the same shape in every engine here; what differs is the qualification (SQL Server
+    // and Postgres take schema.table, MySQL has no schema layer, SQLite neither) — so each provider builds
+    // its own rather than the host guessing a name it cannot quote.
+    private string BuildCreateIndex(CreateObjectSpec spec) =>
+        IndexSql.Build(Dialect, spec, qualifyWithSchema: true);
 
     private string BuildCreateTable(CreateObjectSpec spec)
     {
@@ -1526,46 +1615,10 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         return names;
     }
 
-    // Activity Monitor. LEFT JOIN dm_exec_requests + OUTER APPLY dm_exec_sql_text so idle user sessions
-    // (no active request) still show a row; is_user_process = 1 hides the engine's own background sessions.
-    // SQL Server's KILL is always hard, so SupportsCancelQuery stays false and no Cancel action appears.
-    public bool SupportsActivityMonitor => true;
-
-    public string SessionIdColumn => "session_id";
-
-    public async Task<ActiveSessionSnapshot> GetActiveSessionsAsync(ConnectionProfile profile, CancellationToken ct)
-    {
-        const string sql = """
-            SELECT s.session_id, s.login_name, s.host_name, DB_NAME(r.database_id) AS [database],
-                   s.status, r.command, r.blocking_session_id, r.cpu_time, r.total_elapsed_time, t.text AS query
-            FROM sys.dm_exec_sessions s
-            LEFT JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
-            OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
-            WHERE s.is_user_process = 1
-            ORDER BY s.session_id
-            """;
-
-        var stopwatch = Stopwatch.StartNew();
-        await using var connection = await OpenAsync(profile, ct);
-
-        string? currentId;
-        await using (var spid = new SqlCommand("SELECT @@SPID", connection))
-        {
-            currentId = (await spid.ExecuteScalarAsync(ct))?.ToString();
-        }
-
-        await using var command = new SqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        var result = await ReadResultAsync(reader, stopwatch, ct);
-        return new ActiveSessionSnapshot(result, currentId);
-    }
-
-    public async Task KillSessionAsync(ConnectionProfile profile, string sessionId, CancellationToken ct)
-    {
-        // session_id is a smallint; parse it so it can only ever be an integer in the KILL text.
-        var id = int.Parse(sessionId, CultureInfo.InvariantCulture);
-        await using var connection = await OpenAsync(profile, ct);
-        await using var command = new SqlCommand($"KILL {id}", connection);
-        await command.ExecuteNonQueryAsync(ct);
-    }
+    // No SupportsActivityMonitor here, deliberately: SQL Server's Activity Monitor is the mssql-admin
+    // plugin's own tab (SE-248), which is SSMS's — the Overview graphs, the Processes grid with all fifteen
+    // of its columns, Resource Waits, Data File I/O and the two expensive-query grids. The host's generic
+    // one-grid monitor was this provider's ten-column session list, so leaving it declared would put two
+    // menu entries called "Activity Monitor" on the same node. Postgres and MySQL still declare it and are
+    // untouched.
 }

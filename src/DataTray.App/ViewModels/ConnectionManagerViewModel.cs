@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using DataTray.Core.Connections;
+using DataTray.Core.Connections.Import;
 using DataTray.Core.Localization;
 using DataTray.Core.Providers;
+using DataTray.Infrastructure.Secrets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -65,6 +67,10 @@ public partial class ConnectionManagerViewModel : ViewModelBase
 
     /// <summary>Set by the window so the VM can ask a yes/no question (title, message); false if unavailable.</summary>
     public Func<string, string, Task<bool>>? ConfirmRequested { get; set; }
+
+    /// <summary>Set by the window: show the discovered DataGrip/DBeaver connections and return the ones
+    /// the user ticked (empty when cancelled). Null = no UI available, so the import command is a no-op.</summary>
+    public Func<IReadOnlyList<DiscoveredConnection>, Task<IReadOnlyList<DiscoveredConnection>>>? ImportExternalRequested { get; set; }
 
     /// <summary>The manager tree: nested folder nodes + connection leaves.</summary>
     public ObservableCollection<ConnectionManagerNode> Nodes { get; } = [];
@@ -193,6 +199,48 @@ public partial class ConnectionManagerViewModel : ViewModelBase
 
     [RelayCommand]
     private void NewConnection() => StartNewConnection(SelectedFolderContext());
+
+    /// <summary>
+    /// Import connections found in DataGrip/DBeaver (SE-233). Scanning happens off the UI thread; the
+    /// window shows the picker and returns what the user ticked. Imported connections never carry a
+    /// password — the other clients keep those in their own credential stores — so each one lands with
+    /// its fields filled and the password prompt left to first connect.
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportExternal()
+    {
+        if (ImportExternalRequested is null)
+        {
+            return;
+        }
+
+        var found = await Task.Run(() => ExternalConnectionImport.Discover(FieldKeysOf));
+        var chosen = await ImportExternalRequested(found);
+        if (chosen.Count == 0)
+        {
+            return;
+        }
+
+        // Shared with the first-run wizard (SE-239) so unique-naming and the save shape can't drift apart.
+        var saved = ImportedConnections.SaveAll(_connections, chosen);
+
+        RebuildTree(saved.LastOrDefault());
+        OnPropertyChanged(nameof(Summary));
+        OnPropertyChanged(nameof(FolderSuggestions));
+        ConnectionsChanged?.Invoke();
+    }
+
+    /// <summary>Ask the OS for the passwords the other clients keep in its credential store (SE-238). Opt-in:
+    /// only ever called from the import picker's explicit button.</summary>
+    public IReadOnlyList<DiscoveredConnection> FetchStoredPasswords(IReadOnlyList<DiscoveredConnection> found) =>
+        ExternalConnectionImport.WithStoredPasswords(found, ForeignSecretLookups.ForThisPlatform(), FieldKeysOf);
+
+    // The provider's declared field keys, or null when its plugin isn't installed — the importer uses the
+    // same answer for "can we import this engine?" and "which key does it want the host under?".
+    private IReadOnlyList<string>? FieldKeysOf(string providerId) =>
+        _providers.TryGet(providerId, out var provider)
+            ? provider.ConnectionFields.Select(f => f.Key).ToList()
+            : null;
 
     [RelayCommand]
     private void Discard()
