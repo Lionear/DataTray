@@ -137,6 +137,14 @@ public static class ProviderHostApi
     //     SELECT that may already be ordered (DataGrip/DBeaver-style result paging); SQL Server overrides it
     //     to append OFFSET/FETCH to an existing ORDER BY. All three purely additive at the type level — the
     //     version bump exists purely to gate them away from a host that predates them.
+    // v28 (2026-09-04): added QueryResult.EditFilterPredicate (string?, default null, SE-280) — a trusted,
+    //                   provider-generated SQL boolean expression ANDed into every generated UPDATE/DELETE
+    //                   WHERE on top of the key predicate. Lets a provider expose a filtered/partial unique
+    //                   index (SQL Server: sys.indexes.filter_definition) as an edit key: the index columns
+    //                   alone are only unique among the rows the filter covers (e.g. a soft-delete table's
+    //                   "UNIQUE (OrgId, ItemId) WHERE IsDeleted = 0"), so without ANDing the filter in, the
+    //                   key could still match more than one row outside it. Purely additive: a provider that
+    //                   never sets it (every other provider, today) is unaffected.
     // v28 (2026-08-01): added IDbProvider.SessionDatabaseColumn + BlockingSessionColumn (both default
     //                   string.Empty = "no such column in my session list") — they name which
     //                   GetActiveSessionsAsync column holds the session's database and the id of its

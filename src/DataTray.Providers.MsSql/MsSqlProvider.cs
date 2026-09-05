@@ -309,13 +309,19 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
         await using var connection = await OpenAsync(profile, ct);
 
-        await using var command = new SqlCommand(sql, connection);
+        QueryResult result;
+        await using (var command = new SqlCommand(sql, connection))
         // KeyInfo makes SqlClient resolve base table/column names and primary-key flags, so the result
         // can map back to a table for the editable-grid save-flow (Notes §8); without it every column
         // comes back read-only with no base table.
-        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
+        await using (var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct))
+        {
+            result = await ReadResultAsync(reader, stopwatch, ct);
+        }
 
-        return await ReadResultAsync(reader, stopwatch, ct);
+        // The reader/command above are disposed before this runs a query of its own on the same
+        // connection (SqlClient only allows one active reader per connection without MARS).
+        return await WithFilteredUniqueKeyAsync(connection, result, ct);
     }
 
     // Streaming read (backup): SequentialAccess lets LOB columns be pulled as forward-only streams, so a
@@ -454,6 +460,103 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         }
 
         return (columns, [.. fields]);
+    }
+
+    // Runs only when the driver found no primary key/unique constraint for the result's one base table —
+    // the common case (a real PK) never pays for this extra round trip. A filtered/partial unique index
+    // (e.g. a soft-delete table's "UNIQUE (OrgId, ItemId) WHERE IsDeleted = 0", SE-280) guarantees
+    // uniqueness only for the rows it covers, so SQL Server's driver never reports those columns as
+    // IsKey; without this, the grid falls back to fully read-only ("no primary-key column") even though
+    // the index would let it edit safely once its filter is ANDed into every WHERE
+    // (see QueryResult.EditFilterPredicate and CrudStatementBuilder.BuildKeyPredicate).
+    private static async Task<QueryResult> WithFilteredUniqueKeyAsync(SqlConnection connection, QueryResult result, CancellationToken ct)
+    {
+        var tables = result.Columns
+            .Where(c => c.BaseTable is not null)
+            .Select(c => (Schema: c.BaseSchema ?? "dbo", Table: c.BaseTable!))
+            .Distinct()
+            .ToList();
+
+        if (tables.Count != 1 || result.Columns.Any(c => c.IsKey && c.BaseTable == tables[0].Table))
+        {
+            return result;
+        }
+
+        var (schema, table) = tables[0];
+        var candidate = await FindFilteredUniqueIndexAsync(connection, schema, table, ct);
+        if (candidate is not { } found)
+        {
+            return result;
+        }
+
+        var resultColumnNames = result.Columns
+            .Where(c => c.BaseTable == table)
+            .Select(c => c.BaseColumn ?? c.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Every key column of the index has to be in the result, or the WHERE this would build could
+        // still match more than one row — no safer than not having a key at all.
+        if (!found.Columns.All(resultColumnNames.Contains))
+        {
+            return result;
+        }
+
+        var indexColumns = new HashSet<string>(found.Columns, StringComparer.OrdinalIgnoreCase);
+        var columns = result.Columns
+            .Select(c => c.BaseTable == table && indexColumns.Contains(c.BaseColumn ?? c.Name)
+                ? c with { IsKey = true }
+                : c)
+            .ToList();
+
+        return new QueryResult
+        {
+            Columns = columns,
+            Rows = result.Rows,
+            RecordsAffected = result.RecordsAffected,
+            Elapsed = result.Elapsed,
+            NextCursor = result.NextCursor,
+            EditFilterPredicate = found.FilterDefinition
+        };
+    }
+
+    // The first (by index_id) unique filtered index on the table, with its filter text and key-column
+    // names. filter_definition is SQL Server's own canonical, already-quoted rendering of the filter
+    // expression (e.g. "([IsDeleted]=(0))") — safe to splice straight into a generated WHERE clause, since
+    // it is engine-generated from the index metadata, never from anything a caller supplied.
+    private static async Task<(string FilterDefinition, List<string> Columns)?> FindFilteredUniqueIndexAsync(
+        SqlConnection connection, string schema, string table, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT i.index_id, i.filter_definition, c.name AS column_name
+            FROM sys.indexes i
+            JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0
+            JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+            JOIN sys.tables t ON t.object_id = i.object_id
+            JOIN sys.schemas s ON s.schema_id = t.schema_id
+            WHERE i.is_unique = 1 AND i.has_filter = 1 AND s.name = @schema AND t.name = @table
+            ORDER BY i.index_id, ic.key_ordinal
+            """;
+
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.Add(new SqlParameter("@schema", schema));
+        command.Parameters.Add(new SqlParameter("@table", table));
+
+        var byIndex = new Dictionary<int, (string Filter, List<string> Columns)>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var indexId = reader.GetInt32(0);
+            if (!byIndex.TryGetValue(indexId, out var entry))
+            {
+                entry = (reader.GetString(1), []);
+                byIndex[indexId] = entry;
+            }
+
+            entry.Columns.Add(reader.GetString(2));
+        }
+
+        var first = byIndex.OrderBy(kv => kv.Key).Select(kv => kv.Value).FirstOrDefault();
+        return first.Columns is { Count: > 0 } ? first : null;
     }
 
     public async Task<int> ExecuteBatchAsync(
