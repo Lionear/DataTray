@@ -91,12 +91,13 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     // no Execute/progress — the host shows the view in generic info-dialog chrome. Job and Index properties
     // write as well, and bring their own OK/Cancel (see InfoViewOwnsActionBar).
     public bool HasInfoFor(DbNodeRef node) =>
-        node.Kind is DbNodeKind.Database or DbNodeKind.AgentJob or DbNodeKind.Index;
+        node.Kind is DbNodeKind.Database or DbNodeKind.AgentJob or DbNodeKind.Index or DbNodeKind.AvailabilityGroup;
 
     public string InfoTitle(DbNodeRef node) => node.Kind switch
     {
         DbNodeKind.AgentJob => "Job Properties",
         DbNodeKind.Index => $"Index Properties - {node.Name}",
+        DbNodeKind.AvailabilityGroup => $"Availability Group — {node.Name}",
         _ => "Database Properties"
     };
 
@@ -104,6 +105,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     {
         DbNodeKind.AgentJob => new AgentJobPropertiesView(context),
         DbNodeKind.Index => new IndexPropertiesView(context, creating: false),
+        DbNodeKind.AvailabilityGroup => new AvailabilityGroupDashboardView(context),
         _ => new DatabasePropertiesView(context)
     };
 
@@ -611,6 +613,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             DbNodeKind.UserFolder => await LoadUsersAsync(profile, ancestors, ct),
             // Server logins as manageable Login leaves (SQL + Windows logins; skip system ## principals).
             DbNodeKind.AgentJobFolder => await LoadAgentJobsAsync(profile, ct),
+            DbNodeKind.AvailabilityGroupFolder => await LoadAvailabilityGroupsAsync(profile, ct),
             DbNodeKind.LoginFolder => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type IN ('S','U','G','C','K') " +
                 "AND name NOT LIKE '##%' ORDER BY name", ct, DbNodeKind.Login),
@@ -640,6 +643,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     private const string Logins = "Logins";
     private const string ServerRoles = "Server Roles";
     private const string AgentJobs = "Agent Jobs";
+    private const string AvailabilityGroups = "Availability Groups";
     private const string Users = "Users";
 
     private async Task<IReadOnlyList<DbTreeNode>> RootFoldersAsync(ConnectionProfile profile, CancellationToken ct)
@@ -675,7 +679,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
                 new() { Kind = DbNodeKind.LoginFolder, Name = Logins, HasChildren = true },
                 new() { Kind = DbNodeKind.Group, Name = ServerRoles, HasChildren = true }
             ],
-            Administration => [await AgentJobsFolderAsync(profile, ct)],
+            Administration => await AdministrationChildrenAsync(profile, ct),
             ServerRoles => await LoadPrincipalsAsync(profile,
                 "SELECT name FROM sys.server_principals WHERE type = 'R' AND name NOT LIKE '##%' ORDER BY name", ct),
             _ => []
@@ -795,6 +799,91 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
                 Detail = reader.GetByte(1) == 1 ? null : "disabled",
                 Badge = reader.IsDBNull(2) ? null : AgentJobStatus.Badge(reader.GetByte(2), lastRunDate),
                 Tooltip = AgentJobStatus.LastRun(lastRunDate, reader.IsDBNull(4) ? 0 : reader.GetInt32(4))
+            });
+        }
+
+        return nodes;
+    }
+
+    /// <summary>Administration's children: Agent Jobs (always present, badged when the service is not
+    /// running — see <see cref="AgentJobsFolderAsync"/>) plus Availability Groups, which is the one child
+    /// here that can be entirely absent rather than badged (SE-284).</summary>
+    private static async Task<IReadOnlyList<DbTreeNode>> AdministrationChildrenAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        var nodes = new List<DbTreeNode> { await AgentJobsFolderAsync(profile, ct) };
+        if (await AvailabilityGroupsFolderAsync(profile, ct) is { } availabilityGroups)
+        {
+            nodes.Add(availabilityGroups);
+        }
+
+        return nodes;
+    }
+
+    /// <summary>
+    /// The "Availability Groups" folder (SE-284), badged <c>disabled</c> when Always On is off on this
+    /// instance — the same shape as <see cref="AgentJobsFolderAsync"/>'s <c>stopped</c> badge, and for the
+    /// same reason: a group's definition can sit in the catalog while the feature is switched off, so an
+    /// unbadged folder would look live while every read against the Always On DMVs comes back empty.
+    /// </summary>
+    /// <remarks>
+    /// Unlike Agent Jobs, this folder does not always appear: <c>sys.availability_groups</c> itself does
+    /// not exist on Azure SQL Database or an edition with no Always On support at all, and a folder with
+    /// nothing it could ever hold is worse than no folder — see <see cref="LoadAgentJobsAsync"/>'s comment
+    /// for the same call made the other way (msdb.dbo.sysjobs missing empties the folder, it does not
+    /// remove it), which only works there because Agent itself is universal and this catalog view is not.
+    /// </remarks>
+    private static async Task<DbTreeNode?> AvailabilityGroupsFolderAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        try
+        {
+            await using var connection = await OpenAsync(profile, ct);
+
+            await using (var probe = new SqlCommand("SELECT OBJECT_ID('sys.availability_groups')", connection))
+            {
+                if (await probe.ExecuteScalarAsync(ct) is null or DBNull)
+                {
+                    return null;
+                }
+            }
+
+            await using var command = new SqlCommand("SELECT SERVERPROPERTY('IsHadrEnabled')", connection);
+            // NULL comes back on an edition/platform where Always On plain does not apply — treated the
+            // same as 0 rather than as "unknown", since either way no group here can actually be reached.
+            var badge = Convert.ToInt32(await command.ExecuteScalarAsync(ct) ?? 0) != 1 ? "disabled" : null;
+            return new DbTreeNode { Kind = DbNodeKind.AvailabilityGroupFolder, Name = AvailabilityGroups, HasChildren = true, Badge = badge };
+        }
+        catch (SqlException)
+        {
+            // A connectivity/permission hiccup on the probe itself is not worth failing the whole
+            // Administration expand over — Agent Jobs still has to show. Treated the same as "the catalog
+            // view does not exist": no folder, rather than a badge nobody could diagnose from here anyway.
+            return null;
+        }
+    }
+
+    private static async Task<IReadOnlyList<DbTreeNode>> LoadAvailabilityGroupsAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        var nodes = new List<DbTreeNode>();
+        await using var connection = await OpenAsync(profile, ct);
+
+        // This instance's own role for each group (sys.dm_hadr_availability_replica_states.is_local = 1),
+        // not a name comparison against @@SERVERNAME — the role is per-instance, so the same group read
+        // from its secondary would report the opposite word.
+        await using var command = new SqlCommand(
+            """
+            SELECT ag.name, ars.role_desc
+            FROM sys.availability_groups ag
+            JOIN sys.dm_hadr_availability_replica_states ars ON ars.group_id = ag.group_id AND ars.is_local = 1
+            ORDER BY ag.name
+            """, connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            nodes.Add(new DbTreeNode
+            {
+                Kind = DbNodeKind.AvailabilityGroup,
+                Name = reader.GetString(0),
+                Badge = reader.GetString(1).ToLowerInvariant()
             });
         }
 
