@@ -241,7 +241,8 @@ public partial class TreeNodeViewModel : ViewModelBase
     public bool CanShowActivityMonitor => IsConnectionNode && _provider is { SupportsActivityMonitor: true };
 
     public bool IsCopyable => IsTableOrView || IsColumn
-        || NodeKind is DbNodeKind.Index or DbNodeKind.Sequence or DbNodeKind.Object or DbNodeKind.AgentJob;
+        || NodeKind is DbNodeKind.Index or DbNodeKind.Sequence or DbNodeKind.Object or DbNodeKind.AgentJob
+            or DbNodeKind.AvailabilityGroup;
 
     public bool IsPlaceholder { get; }
 
@@ -315,7 +316,7 @@ public partial class TreeNodeViewModel : ViewModelBase
         DbNodeKind.Database or DbNodeKind.Schema or DbNodeKind.SchemaFolder or DbNodeKind.DatabaseFolder
         or DbNodeKind.TableFolder or DbNodeKind.ViewFolder or DbNodeKind.SequenceFolder or DbNodeKind.ColumnFolder
         or DbNodeKind.IndexFolder or DbNodeKind.ForeignKeyFolder or DbNodeKind.Group
-        or DbNodeKind.AgentJobFolder;
+        or DbNodeKind.AgentJobFolder or DbNodeKind.AvailabilityGroupFolder;
 
     /// <summary>Owning schema, if this node sits under one (null for schema-less engines like SQLite).</summary>
     public string? SchemaName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Schema)?.Name;

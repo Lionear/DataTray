@@ -32,6 +32,7 @@ public static class NodeIcons
     public static readonly Geometry Trigger = Icons.Zap;
     public static readonly Geometry User = Icons.User;
     public static readonly Geometry AgentJob = Icons.Clock;
+    public static readonly Geometry AvailabilityGroup = Icons.RefreshCw;
 
     // --- Toolbar action glyphs (Connection Manager). ---
     public static readonly Geometry Plus = Icons.Plus;
@@ -106,6 +107,8 @@ public static class NodeIcons
         DbNodeKind.Object => Object,
         DbNodeKind.AgentJob => AgentJob,
         DbNodeKind.AgentJobFolder => Folder,
+        DbNodeKind.AvailabilityGroup => AvailabilityGroup,
+        DbNodeKind.AvailabilityGroupFolder => Folder,
         _ => Connection
     };
 }
