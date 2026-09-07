@@ -175,10 +175,10 @@ public sealed class AvailabilityGroupDashboardView : UserControl
                 groupId = reader.GetGuid(0);
                 clusterTypeDesc = reader.IsDBNull(1) ? null : reader.GetString(1);
                 backupPreferenceDesc = reader.IsDBNull(2) ? null : reader.GetString(2);
-                requiredSync = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+                requiredSync = ToInt32(reader, 3) ?? 0;
                 dbFailover = !reader.IsDBNull(4) && reader.GetBoolean(4);
-                failureConditionLevel = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
-                healthCheckTimeoutMs = reader.IsDBNull(6) ? 0 : reader.GetInt32(6);
+                failureConditionLevel = ToInt32(reader, 5) ?? 0;
+                healthCheckTimeoutMs = ToInt32(reader, 6) ?? 0;
                 primaryReplica = reader.IsDBNull(7) ? null : reader.GetString(7);
                 groupSyncHealthDesc = reader.IsDBNull(8) ? null : reader.GetString(8);
             }
@@ -263,7 +263,7 @@ public sealed class AvailabilityGroupDashboardView : UserControl
                     if (await reader.ReadAsync())
                     {
                         var quorum = reader.IsDBNull(1) ? "unknown" : reader.GetString(1).Replace('_', ' ').ToLowerInvariant();
-                        return $"WSFC — cluster {reader.GetString(0)}, {reader.GetInt32(2)} nodes, quorum {quorum}";
+                        return $"WSFC — cluster {reader.GetString(0)}, {ToInt32(reader, 2) ?? 0} nodes, quorum {quorum}";
                     }
                 }
                 catch (SqlException)
@@ -297,7 +297,7 @@ public sealed class AvailabilityGroupDashboardView : UserControl
             dnsName ??= reader.IsDBNull(0) ? null : reader.GetString(0);
             if (port == 0 && !reader.IsDBNull(1))
             {
-                port = reader.GetInt32(1);
+                port = ToInt32(reader, 1) ?? 0;
             }
 
             if (!reader.IsDBNull(2))
@@ -339,7 +339,7 @@ public sealed class AvailabilityGroupDashboardView : UserControl
                 reader.IsDBNull(5) ? "—" : reader.GetString(5).Replace('_', ' ').ToLowerInvariant(),
                 AvailabilityGroupStatus.Readable(role, reader.IsDBNull(6) ? null : reader.GetString(6)),
                 reader.IsDBNull(7) ? "—" : reader.GetString(7),
-                reader.IsDBNull(8) ? 0 : reader.GetByte(8)));
+                ToInt32(reader, 8) ?? 0));
         }
 
         return rows;
@@ -372,13 +372,25 @@ public sealed class AvailabilityGroupDashboardView : UserControl
                 reader.IsDBNull(3) ? "—" : reader.GetString(3).ToLowerInvariant(),
                 !reader.IsDBNull(4) && reader.GetBoolean(4),
                 reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.IsDBNull(6) ? null : reader.GetInt64(6),
-                reader.IsDBNull(7) ? null : reader.GetInt64(7),
+                ToInt64(reader, 6),
+                ToInt64(reader, 7),
                 reader.IsDBNull(8) ? null : reader.GetDateTime(8)));
         }
 
         return rows;
     }
+
+    // sys.availability_replicas.backup_priority turned out to be int on a live SQL Server 2022 instance,
+    // not the tinyint its 0-100 range suggested (Rick's first live test, k9-prod: "Unable to cast object
+    // of type 'System.Int32' to type 'System.Byte'") — Microsoft Learn's own column-type tables are not
+    // reliable enough to type-pin a SqlDataReader read against, so every "small" numeric DMV column here
+    // goes through Convert.ToInt32/Int64 on the boxed value instead of a type-specific Get*, the same
+    // defensive shape MsSqlProvider.Nullable already uses elsewhere in this provider.
+    private static int? ToInt32(SqlDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : Convert.ToInt32(reader.GetValue(ordinal));
+
+    private static long? ToInt64(SqlDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : Convert.ToInt64(reader.GetValue(ordinal));
 
     // log_send_queue_size/redo_queue_size are kilobytes per sys.dm_hadr_database_replica_states — a raw
     // "1789" next to a column called "queue" reads as a count, not a size, so this always shows the unit.
