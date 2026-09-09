@@ -244,7 +244,11 @@ public sealed class AvailabilityGroupDashboardView : UserControl
 
     private static async Task<string> ClusterTextAsync(SqlConnection connection, string? clusterTypeDesc)
     {
-        switch (clusterTypeDesc)
+        // Case-insensitive: sys.availability_groups returns cluster_type_desc lowercase ("none"), unlike
+        // the sys.dm_hadr_* desc columns. Matching "NONE" ordinally dropped straight through to default
+        // and printed a bare "none" instead of the sentence that says there is no automatic failover —
+        // the one thing a reader most needs from this field. Verified in tools/mssql-ag-lab.
+        switch (clusterTypeDesc?.ToUpperInvariant())
         {
             case "NONE":
                 return "NONE — read-scale, no cluster, no automatic failover";

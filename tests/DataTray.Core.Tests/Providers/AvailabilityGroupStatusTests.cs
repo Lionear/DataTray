@@ -98,6 +98,23 @@ public class AvailabilityGroupStatusTests
     public void BackupPreferenceText_translates_the_server_constant(string desc, string expected) =>
         Assert.Equal(expected, AvailabilityGroupStatus.BackupPreferenceText(desc));
 
+    // sys.availability_groups really does return this column lowercase, unlike the sys.dm_hadr_* desc
+    // columns and unlike the documentation — verified against a live group in tools/mssql-ag-lab. The
+    // uppercase-only theory above passed while the dashboard showed a raw "secondary".
+    [Theory]
+    [InlineData("secondary", "Prefer secondary")]
+    [InlineData("secondary_only", "Secondary only")]
+    [InlineData("primary", "Prefer primary")]
+    [InlineData("none", "None")]
+    public void BackupPreferenceText_accepts_the_lowercase_form_the_catalog_view_returns(string desc, string expected) =>
+        Assert.Equal(expected, AvailabilityGroupStatus.BackupPreferenceText(desc));
+
+    // An unrecognised value is still shown as the server wrote it, not upper-cased into something
+    // SQL Server never said.
+    [Fact]
+    public void BackupPreferenceText_passes_an_unknown_value_through_unchanged() =>
+        Assert.Equal("something_new", AvailabilityGroupStatus.BackupPreferenceText("something_new"));
+
     [Fact]
     public void Summary_names_the_primary_when_healthy() =>
         Assert.Equal("Healthy. Primary is SQL01\\PROD.", AvailabilityGroupStatus.Summary("SQL01\\PROD", "HEALTHY"));
