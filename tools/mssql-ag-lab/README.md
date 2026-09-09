@@ -1,7 +1,55 @@
 # `mssql-ag-lab` — a local SQL Server Always On availability group to test against
 
-> **Status: design only.** No scripts here yet. This file is the design; the compose file and the
-> bootstrap SQL land next to it in step 1 and this becomes their README.
+> **Status: step 1 works.** `compose.yaml` + `bootstrap.sh` bring up a real two-node availability
+> group. Step 2 (automatic failover) is still design — see below.
+
+## Running it
+
+```sh
+./bootstrap.sh                              # up + form the group (safe to re-run)
+docker compose down -v && ./bootstrap.sh    # start over from nothing
+docker compose down                         # stop, keep the data
+```
+
+About 45 seconds from an empty state, once the image is pulled. It ends by printing the replica and
+database states:
+
+```
+replica                      role                         health                       connected
+---------------------------- ---------------------------- ---------------------------- ----------------
+agnode1                      PRIMARY                      HEALTHY                      CONNECTED
+agnode2                      SECONDARY                    HEALTHY                      CONNECTED
+```
+
+Connect DataTray to `localhost,14331` (primary) or `localhost,14332` (secondary), `sa` /
+`Str0ng!Passw0rd` — the same default as `MsSqlProvider.ContainerRecipe`, so the connection dialog's
+prefill is already right. Override with `SA_PASSWORD`, `NODE1_PORT`, `NODE2_PORT`, `MSSQL_TAG`.
+
+### Failing over by hand
+
+There is no cluster manager here, so failover is manual — and a plain `ALTER AVAILABILITY GROUP …
+FAILOVER` is **rejected**, verified against this lab:
+
+```
+Msg 47122 — Cannot failover an availability replica for availability group 'ag1' since it has
+CLUSTER_TYPE = NONE. Only force failover is supported in this version of SQL Server.
+```
+
+The working sequence, run against this lab. Both replicas are `SYNCHRONOUS_COMMIT` and
+`SYNCHRONIZED`, so despite the statement's name nothing is actually lost:
+
+```sql
+-- 1. on the target secondary (agnode2, localhost,14332)
+ALTER AVAILABILITY GROUP [ag1] FORCE_FAILOVER_ALLOW_DATA_LOSS;
+
+-- 2. on the old primary (agnode1, localhost,14331) — after a forced failover every database
+--    there is left suspended (is_suspended = 1, NOT SYNCHRONIZING) and stays that way until:
+ALTER DATABASE [AgDemo] SET HADR RESUME;
+```
+
+Roles swap, both replicas return to `HEALTHY`, and the database is `SYNCHRONIZED` again. Useful
+precisely because it is the shape SE-247's failover tool has to script for `CLUSTER_TYPE = NONE`,
+and it is now a thing you can watch happen rather than a paragraph in a mockup.
 
 ## Why this exists
 
@@ -59,7 +107,11 @@ Mechanics, all of it stock:
   synchronisation, real DMV rows.
 - **Endpoint authentication is certificate-based.** No AD, no shared Windows identity between two
   containers, so each node creates a certificate, and each imports the other's public certificate to
-  authorise the endpoint login. The certificate files move over a shared bind-mounted folder.
+  authorise the endpoint login. **No shared folder is involved**: `CERTENCODED()` returns the public
+  certificate as a binary literal, so `bootstrap.sh` reads it from one node and feeds it straight to
+  `CREATE CERTIFICATE … FROM BINARY` on the other. No `BACKUP CERTIFICATE`, no UNC share, no bind
+  mount, no uid-10001 permission dance. Worth knowing for SE-247, whose open item assumes the
+  file-based path SSMS uses — that path is not the only one, and this one has no filesystem to fail on.
 - **Seeding is `AUTOMATIC`**, which needs `GRANT CREATE ANY DATABASE` on the secondary. It saves a
   backup/restore round trip in a throwaway lab.
 - **Ordering.** Both containers must be up and the primary's database must have a full backup before
@@ -74,7 +126,7 @@ What step 1 buys immediately:
 | Do SE-284's five dashboard queries return what the code assumes, against real AG rows? | Yes |
 | Actual .NET types of every `sys.dm_hadr_*` column read (the SE-284 class of bug) | Yes — and `sys.dm_exec_describe_first_result_set` can now be checked against rows, not just an empty schema |
 | What the tree shows for a secondary replica, an unhealthy replica, a suspended database | Yes |
-| Where `BACKUP CERTIFICATE` lands and how a second instance reads it back (SE-247's open item) | Yes, in the no-shared-domain case, which is exactly the hard one |
+| How a second instance gets the first one's endpoint certificate with no shared domain (SE-247's open item) | Yes — and the answer turned out to be that no file needs to move at all |
 | `sys.availability_group_listeners` with no listener — empty rows, or something the dashboard misreads? | Yes |
 | Does automatic failover behave as the dashboard/wizard assume? | **No** — step 2 |
 
@@ -124,22 +176,38 @@ there is a listener to point it at.
 
 ## Plan
 
-1. **`compose.yaml` + `bootstrap.sh`** — two nodes, certificate exchange, `CREATE AVAILABILITY GROUP`
-   with `CLUSTER_TYPE = NONE`, one seeded database with rows. Success criterion: `SELECT` against
-   `sys.dm_hadr_availability_replica_states` on both nodes returns a primary and a synchronised
-   secondary, and DataTray's tree shows the Availability Groups folder with the group under it.
-2. **Verify SE-284's queries against it** — run the dashboard's five queries and the tree probe, and
-   compare every column's real .NET type against what the code reads. This is the step that would
-   have caught `backup_priority`. Fix what it finds.
-3. **Answer SE-247's certificate open item** with what step 1 shows about `BACKUP CERTIFICATE` paths
-   in the no-shared-filesystem case, and record it on the ticket.
+1. ✅ **`compose.yaml` + `bootstrap.sh`** — two nodes, certificate exchange, `CREATE AVAILABILITY
+   GROUP` with `CLUSTER_TYPE = NONE`, one auto-seeded database with rows. Both replicas come up
+   `HEALTHY`/`CONNECTED` with `AgDemo` `SYNCHRONIZED` on both sides, and a forced failover and
+   resume were run against it end to end.
+2. **Verify SE-284's queries against it** — run the dashboard's five queries and the tree probe and
+   compare every column's real .NET type against what the code reads. **Not done here**: SE-284
+   landed on `develop` (PRs #191/#192) and this branch predates it, so there is no
+   `AvailabilityGroupDashboardView` in this worktree to check. Needs a branch off `develop`.
+   The one spot-check that *was* possible confirms the premise — against real replica rows,
+   `sys.availability_replicas.backup_priority` is `int`, while `failover_mode` and
+   `availability_mode` really are `tinyint` — so PR #192's blanket `Convert.ToInt32` was the right call.
+3. ✅ **SE-247's certificate open item** — answered, and not the way the ticket assumed: with
+   `CERTENCODED()` + `FROM BINARY` no certificate file has to move between instances at all, so the
+   shared-UNC-path problem that motivated the open item can be sidestepped entirely. Worth a comment
+   on SE-247.
 4. **Step 2 (separate ticket)** — three VMs, Pacemaker, `CLUSTER_TYPE = EXTERNAL`, virtual IP. Only
    then is the SE-247 failover tool testable, and only then is `EXTERNAL`'s "the tool must refuse and
    say why" path reachable.
 
-Steps 1–3 are one PR. Step 2 is its own, and nothing in step 1 constrains it: the bootstrap SQL is
-the same statements with a different `CLUSTER_TYPE`, and the lab folder gets a second subfolder
-rather than a rewrite.
+Step 2 is its own PR, and nothing in step 1 constrains it: the bootstrap SQL is the same statements
+with a different `CLUSTER_TYPE`, and the lab folder gets a second subfolder rather than a rewrite.
+
+## Gotchas this cost, so the next person doesn't pay them again
+
+- **`sqlcmd` truncates a large value to a 256-character display width, silently.** The endpoint
+  certificate hex is ~1900 characters, so the importing node just reports `Msg 15468 — An error
+  occurred during the generation of the certificate`, which says nothing about truncation. `-W` and
+  `-y` are mutually exclusive, and so are `-h -1` and `-y 0`, so the combination that works is
+  `-h -1 -y 8000`.
+- **`-y` right-aligns numbers.** `SELECT COUNT(*)` comes back as `"          0"`, so a trailing-only
+  trim leaves a string that is not `"0"` — which inverted every "does this already exist?" guard in
+  the script and made a fresh lab claim it was already built. Trim both ends.
 
 ## Open
 

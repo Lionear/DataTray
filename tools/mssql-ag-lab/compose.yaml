@@ -1,0 +1,44 @@
+name: mssql-ag-lab
+
+# Two SQL Server nodes on one compose network, both with Always On enabled. The availability group
+# itself is not created here — bootstrap.sh does that, because "the AG is formed" is not a state
+# compose can wait for. See README.md.
+x-node: &node
+  image: mcr.microsoft.com/mssql/server:${MSSQL_TAG:-2025-latest}
+  restart: unless-stopped
+  environment:
+    ACCEPT_EULA: "Y"
+    MSSQL_SA_PASSWORD: ${SA_PASSWORD:-Str0ng!Passw0rd}
+    MSSQL_PID: Developer
+    # The whole reason this needs no exec/mssql-conf/restart dance: enabling Always On is an
+    # environment variable on the Linux image.
+    MSSQL_ENABLE_HADR: "1"
+    # A lab box runs other things too; without this each node claims 80% of host RAM.
+    MSSQL_MEMORY_LIMIT_MB: "4096"
+  healthcheck:
+    test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q 'SELECT 1' -o /dev/null"]
+    interval: 5s
+    timeout: 5s
+    retries: 40
+    start_period: 20s
+
+services:
+  # hostname matters: with CLUSTER_TYPE = NONE the replica name in CREATE AVAILABILITY GROUP must
+  # match the instance's own SERVERPROPERTY('ServerName'), which in a container is its hostname.
+  agnode1:
+    <<: *node
+    hostname: agnode1
+    container_name: agnode1
+    ports: ["${NODE1_PORT:-14331}:1433"]
+    volumes: [agnode1-data:/var/opt/mssql]
+
+  agnode2:
+    <<: *node
+    hostname: agnode2
+    container_name: agnode2
+    ports: ["${NODE2_PORT:-14332}:1433"]
+    volumes: [agnode2-data:/var/opt/mssql]
+
+volumes:
+  agnode1-data:
+  agnode2-data:
