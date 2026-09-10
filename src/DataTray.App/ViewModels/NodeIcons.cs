@@ -38,6 +38,21 @@ public static class NodeIcons
     public static readonly Geometry Duplicate = Icons.Copy;
     public static readonly Geometry Trash = Icons.Trash2;
 
+    /// <summary>Clears the sidebar tree filter (SE-285); also closes connection management (SE-289).</summary>
+    public static readonly Geometry ClearFilter = Icons.X;
+
+    /// <summary>Sits inside the sidebar filter box so the field reads as a search box (SE-285).</summary>
+    public static readonly Geometry Search = Icons.Search;
+
+    /// <summary>Opens connection management from the sidebar header (SE-289). The generated Lucide set
+    /// here has no cog, and sliders is already this app's "settings" glyph (Settings ▸ General); swap
+    /// this one line if a gear is ever added to the set.</summary>
+    public static readonly Geometry ManageConnections = Icons.SlidersHorizontal;
+
+    // Collapse/expand chevrons for a form section header (SE-287's Advanced card).
+    public static readonly Geometry SectionCollapsed = Icons.ChevronRight;
+    public static readonly Geometry SectionExpanded = Icons.ChevronDown;
+
     // --- Document tab-strip glyphs. ---
     public static readonly Geometry TabQuery = Icons.FileCode;
     public static readonly Geometry TabBrowse = Icons.Table;

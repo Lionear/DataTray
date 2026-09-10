@@ -35,13 +35,30 @@ public partial class ConnectionDialogViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSave))]
+    [NotifyPropertyChangedFor(nameof(HeaderSubtitle))]
     private string _name = "New connection";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderSubtitle))]
     private ProviderOption? _selectedProvider;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TestSucceeded))]
+    [NotifyPropertyChangedFor(nameof(TestFailed))]
+    [NotifyPropertyChangedFor(nameof(TestUntried))]
     private string _testResult = string.Empty;
+
+    // The action bar shows a status dot next to the test result (SE-287 mockup). The message alone
+    // doesn't say which it was — a provider's failure text is just as long and just as grey as "ok".
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TestSucceeded))]
+    [NotifyPropertyChangedFor(nameof(TestFailed))]
+    [NotifyPropertyChangedFor(nameof(TestUntried))]
+    private bool? _testOk;
+
+    public bool TestSucceeded => TestOk == true;
+    public bool TestFailed => TestOk == false;
+    public bool TestUntried => TestOk is null;
 
     /// <summary>A connection string the user pasted to prefill the fields (import flow, FR-1).</summary>
     [ObservableProperty]
@@ -57,7 +74,12 @@ public partial class ConnectionDialogViewModel : ViewModelBase
 
     /// <summary>Selected accent for this connection (hex, or null for none). Drives the tree flag.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedColorOption))]
+    [NotifyPropertyChangedFor(nameof(HasColor))]
     private string? _color;
+
+    /// <summary>Whether the detail header paints its colour bar (SE-287).</summary>
+    public bool HasColor => Color is not null;
 
     /// <summary>Safe mode: block the editable-grid save-flow for this connection.</summary>
     [ObservableProperty]
@@ -65,16 +87,84 @@ public partial class ConnectionDialogViewModel : ViewModelBase
 
     /// <summary>Optional sidebar folder to group this connection under (blank = ungrouped).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderSubtitle))]
     private string? _folder;
 
     /// <summary>How much MCP (AI) access this connection grants. Default None (fail-closed).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAiWriteWarning))]
+    [NotifyPropertyChangedFor(nameof(IsAiAccessNone))]
+    [NotifyPropertyChangedFor(nameof(IsAiAccessReadOnly))]
+    [NotifyPropertyChangedFor(nameof(IsAiAccessReadWrite))]
+    [NotifyPropertyChangedFor(nameof(ShowAiPill))]
+    [NotifyPropertyChangedFor(nameof(AiPillText))]
     private AiAccessMode _aiAccess = AiAccessMode.None;
 
     /// <summary>Hard override that blocks this connection from MCP entirely, regardless of AiAccess.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAiPill))]
     private bool _excludeFromMcp;
+
+    // SE-287: the three AI-access levels as radio buttons instead of a dropdown, so every level (and
+    // which one is active) is visible without opening anything — the point of the safety layer is that
+    // you can see you granted write access. The setters ignore the false side: an unchecked radio just
+    // means another one took over, and honouring it would race the newly checked one back to None.
+    public bool IsAiAccessNone
+    {
+        get => AiAccess == AiAccessMode.None;
+        set { if (value) { AiAccess = AiAccessMode.None; } }
+    }
+
+    public bool IsAiAccessReadOnly
+    {
+        get => AiAccess == AiAccessMode.ReadOnly;
+        set { if (value) { AiAccess = AiAccessMode.ReadOnly; } }
+    }
+
+    public bool IsAiAccessReadWrite
+    {
+        get => AiAccess == AiAccessMode.ReadWrite;
+        set { if (value) { AiAccess = AiAccessMode.ReadWrite; } }
+    }
+
+    /// <summary>"AI" pill in the detail header: this connection is actually reachable by the MCP server
+    /// (opted in and not hard-excluded), mirroring <see cref="SavedConnection.IsMcpReachable"/>.</summary>
+    public bool ShowAiPill => AiAccess != AiAccessMode.None && !ExcludeFromMcp;
+
+    public string AiPillText => Loc.Get("AiPill", Loc[$"AiAccess{AiAccess}"]);
+
+    /// <summary>Second line of the detail header: provider, where it connects, and its folder. Display
+    /// only — the well-known keys below cover every host-based provider we ship, and a provider without
+    /// them (SQLite) simply gets the shorter line.</summary>
+    public string HeaderSubtitle
+    {
+        get
+        {
+            var parts = new List<string>(3);
+            if (SelectedProvider is { } provider)
+            {
+                parts.Add(provider.DisplayName);
+            }
+
+            var host = FieldValue("host") ?? FieldValue("path");
+            if (!string.IsNullOrWhiteSpace(host))
+            {
+                var user = FieldValue("username");
+                var port = FieldValue("port");
+                var target = string.IsNullOrWhiteSpace(port) ? host : $"{host}:{port}";
+                parts.Add(string.IsNullOrWhiteSpace(user) ? target : $"{user}@{target}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Folder))
+            {
+                parts.Add(Folder!);
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    private string? FieldValue(string key) => Fields.FirstOrDefault(f => f.Field.Key == key)?.Value;
 
     public IReadOnlyList<AiAccessMode> AiAccessModes { get; } =
         [AiAccessMode.None, AiAccessMode.ReadOnly, AiAccessMode.ReadWrite];
@@ -83,9 +173,20 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     /// connection) — the visible "are you sure" step before persisting ReadWrite (plan §4).</summary>
     public bool ShowAiWriteWarning => AiAccess == AiAccessMode.ReadWrite;
 
-    // A small fixed palette + "none"; enough to flag prod/staging without a full colour picker.
-    private static readonly string?[] Palette =
-        [null, "#E5484D", "#F76B15", "#FFB224", "#30A46C", "#3574F0", "#8E4EC6"];
+    // A small fixed palette + "none"; enough to flag prod/staging without a full colour picker. The
+    // second half of each pair is the resx key for the colour's name — SE-287 turned the row of unlabelled
+    // circles into a named dropdown, which is also what makes "no colour" say what it is instead of being
+    // an empty ellipse. The values themselves are unchanged.
+    private static readonly (string? Hex, string NameKey)[] Palette =
+    [
+        (null, "ColorNone"),
+        ("#E5484D", "ColorRed"),
+        ("#F76B15", "ColorOrange"),
+        ("#FFB224", "ColorAmber"),
+        ("#30A46C", "ColorGreen"),
+        ("#3574F0", "ColorBlue"),
+        ("#8E4EC6", "ColorPurple"),
+    ];
 
     public ConnectionDialogViewModel(ConnectionService connections, IDbProviderRegistry providers, ILocalizer localizer)
     {
@@ -98,25 +199,19 @@ public partial class ConnectionDialogViewModel : ViewModelBase
             .OrderBy(o => o.DisplayName)
             .ToList();
         _selectedProvider = AvailableProviders.FirstOrDefault();
-        ColorOptions = Palette.Select(c => new ColorSwatch(c)).ToList();
-        OnColorChanged(_color);
+        ColorOptions = Palette.Select(c => new ColorSwatch(c.Hex, localizer[c.NameKey])).ToList();
         RebuildFields();
     }
 
     /// <summary>The selectable colour swatches (first is "none").</summary>
     public IReadOnlyList<ColorSwatch> ColorOptions { get; }
 
-    // Keep the swatch selection ring in sync with the chosen colour.
-    partial void OnColorChanged(string? value)
+    /// <summary>Two-way bridge for the colour dropdown; the stored value stays the hex string.</summary>
+    public ColorSwatch? SelectedColorOption
     {
-        foreach (var swatch in ColorOptions)
-        {
-            swatch.IsSelected = string.Equals(swatch.Value, value, StringComparison.OrdinalIgnoreCase);
-        }
+        get => ColorOptions.FirstOrDefault(s => string.Equals(s.Value, Color, StringComparison.OrdinalIgnoreCase));
+        set => Color = value?.Value;
     }
-
-    [RelayCommand]
-    private void SelectColor(ColorSwatch? swatch) => Color = swatch?.Value;
 
     public ILocalizer Loc { get; }
 
@@ -133,12 +228,28 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     /// <summary>Fields hidden behind the collapsible "Advanced" section.</summary>
     public ObservableCollection<ConnectionFieldInput> AdvancedFields { get; } = [];
 
+    // SE-287: the same two lists again, but cut into the sub-sections the providers already declare via
+    // ConnectionField.Group ("Security", "Connection", "SSH tunnel"). That metadata existed and was
+    // thrown away — the form rendered every field as one flat list. Ungrouped fields keep their spot at
+    // the top of their section; grouped ones follow under a heading, in declaration order.
+    public ObservableCollection<ConnectionFieldGroup> BasicGroups { get; } = [];
+
+    public ObservableCollection<ConnectionFieldGroup> AdvancedGroups { get; } = [];
+
+    /// <summary>What is hiding inside the collapsed Advanced section, named rather than counted:
+    /// "Security · Connection · SSH tunnel" (SE-287 mockup). Empty when nothing is grouped.</summary>
+    public string AdvancedSummary =>
+        string.Join(" · ", AdvancedGroups.Where(g => g.HasTitle).Select(g => g.Title));
+
     [ObservableProperty]
     private bool _hasAdvancedFields;
 
     /// <summary>Whether the Advanced section is expanded (auto-opens when an import fills a hidden field).</summary>
     [ObservableProperty]
     private bool _isAdvancedExpanded;
+
+    [RelayCommand]
+    private void ToggleAdvanced() => IsAdvancedExpanded = !IsAdvancedExpanded;
 
     /// <summary>A provider-supplied Avalonia view for the Advanced section (Route B), or null to use the
     /// host-generated field form. Set when the selected provider implements <see cref="ICustomConnectionUi"/>.</summary>
@@ -225,6 +336,8 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         Fields.Clear();
         BasicFields.Clear();
         AdvancedFields.Clear();
+        BasicGroups.Clear();
+        AdvancedGroups.Clear();
         CustomAdvancedView = null;
         HasCustomAdvancedView = false;
         if (SelectedProvider is null)
@@ -249,10 +362,39 @@ public partial class ConnectionDialogViewModel : ViewModelBase
             (field.Advanced ? AdvancedFields : BasicFields).Add(input);
         }
 
+        Regroup(BasicFields, BasicGroups);
+        Regroup(AdvancedFields, AdvancedGroups);
+        OnPropertyChanged(nameof(HeaderSubtitle));
+        OnPropertyChanged(nameof(AdvancedSummary));
+
         BuildCustomAdvancedView(provider);
         // Empty string parses to a (possibly empty) map for supporters, null for providers that don't
         // implement it — a cheap capability probe with no side effects.
         SupportsImport = TryParse(SelectedProvider.Id, string.Empty) is not null;
+    }
+
+    // Cut a field list into its declared groups, ungrouped first, preserving declaration order inside
+    // each. Group values are the provider's own English strings; they get a resx pass here because this
+    // is the first time they are shown to the user (unknown group => the raw value, so a plugin's own
+    // section name still renders rather than showing a missing-key placeholder).
+    private void Regroup(IEnumerable<ConnectionFieldInput> fields, ObservableCollection<ConnectionFieldGroup> target)
+    {
+        foreach (var group in fields.GroupBy(f => f.Field.Group))
+        {
+            target.Add(new ConnectionFieldGroup(GroupTitle(group.Key), group.ToList()));
+        }
+    }
+
+    private string? GroupTitle(string? group)
+    {
+        if (string.IsNullOrWhiteSpace(group))
+        {
+            return null;
+        }
+
+        var key = $"FieldGroup{group.Replace(" ", string.Empty)}";
+        var translated = Loc[key];
+        return translated == key ? group : translated;
     }
 
     // Route B: a provider may render the Advanced section itself. Its view reads/writes the same declared
@@ -323,12 +465,14 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         TestResult = Loc["ImportDone"];
     }
 
-    // A field's value changed -> the required-fields check may flip, so re-evaluate the Save gate.
+    // A field's value changed -> the required-fields check may flip, so re-evaluate the Save gate. The
+    // header line quotes host/port/user, so it follows along (SE-287).
     private void OnFieldChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ConnectionFieldInput.Value))
         {
             OnPropertyChanged(nameof(CanSave));
+            OnPropertyChanged(nameof(HeaderSubtitle));
         }
     }
 
@@ -348,10 +492,12 @@ public partial class ConnectionDialogViewModel : ViewModelBase
             var profile = _connections.BuildProfile(Name, option.Id, Values());
             var ok = await _providers.Get(option.Id).TestConnectionAsync(profile, ct);
             TestResult = ok ? Loc["TestOk"] : Loc["TestFailed"];
+            TestOk = ok;
         }
         catch (Exception ex)
         {
             TestResult = ex.Message;
+            TestOk = false;
         }
     }
 
@@ -376,17 +522,28 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     }
 }
 
+/// <summary>One titled block of connection fields (SE-287). <paramref name="Title"/> is null for the
+/// provider's ungrouped fields, which render straight into the section without a sub-heading.</summary>
+public sealed record ConnectionFieldGroup(string? Title, IReadOnlyList<ConnectionFieldInput> Fields)
+{
+    public bool HasTitle => Title is not null;
+}
+
 /// <summary>A selectable provider in the connection dialog: the manifest id plus its friendly label.</summary>
 public sealed record ProviderOption(string Id, string DisplayName)
 {
     public override string ToString() => DisplayName;
 }
 
-/// <summary>One colour choice in the connection dialog's swatch row (<see cref="Value"/> null = none).</summary>
-public sealed partial class ColorSwatch(string? value) : ObservableObject
+/// <summary>One colour choice in the connection form's colour dropdown (<see cref="Value"/> null = none).</summary>
+public sealed class ColorSwatch(string? value, string name)
 {
     public string? Value { get; } = value;
 
-    [ObservableProperty]
-    private bool _isSelected;
+    /// <summary>Localised, speakable name ("Red", "No colour") — SE-287: a swatch without one is a
+    /// coloured dot you cannot describe, and "none" reads as an empty circle.</summary>
+    public string Name { get; } = name;
+
+    /// <summary>True for the "no colour" entry, which draws a placeholder instead of a filled chip.</summary>
+    public bool HasColor => Value is not null;
 }

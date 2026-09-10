@@ -30,6 +30,11 @@ public static class ShortcutCatalog
 
         public const string Format = "Format";
         public const string ToggleSearch = "ToggleSearch";
+
+        /// <summary>Put the caret in the sidebar tree filter (SE-285). Sibling of, not a replacement for,
+        /// <see cref="ToggleSearch"/>: quick-open jumps and closes, the filter stays and narrows the tree.</summary>
+        public const string FocusTreeFilter = "FocusTreeFilter";
+
         public const string ToggleComment = "ToggleComment";
         public const string ZoomIn = "ZoomIn";
         public const string ZoomOut = "ZoomOut";
@@ -75,6 +80,7 @@ public static class ShortcutCatalog
         new(Ids.ZoomOut, "ZoomOut", Groups.Editor, ShortcutScope.Editor, "Mod+OemMinus"),
 
         new(Ids.ToggleSearch, "ToggleSearch", Groups.Search, ShortcutScope.Window, "Mod+K"),
+        new(Ids.FocusTreeFilter, "FocusTreeFilter", Groups.Search, ShortcutScope.Window, "Mod+F"),
 
         new(Ids.RefreshTree, "RefreshTree", Groups.Tree, ShortcutScope.Window, "Mod+R"),
     ];

@@ -57,6 +57,15 @@
   <data name="Connections" xml:space="preserve">
     <value>Connections</value>
   </data>
+  <data name="FilterTree" xml:space="preserve">
+    <value>Filter connections and objects…</value>
+  </data>
+  <data name="ClearFilter" xml:space="preserve">
+    <value>Clear filter</value>
+  </data>
+  <data name="TreeFilterMatches" xml:space="preserve">
+    <value>{0} matches in {1} loaded objects · Esc clears</value>
+  </data>
   <data name="SelectRows" xml:space="preserve">
     <value>Show rows (top 100)</value>
   </data>
@@ -422,6 +431,66 @@
   </data>
   <data name="ConnectionColor" xml:space="preserve">
     <value>Colour</value>
+  </data>
+  <data name="SectionIdentity" xml:space="preserve">
+    <value>Identity</value>
+  </data>
+  <data name="SectionIdentityHint" xml:space="preserve">
+    <value>how this connection appears in the tree</value>
+  </data>
+  <data name="SectionServer" xml:space="preserve">
+    <value>Connection</value>
+  </data>
+  <data name="SectionAccess" xml:space="preserve">
+    <value>Access</value>
+  </data>
+  <data name="SectionAccessHint" xml:space="preserve">
+    <value>who may do what with this connection</value>
+  </data>
+  <data name="SectionFolder" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="FieldGroupSecurity" xml:space="preserve">
+    <value>Security</value>
+  </data>
+  <data name="FieldGroupConnection" xml:space="preserve">
+    <value>Connection</value>
+  </data>
+  <data name="FieldGroupSSHtunnel" xml:space="preserve">
+    <value>SSH tunnel</value>
+  </data>
+  <data name="ColorNone" xml:space="preserve">
+    <value>No colour</value>
+  </data>
+  <data name="ColorRed" xml:space="preserve">
+    <value>Red</value>
+  </data>
+  <data name="ColorOrange" xml:space="preserve">
+    <value>Orange</value>
+  </data>
+  <data name="ColorAmber" xml:space="preserve">
+    <value>Amber</value>
+  </data>
+  <data name="ColorGreen" xml:space="preserve">
+    <value>Green</value>
+  </data>
+  <data name="ColorBlue" xml:space="preserve">
+    <value>Blue</value>
+  </data>
+  <data name="ColorPurple" xml:space="preserve">
+    <value>Purple</value>
+  </data>
+  <data name="ConnectionColorHint" xml:space="preserve">
+    <value>colours the flag in the tree</value>
+  </data>
+  <data name="AiPill" xml:space="preserve">
+    <value>AI · {0}</value>
+  </data>
+  <data name="ReadOnlyPill" xml:space="preserve">
+    <value>Read-only</value>
+  </data>
+  <data name="MoreActions" xml:space="preserve">
+    <value>More actions</value>
   </data>
   <data name="ReadOnlyMode" xml:space="preserve">
     <value>Read-only (safe mode)</value>
@@ -984,6 +1053,9 @@
   <data name="ManageConnections" xml:space="preserve">
     <value>Manage Connections</value>
   </data>
+  <data name="CloseManager" xml:space="preserve">
+    <value>Done managing connections</value>
+  </data>
   <data name="FilterConnections" xml:space="preserve">
     <value>Filter connections</value>
   </data>
@@ -1010,6 +1082,9 @@
   </data>
   <data name="ManagerSummary" xml:space="preserve">
     <value>{0} connections · {1} folders</value>
+  </data>
+  <data name="FolderSummary" xml:space="preserve">
+    <value>{0} connections · {1} subfolders</value>
   </data>
   <data name="DeleteConnectionConfirm" xml:space="preserve">
     <value>Delete connection "{0}"?</value>
@@ -1217,6 +1292,9 @@
   </data>
   <data name="ToggleSearch" xml:space="preserve">
     <value>Go to / search</value>
+  </data>
+  <data name="FocusTreeFilter" xml:space="preserve">
+    <value>Filter the connection tree</value>
   </data>
   <data name="ToggleComment" xml:space="preserve">
     <value>Toggle line comment</value>

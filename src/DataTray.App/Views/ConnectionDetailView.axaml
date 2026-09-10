@@ -1,0 +1,483 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="using:DataTray.App.Converters"
+             xmlns:vm="using:DataTray.App.ViewModels"
+             x:Class="DataTray.App.Views.ConnectionDetailView">
+  <!-- SE-289: the right half of the retired Connection Manager window, now hosted in the main
+       window's content area (where the editor tabs live) while connection management is active. The
+       layout itself is SE-287's; nothing about it changed by moving. -->
+  <UserControl.Resources>
+    <!-- One row per ConnectionField, shared between every section. SE-287: label left, control right
+         instead of label-above-field — that halves the vertical space the form needs, which is what
+         made the old panel one long scroll, more than the number of fields did. A Bool field skips the
+         label column entirely and carries its text next to the checkbox, where it reads as a sentence.
+         Bindings resolve against a ConnectionFieldInput. -->
+    <DataTemplate x:Key="FieldTemplate">
+      <Grid ColumnDefinitions="150,*" Margin="0,0,0,6">
+        <!-- The required marker is its own run so it can be red without losing the label's wrapping
+             inside the fixed 150px column (SE-287 mockup). -->
+        <TextBlock Grid.Column="0" Classes="FieldLabel" IsVisible="{Binding !IsBool}">
+          <Run Text="{Binding LabelText}" />
+          <Run Text="{Binding RequiredMarker}" Foreground="{DynamicResource SEStatusErrorBrush}" />
+        </TextBlock>
+        <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+          <TextBox Grid.Column="0"
+                   Classes.Narrow="{Binding IsNumber}" Classes.Mono="{Binding IsFile}"
+                   Text="{Binding Value}"
+                   PlaceholderText="{Binding Watermark}"
+                   PasswordChar="{Binding PasswordChar}"
+                   IsVisible="{Binding IsText}" />
+          <CheckBox Grid.Column="0"
+                    IsChecked="{Binding BoolValue}"
+                    Content="{Binding Label}"
+                    IsVisible="{Binding IsBool}" />
+          <ComboBox Grid.Column="0" Classes="Medium"
+                    ItemsSource="{Binding Choices}"
+                    SelectedItem="{Binding Value}"
+                    IsVisible="{Binding IsChoice}" />
+          <Button Grid.Column="1" Margin="6,0,0,0"
+                  Content="{Binding $parent[UserControl].DataContext.Loc[Browse]}"
+                  IsVisible="{Binding IsFile}"
+                  Click="OnBrowseClick" />
+        </Grid>
+      </Grid>
+    </DataTemplate>
+
+    <!-- A ConnectionFieldGroup: the provider's own ConnectionField.Group turned into a sub-heading.
+         Ungrouped fields have no title and render straight into the section (SE-287). -->
+    <DataTemplate x:Key="FieldGroupTemplate">
+      <StackPanel>
+        <TextBlock Classes="GroupHead" Text="{Binding Title}" IsVisible="{Binding HasTitle}" />
+        <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource FieldTemplate}" />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- One colour in the palette dropdown: chip + speakable name. The "no colour" entry draws a
+         hairline outline instead of a fill, so it says what it is rather than being an empty circle. -->
+    <DataTemplate x:Key="ColorOptionTemplate">
+      <StackPanel Orientation="Horizontal" Spacing="9">
+        <Border Width="14" Height="14" CornerRadius="4" VerticalAlignment="Center"
+                BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+                Background="{Binding Value, Converter={x:Static conv:HexBrushConverter.Instance}}" />
+        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <!-- SE-287 section card: a bordered block with its own header bar, so the detail panel reads as
+         four labelled groups instead of one undifferentiated column of fields. -->
+    <Style Selector="Border.Card">
+      <Setter Property="Background" Value="{DynamicResource SEPanelBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource SEHairlineThickness}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource SEPanelRadius}" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.CardHead">
+      <Setter Property="Background" Value="{DynamicResource SESecondaryBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Padding" Value="14,7" />
+    </Style>
+    <Style Selector="TextBlock.CardTitle">
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.CardHint">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- The 150px label column; the control column therefore starts at 162px, which is where the
+         sub-headings and hint lines below line up too. -->
+    <Style Selector="TextBlock.FieldLabel">
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,4,12,0" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.GroupHead">
+      <Setter Property="Margin" Value="162,10,0,4" />
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+    <!-- Field widths from the mockup: a port or a timeout in a full-width box reads as if a long value
+         is expected, and a closed set of choices never needs the whole column either. -->
+    <Style Selector="TextBox.Narrow">
+      <Setter Property="Width" Value="96" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBox.Mono">
+      <Setter Property="FontFamily" Value="{DynamicResource SEMonoFont}" />
+    </Style>
+    <Style Selector="ComboBox.Medium">
+      <Setter Property="Width" Value="170" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBlock.FieldHint">
+      <Setter Property="Margin" Value="162,0,0,8" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+    <!-- Header status pills: read-only / AI access, which used to be invisible until you scrolled
+         down to the control that set them. -->
+    <Style Selector="Border.Pill">
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="Margin" Value="8,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource SEHairlineThickness}" />
+    </Style>
+    <Style Selector="Border.Pill > TextBlock">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.Pill.Ai">
+      <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Border.Pill.Ai > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SEAccentBrush}" />
+    </Style>
+    <!-- Advanced is the one collapsible section, so its header is a button rather than a label. It is a
+         plain Button and not an Expander/ToggleButton on purpose: Fluent's Expander header paints its own
+         background from the control theme, which ignored an override and rendered solid black on the dark
+         theme. Button backgrounds are already fully owned by Theme.axaml, so this one just follows. -->
+    <Style Selector="Button.CardHeadButton">
+      <Setter Property="Background" Value="{DynamicResource SESecondaryBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="14,7" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.CardHeadButton:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+
+    <!-- Empty state. The two buttons duplicate the sidebar toolbar icons on purpose: an empty panel
+         is exactly where you are looking when you need them (SE-287). -->
+    <StackPanel IsVisible="{Binding IsEmptyPane}" Spacing="6"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+      <Path Width="30" Height="30" Stretch="Uniform" HorizontalAlignment="Center"
+            Data="{x:Static vm:NodeIcons.Connection}"
+            Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="1.2"
+            StrokeJoin="Round" StrokeLineCap="Round" Margin="0,0,0,6" />
+      <TextBlock HorizontalAlignment="Center" Foreground="{DynamicResource SETextFaintBrush}"
+                 Text="{Binding Loc[ManagerEmptyHint]}" />
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,10,0,0">
+        <Button Classes="Accent" Content="{Binding Loc[NewConnection]}"
+                Command="{Binding NewConnectionCommand}" />
+        <Button Content="{Binding Loc[NewFolder]}" Command="{Binding NewFolderCommand}" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Folder detail: same header + section shape as a connection, so the pane doesn't change form
+         when you click from a connection to a folder. -->
+    <Grid IsVisible="{Binding IsFolderPane}" RowDefinitions="Auto,*,Auto">
+      <Border Grid.Row="0" Padding="20,12" BorderThickness="0,0,0,1"
+              BorderBrush="{DynamicResource SEHairlineBrush}">
+        <Grid ColumnDefinitions="Auto,*">
+          <Path Grid.Column="0" Width="16" Height="16" Stretch="Uniform" Margin="0,0,9,0"
+                VerticalAlignment="Center" Data="{x:Static vm:NodeIcons.Folder}"
+                Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.3"
+                StrokeJoin="Round" StrokeLineCap="Round" />
+          <StackPanel Grid.Column="1" Spacing="1">
+            <TextBlock Text="{Binding FolderName}" FontSize="15" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding FolderSummary}" FontSize="11.5"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <ScrollViewer Grid.Row="1">
+        <Border Classes="Card" Margin="20,16" MaxWidth="600" HorizontalAlignment="Left">
+          <StackPanel>
+            <Border Classes="CardHead">
+              <TextBlock Classes="CardTitle" Text="{Binding Loc[SectionFolder]}" />
+            </Border>
+            <StackPanel Margin="14,10,14,12">
+              <Grid ColumnDefinitions="150,*" Margin="0,0,0,6">
+                <TextBlock Grid.Column="0" Classes="FieldLabel" Text="{Binding Loc[FolderName]}" />
+                <TextBox Grid.Column="1" Text="{Binding FolderName}" />
+              </Grid>
+              <TextBlock Classes="FieldHint" MaxWidth="380" HorizontalAlignment="Left"
+                         Text="{Binding Loc[FolderDeleteNote]}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </ScrollViewer>
+
+      <Border Grid.Row="2" Background="{DynamicResource SEToolbarBgBrush}"
+              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,1,0,0"
+              Padding="16,10">
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <Button Grid.Column="1" Classes="Subtle" Content="{Binding Loc[DeleteFolder]}"
+                  Foreground="{DynamicResource SEStatusErrorBrush}"
+                  Command="{Binding DeleteFolderCommand}" Margin="0,0,8,0" />
+          <Button Grid.Column="2" Classes="Accent" Content="{Binding Loc[Save]}"
+                  Command="{Binding RenameFolderCommand}" />
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- Connection detail (reuses the ConnectionDialogViewModel form) -->
+    <Grid IsVisible="{Binding IsConnectionPane}" RowDefinitions="Auto,*,Auto">
+
+      <!-- Fixed header, not "the name is the first field of a scroll": halfway down the form you
+           could no longer see which connection you were editing, and the read-only / AI state was
+           only visible next to the control that set it (SE-287). -->
+      <Border Grid.Row="0" DataContext="{Binding Detail}" Padding="20,12"
+              BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SEHairlineBrush}">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+          <Border Grid.Column="0" Width="10" Height="28" CornerRadius="3" Margin="0,0,10,0"
+                  VerticalAlignment="Center" IsVisible="{Binding HasColor}"
+                  Background="{Binding Color, Converter={x:Static conv:HexBrushConverter.Instance}}" />
+          <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding HeaderSubtitle}" FontSize="11.5"
+                       FontFamily="{DynamicResource SEMonoFont}"
+                       Foreground="{DynamicResource SETextFaintBrush}"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <Border Grid.Column="2" Classes="Pill" IsVisible="{Binding ReadOnly}">
+            <TextBlock Text="{Binding Loc[ReadOnlyPill]}" />
+          </Border>
+          <Border Grid.Column="3" Classes="Pill Ai" IsVisible="{Binding ShowAiPill}">
+            <TextBlock Text="{Binding AiPillText}" />
+          </Border>
+        </Grid>
+      </Border>
+
+      <ScrollViewer Grid.Row="1" DataContext="{Binding Detail}">
+        <StackPanel Margin="20,16" Spacing="12" MaxWidth="600" HorizontalAlignment="Left">
+
+          <!-- Managed (plugin-owned) connection: editing here can break the link the plugin maintains. -->
+          <Border IsVisible="{Binding IsManaged}"
+                  Background="#22D6A545" BorderBrush="#66D6A545" BorderThickness="1" CornerRadius="5" Padding="10,6">
+            <Grid ColumnDefinitions="Auto,*">
+              <Path Grid.Column="0" Width="15" Height="15" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Warning}"
+                    Stroke="#E7C77A" StrokeThickness="1.4" StrokeJoin="Round" StrokeLineCap="Round"
+                    VerticalAlignment="Top" Margin="0,1,8,0" />
+              <TextBlock Grid.Column="1" Text="{Binding ManagedNotice}" FontSize="12"
+                         Foreground="#E7C77A" TextWrapping="Wrap" />
+            </Grid>
+          </Border>
+
+          <!-- ── Identity ───────────────────────────────────────────────────────────────────── -->
+          <Border Classes="Card">
+            <StackPanel>
+              <Border Classes="CardHead">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="CardTitle" Text="{Binding Loc[SectionIdentity]}" />
+                  <TextBlock Classes="CardHint" Text="{Binding Loc[SectionIdentityHint]}" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="14,10,14,12">
+                <Grid ColumnDefinitions="150,*" Margin="0,0,0,6">
+                  <TextBlock Grid.Column="0" Classes="FieldLabel" Text="{Binding Loc[ConnectionName]}" />
+                  <TextBox Grid.Column="1" Text="{Binding Name}" />
+                </Grid>
+
+                <!-- Type-ahead over existing folder paths (from the manager VM), but free text is
+                     allowed so a new path can be typed. -->
+                <Grid ColumnDefinitions="150,*">
+                  <TextBlock Grid.Column="0" Classes="FieldLabel" Text="{Binding Loc[Folder]}" />
+                  <AutoCompleteBox Grid.Column="1" Text="{Binding Folder, Mode=TwoWay}"
+                                   PlaceholderText="{Binding Loc[FolderHint]}"
+                                   ItemsSource="{Binding $parent[UserControl].DataContext.FolderSuggestions}"
+                                   FilterMode="Contains"
+                                   MinimumPrefixLength="0"
+                                   HorizontalAlignment="Stretch" />
+                </Grid>
+
+                <!-- Same seven palette values as before; only the presentation changed, from a row
+                     of unlabelled Ellipse buttons to one named dropdown (SE-287). -->
+                <Grid ColumnDefinitions="150,*" Margin="0,0,0,4">
+                  <TextBlock Grid.Column="0" Classes="FieldLabel" Text="{Binding Loc[ConnectionColor]}" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                    <ComboBox Width="190"
+                              ItemsSource="{Binding ColorOptions}"
+                              SelectedItem="{Binding SelectedColorOption}"
+                              ItemTemplate="{StaticResource ColorOptionTemplate}" />
+                    <TextBlock Text="{Binding Loc[ConnectionColorHint]}" FontSize="11"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource SETextFaintBrush}" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- ── Connection (provider + its declared basic fields) ───────────────────────────── -->
+          <Border Classes="Card">
+            <StackPanel>
+              <Border Classes="CardHead">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="CardTitle" Text="{Binding Loc[SectionServer]}" />
+                  <TextBlock Classes="CardHint" Text="{Binding SelectedProvider.DisplayName}" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="14,10,14,12">
+                <Grid ColumnDefinitions="150,*" Margin="0,0,0,6">
+                  <TextBlock Grid.Column="0" Classes="FieldLabel" Text="{Binding Loc[Provider]}" />
+                  <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                            ItemsSource="{Binding AvailableProviders}"
+                            SelectedItem="{Binding SelectedProvider}" />
+                </Grid>
+
+                <!-- Import from a pasted connection string (FR-1); hidden for providers that can't parse one. -->
+                <Grid ColumnDefinitions="150,*" IsVisible="{Binding SupportsImport}" Margin="0,0,0,6">
+                  <TextBlock Grid.Column="0" Classes="FieldLabel" Text="{Binding Loc[ImportConnectionString]}" />
+                  <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0" Text="{Binding ImportConnectionString}"
+                             PlaceholderText="{Binding Loc[ImportConnectionStringHint]}" />
+                    <Button Grid.Column="1" Margin="6,0,0,0" Content="{Binding Loc[Import]}"
+                            Command="{Binding ImportFromConnectionStringCommand}" />
+                  </Grid>
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding BasicGroups}" ItemTemplate="{StaticResource FieldGroupTemplate}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- ── Advanced: the one section that starts collapsed ─────────────────────────────── -->
+          <Border Classes="Card" IsVisible="{Binding HasAdvancedFields}">
+            <StackPanel>
+              <Button Classes="CardHeadButton" Command="{Binding ToggleAdvancedCommand}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="CardTitle" Text="{Binding Loc[AdvancedSettings]}" />
+                    <TextBlock Classes="CardHint" Text="{Binding AdvancedSummary}" />
+                  </StackPanel>
+                  <Path Grid.Column="1" Width="10" Height="10" Stretch="Uniform" VerticalAlignment="Center"
+                        Data="{x:Static vm:NodeIcons.SectionCollapsed}"
+                        IsVisible="{Binding !IsAdvancedExpanded}"
+                        Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="1.6"
+                        StrokeJoin="Round" StrokeLineCap="Round" />
+                  <Path Grid.Column="1" Width="10" Height="10" Stretch="Uniform" VerticalAlignment="Center"
+                        Data="{x:Static vm:NodeIcons.SectionExpanded}"
+                        IsVisible="{Binding IsAdvancedExpanded}"
+                        Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="1.6"
+                        StrokeJoin="Round" StrokeLineCap="Round" />
+                </Grid>
+              </Button>
+              <StackPanel IsVisible="{Binding IsAdvancedExpanded}" Margin="14,10,14,12">
+                <ContentControl Content="{Binding CustomAdvancedView}" IsVisible="{Binding HasCustomAdvancedView}" />
+                <!-- Sub-headings come from ConnectionField.Group, which the providers already fill in
+                     ("Security", "Connection", "SSH tunnel") and the old flat ItemsControl discarded. -->
+                <ItemsControl ItemsSource="{Binding AdvancedGroups}" ItemTemplate="{StaticResource FieldGroupTemplate}"
+                              IsVisible="{Binding !HasCustomAdvancedView}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- ── Access ──────────────────────────────────────────────────────────────────────── -->
+          <Border Classes="Card">
+            <StackPanel>
+              <Border Classes="CardHead">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="CardTitle" Text="{Binding Loc[SectionAccess]}" />
+                  <TextBlock Classes="CardHint" Text="{Binding Loc[SectionAccessHint]}" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="14,10,14,12">
+                <Grid ColumnDefinitions="150,*" Margin="0,0,0,6">
+                  <CheckBox Grid.Column="1" IsChecked="{Binding ReadOnly}" Content="{Binding Loc[ReadOnlyMode]}" />
+                </Grid>
+
+                <!-- MCP (AI) access: opt-in per connection (default None = invisible to the AI). Radio
+                     buttons rather than a dropdown so all three levels — and which one is active —
+                     are visible without opening anything. The fail-closed default, the write warning
+                     and the hard block are unchanged; only the control changed (MCP plan §4). -->
+                <Grid ColumnDefinitions="150,*" Margin="0,4,0,4">
+                  <TextBlock Grid.Column="0" Classes="FieldLabel" Text="{Binding Loc[AiAccess]}" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                    <RadioButton GroupName="AiAccess" IsChecked="{Binding IsAiAccessNone}"
+                                 Content="{Binding Loc[AiAccessNone]}" />
+                    <RadioButton GroupName="AiAccess" IsChecked="{Binding IsAiAccessReadOnly}"
+                                 Content="{Binding Loc[AiAccessReadOnly]}" />
+                    <RadioButton GroupName="AiAccess" IsChecked="{Binding IsAiAccessReadWrite}"
+                                 Content="{Binding Loc[AiAccessReadWrite]}"
+                                 Foreground="{DynamicResource SEStatusWaitingBrush}" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Classes="FieldHint" Text="{Binding Loc[AiAccessHint]}" MaxWidth="400"
+                           HorizontalAlignment="Left" />
+
+                <!-- Extra visible step before granting AI write access. -->
+                <Border IsVisible="{Binding ShowAiWriteWarning}" Margin="162,2,0,8" MaxWidth="400"
+                        HorizontalAlignment="Left"
+                        Background="#22D6A545" BorderBrush="#66D6A545" BorderThickness="1" CornerRadius="5" Padding="10,6">
+                  <TextBlock Text="{Binding Loc[AiWriteWarning]}" FontSize="12" Foreground="#E7C77A" TextWrapping="Wrap" />
+                </Border>
+
+                <Grid ColumnDefinitions="150,*">
+                  <CheckBox Grid.Column="1" IsChecked="{Binding ExcludeFromMcp}"
+                            Content="{Binding Loc[ExcludeFromMcp]}" />
+                </Grid>
+                <TextBlock Classes="FieldHint" Text="{Binding Loc[ExcludeFromMcpHint]}" MaxWidth="400"
+                           HorizontalAlignment="Left" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Action bar: Test lives on the detail VM; Save is the one primary action. Duplicate/Delete
+           sit in the ⋯ menu — they are already icon buttons in the sidebar toolbar, and having them
+           twice made the bar read as four equal choices (SE-287). -->
+      <Border Grid.Row="2" Background="{DynamicResource SEToolbarBgBrush}"
+              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,1,0,0"
+              Padding="16,10">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+          <Button Grid.Column="0" Content="{Binding Loc[Test]}" Command="{Binding Detail.TestCommand}" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" Margin="10,0,0,0"
+                      VerticalAlignment="Center">
+            <!-- Which way the test went, at a glance: a provider's failure text is just as long and
+                 just as grey as "connected" (SE-287 mockup). -->
+            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                     IsVisible="{Binding Detail.TestSucceeded, FallbackValue=False}"
+                     Fill="{DynamicResource SEStatusConnectedBrush}" />
+            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                     IsVisible="{Binding Detail.TestFailed, FallbackValue=False}"
+                     Fill="{DynamicResource SEStatusErrorBrush}" />
+            <TextBlock Text="{Binding Detail.TestResult}" VerticalAlignment="Center" FontSize="11.5"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </StackPanel>
+          <!-- Not Classes="Subtle": a borderless "⋯" in a toolbar full of bordered buttons read as a
+               rendering artefact rather than a control (caught by rendering it, not by reading it). -->
+          <Button Grid.Column="3" Content="⋯" FontSize="14" Padding="11,1"
+                  Margin="0,0,8,0" ToolTip.Tip="{Binding Loc[MoreActions]}"
+                  IsVisible="{Binding CanActOnConnection}">
+            <Button.Flyout>
+              <MenuFlyout Placement="TopEdgeAlignedRight">
+                <MenuItem Header="{Binding Loc[DuplicateConnection]}"
+                          Command="{Binding DuplicateConnectionCommand}" />
+                <MenuItem Header="{Binding Loc[Delete]}"
+                          Foreground="{DynamicResource SEStatusErrorBrush}"
+                          Command="{Binding DeleteConnectionCommand}" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+          <Button Grid.Column="4" Classes="Accent" Content="{Binding Loc[Save]}"
+                  Command="{Binding SaveConnectionCommand}"
+                  IsEnabled="{Binding Detail.CanSave}" IsDefault="True" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Panel>
+</UserControl>

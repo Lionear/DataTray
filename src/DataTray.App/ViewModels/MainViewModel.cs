@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -136,6 +137,8 @@ public partial class MainViewModel : ViewModelBase
         _openTabsStore = openTabsStore;
         _recentFiles = recentFiles;
         _recentFiles.Changed += OnRecentFilesChanged;
+        // Roots come and go (add/delete/folder move); re-filter so a new connection obeys an active filter.
+        ConnectionNodes.CollectionChanged += OnFilteredChildrenChanged;
         Update = appUpdate;
         PluginUpdates = pluginUpdates;
         // The update badge opens the Store straight on its Installed tab, where the updates live.
@@ -624,6 +627,7 @@ public partial class MainViewModel : ViewModelBase
         ShortcutCatalog.Ids.CommitEdits => CommitActiveEditsCommand,
         ShortcutCatalog.Ids.Format => FormatActiveDocumentCommand,
         ShortcutCatalog.Ids.ToggleSearch => ToggleSearchCommand,
+        ShortcutCatalog.Ids.FocusTreeFilter => FocusTreeFilterCommand,
         ShortcutCatalog.Ids.RefreshTree => RefreshNodeCommand,
         _ => null
     };
@@ -905,12 +909,104 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>The sidebar tree: one root node per saved connection, children loaded lazily.</summary>
     public ObservableCollection<TreeNodeViewModel> ConnectionNodes { get; } = [];
 
+    // ── Sidebar filter (SE-285) ─────────────────────────────────────────────────────────────────────
+    // One field over the one unified tree: it filters connection names while everything is collapsed and
+    // object names (schemas/tables/views/columns) inside whatever is already expanded. Deliberately NOT
+    // the same thing as ⌘K quick-open (ToggleSearch), which jumps to one object and closes again — this
+    // one stays put and narrows the tree. It never forces a lazy load: what hasn't been expanded hasn't
+    // been searched, which is why the footer counts "loaded objects".
+
+    /// <summary>Live filter text over the sidebar tree; empty = everything visible.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTreeFilter))]
+    private string _treeFilter = string.Empty;
+
+    /// <summary>Footer line while filtering: how many nodes matched, out of how many are loaded.</summary>
+    [ObservableProperty]
+    private string _treeFilterSummary = string.Empty;
+
+    public bool HasTreeFilter => TreeFilter.Trim().Length > 0;
+
+    /// <summary>Set by the view so the filter shortcut can put the caret in the sidebar filter box.</summary>
+    public Action? TreeFilterFocusRequested { get; set; }
+
+    // Nodes whose Children we already watch, so a lazily loaded subtree re-filters itself the moment it
+    // arrives instead of appearing unfiltered underneath an active filter.
+    private readonly HashSet<TreeNodeViewModel> _filterWatched = [];
+
+    // Whether anything is currently hidden. Lets the no-filter case skip the walk entirely, so the
+    // collection-changed hook below costs nothing during normal (unfiltered) tree use.
+    private bool _filterApplied;
+
+    partial void OnTreeFilterChanged(string value) => ApplyTreeFilter();
+
+    [RelayCommand]
+    private void ClearTreeFilter() => TreeFilter = string.Empty;
+
+    [RelayCommand]
+    private void FocusTreeFilter() => TreeFilterFocusRequested?.Invoke();
+
+    private void ApplyTreeFilter()
+    {
+        var filter = TreeFilter.Trim();
+        if (filter.Length == 0)
+        {
+            TreeFilterSummary = string.Empty;
+            if (_filterApplied)
+            {
+                SidebarTreeFilter.Reveal(ConnectionNodes);
+                _filterApplied = false;
+            }
+
+            return;
+        }
+
+        var (matches, loaded) = SidebarTreeFilter.Apply(ConnectionNodes, filter, WatchForFilter);
+        _filterApplied = true;
+        TreeFilterSummary = Loc.Get("TreeFilterMatches", matches, loaded);
+    }
+
+    private void WatchForFilter(TreeNodeViewModel node)
+    {
+        if (_filterWatched.Add(node))
+        {
+            node.Children.CollectionChanged += OnFilteredChildrenChanged;
+        }
+    }
+
+    // A lazy load clears the child list and then adds the children one by one, so this fires once per
+    // row. Coalesce onto a single pass, and do nothing at all when no filter is active — a fresh node
+    // is visible by default, so there is nothing to recompute.
+    private bool _filterRefreshQueued;
+
+    private void OnFilteredChildrenChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!_filterApplied || _filterRefreshQueued)
+        {
+            return;
+        }
+
+        _filterRefreshQueued = true;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                _filterRefreshQueued = false;
+                ApplyTreeFilter();
+            },
+            DispatcherPriority.Background);
+    }
+
     /// <summary>Open editor tabs (query panes and table-browse panes).</summary>
     public ObservableCollection<DocumentViewModel> Documents { get; } = [];
 
-    /// <summary>Set by the view so the VM can open the Connection Manager window (master-detail). Replaces
-    /// the old per-connection modal — one window covers add/edit/delete/duplicate/group.</summary>
-    public Func<ConnectionManagerViewModel, Task>? ConnectionManagerRequested { get; set; }
+    /// <summary>The live connection-management session, or null when not managing (SE-289). Non-null
+    /// swaps the sidebar to the connection/folder tree and puts its editor over the document tabs —
+    /// connection management is a state of this window, not a separate one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsManagingConnections))]
+    private ConnectionManagerViewModel? _connectionManager;
+
+    public bool IsManagingConnections => ConnectionManager is not null;
 
     /// <summary>Set by the view so the VM can request the DDL Create dialog; returns the confirmed
     /// (possibly user-edited) SQL to run, or null on cancel.</summary>
@@ -1534,21 +1630,19 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    // The sidebar "+" / File ▸ New Connection: open the manager on a fresh draft (prefilled with the
-    // selected folder, if a folder — or a grouped connection — is highlighted).
+    // The sidebar "+" / File ▸ New Connection: enter connection management on a fresh draft (prefilled
+    // with the selected folder, if a folder — or a grouped connection — is highlighted).
     [RelayCommand]
-    private Task NewConnectionAsync() => OpenConnectionManagerAsync(manager => manager.StartNewConnection(SelectedFolderPath()));
+    private void NewConnection() => OpenConnectionManager(manager => manager.StartNewConnection(SelectedFolderPath()));
 
-    // Right-click "Edit…" on a connection root: open the manager with that connection selected.
+    // Right-click "Edit…" on a connection root: enter management with that connection selected.
     [RelayCommand]
-    private Task EditConnectionAsync()
+    private void EditConnection()
     {
-        if (SelectedConnection is not { } connection)
+        if (SelectedConnection is { } connection)
         {
-            return Task.CompletedTask;
+            OpenConnectionManager(manager => manager.SelectConnection(connection.Id));
         }
-
-        return OpenConnectionManagerAsync(manager => manager.SelectConnection(connection.Id));
     }
 
     /// <summary>Quick-set the selected connection's AI (MCP) access level from the tree context menu (SE-158),
@@ -1598,32 +1692,44 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Open the Connection Manager window, optionally pre-positioned, then reconcile the tree
-    /// with whatever changed while it was open (add/edit/delete/move) — see <see cref="SyncConnectionsFromStore"/>.</summary>
+    /// <summary>Enter connection management, optionally pre-positioned on a connection or a fresh draft.</summary>
     [RelayCommand]
-    private Task ManageConnectionsAsync() => OpenConnectionManagerAsync(null);
+    private void ManageConnections() => OpenConnectionManager(null);
 
-    private async Task OpenConnectionManagerAsync(Action<ConnectionManagerViewModel>? position)
+    // SE-289: connection management is a state of the main window, not a modal window of its own.
+    // Opening it swaps the sidebar from the schema tree to the connection/folder tree and puts the
+    // editor where the document tabs are; closing it puts both back. The view-model is the same
+    // ConnectionManagerViewModel the window used, so the tree, its drag & drop and the SE-287 form all
+    // came along unchanged.
+    private void OpenConnectionManager(Action<ConnectionManagerViewModel>? position)
     {
-        if (ConnectionManagerRequested is null)
+        if (ConnectionManager is not null)
         {
+            // Already managing: just re-point the existing pane instead of throwing away half-typed edits.
+            position?.Invoke(ConnectionManager);
             return;
         }
 
         var manager = _connectionManagerFactory();
         position?.Invoke(manager);
-        // Live-sync the sidebar tree while the manager is open (Save/drop/delete/rename) so changes show
-        // up immediately without waiting for the dialog to close — and without collapsing open subtrees.
+        // Live-sync the (currently hidden) schema tree on every Save/drop/delete/rename, so it is already
+        // correct when the pane closes — and without collapsing open subtrees.
         manager.ConnectionsChanged += SyncConnectionsFromStore;
-        try
+        manager.CloseRequested += CloseConnectionManager;
+        ConnectionManager = manager;
+    }
+
+    [RelayCommand]
+    private void CloseConnectionManager()
+    {
+        if (ConnectionManager is not { } manager)
         {
-            await ConnectionManagerRequested(manager);
-        }
-        finally
-        {
-            manager.ConnectionsChanged -= SyncConnectionsFromStore;
+            return;
         }
 
+        manager.ConnectionsChanged -= SyncConnectionsFromStore;
+        manager.CloseRequested -= CloseConnectionManager;
+        ConnectionManager = null;
         SyncConnectionsFromStore();
     }
 
