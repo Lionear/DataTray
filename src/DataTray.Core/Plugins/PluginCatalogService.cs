@@ -21,7 +21,7 @@ public sealed record InstalledPlugin(
 }
 
 /// <summary>How one plugin folder fared with its loader this run, flattened to the only two facts the
-/// catalog cares about. Every plugin kind (provider/tool/mcp/extension) projects its own load-result into
+/// catalog cares about. Every plugin kind (provider/tool/mcp/extension/viewer) projects its own load-result into
 /// this, so the catalog learns a plugin loaded regardless of which loader owned it — a new plugin kind that
 /// forgets to feed its outcomes here would wrongly read as "enabled but not loaded" and pin the restart
 /// banner (SE-164).</summary>

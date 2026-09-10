@@ -102,6 +102,17 @@ collide.
   `[Unreleased]` into a dated `## [0.3.0]` section and uses the same text as the GitHub release notes
   and the in-app updater. The tag is the version — the About dialog, the updater and the changelog
   all read it.
+- **Never delete the `legacy-stable`, `legacy-preview` or `legacy-nightly` releases.** Unlike the
+  rolling channel tags, which the Build workflow deletes and recreates on every run, these three are
+  written once — the first time their channel published a Velopack build — and then frozen. Each holds
+  that transition build's artifacts plus the `update.json` the pre-Velopack in-app updater reads, and
+  that manifest links to assets **on its own tag**. The rolling channel release carries a copy of the
+  same manifest, so the links point here either way.
+  What breaks if one is deleted: every install still on the old update method gets a 404 when it tries
+  to download, because the assets the published manifest names are gone. The next build for that
+  channel does recreate the release — from *that* build, which is also a Velopack build and so still a
+  valid crossing point — but nothing recreates it in the meantime, and for `stable` "the next build"
+  can be months away.
 
 ## Dependencies & notices
 

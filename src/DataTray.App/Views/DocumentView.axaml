@@ -2,7 +2,47 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ae="using:AvaloniaEdit"
              xmlns:conv="using:Avalonia.Data.Converters"
+             xmlns:vm="using:DataTray.App.ViewModels"
+             xmlns:ctl="using:DataTray.App.Controls"
              x:Class="DataTray.App.Views.DocumentView">
+  <UserControl.Resources>
+    <!-- Shared by the three mode bars' overflow flyouts (SE-255 §4). Icon plus label; a row whose child
+         declared no command renders as a plain label (the row-range readout is exactly that). -->
+    <ControlTheme x:Key="OverflowMenuItemTheme" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+      <Setter Property="Command" Value="{Binding Command}" />
+      <Setter Property="Icon">
+        <Template>
+          <Path Width="14" Height="14" Stretch="Uniform" Data="{Binding Icon}"
+                Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.4"
+                StrokeJoin="Round" StrokeLineCap="Round" />
+        </Template>
+      </Setter>
+      <Setter Property="Header">
+        <Template>
+          <StackPanel Orientation="Horizontal" Spacing="18">
+            <TextBlock Text="{Binding Header}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Detail}" VerticalAlignment="Center" FontSize="11"
+                       Foreground="{DynamicResource SETextFaintBrush}" />
+          </StackPanel>
+        </Template>
+      </Setter>
+    </ControlTheme>
+    <!-- A plugin's query-toolbar button (SE-255). The hairline is the ItemsControl's own left border, so
+         the separator overflows together with the group instead of being left stranded on the bar. -->
+    <DataTemplate x:Key="PluginToolbarButtonTemplate">
+      <Button Command="{Binding Command}" ToolTip.Tip="{Binding Detail}">
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <Path Width="12" Height="12" Stretch="Uniform" Data="{Binding Icon}"
+                Stroke="{DynamicResource SETextPrimaryBrush}" StrokeThickness="1.4"
+                StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Header}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </DataTemplate>
+    <ItemsPanelTemplate x:Key="PluginToolbarPanel">
+      <StackPanel Orientation="Horizontal" Spacing="8" />
+    </ItemsPanelTemplate>
+  </UserControl.Resources>
   <UserControl.Styles>
     <!-- Flat tabs matching the document-tab strip (Theme.axaml TabItem): plain text, no button
          chrome, just an accent underline on the selected one — this is a sibling tab strip
@@ -23,50 +63,129 @@
       <Setter Property="BorderBrush" Value="{DynamicResource SEAccentBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
     </Style>
-  </UserControl.Styles>
-  <Grid x:Name="RootGrid" RowDefinitions="Auto,2*,Auto,Auto,Auto,3*,Auto">
 
-    <!-- Row 0: mode-specific toolbar. Query = connection/database switcher + Run/Format; Browse = paging + filter. -->
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8"
-                IsVisible="{Binding IsQueryMode}">
-      <Button Classes="Accent" Content="{Binding Loc[Run]}" Command="{Binding RunCommand}"
-              IsVisible="{Binding !IsRunning}" />
-      <!-- Swaps in while a query runs: cancels the in-flight command via its CancellationToken. -->
-      <Button Classes="Accent" Content="{Binding Loc[Stop]}" Command="{Binding StopCommand}"
-              IsVisible="{Binding IsRunning}" />
-      <Button Content="{Binding Loc[RunAtCursor]}" Command="{Binding RunAtCursorCommand}" />
-      <Button Content="{Binding Loc[Explain]}" Command="{Binding ExplainCommand}" />
-      <Button Content="{Binding Loc[Format]}" Command="{Binding FormatCommand}" />
-      <!-- Connection/database switcher (DBeaver-style): pick which saved connection — and which
-           database on it — this query tab runs against. Database combo hides itself when the engine
-           has no database layer (SQLite: HasDatabasePicker stays false). -->
-      <ComboBox MinWidth="160" ItemsSource="{Binding AvailableConnections}"
-                SelectedItem="{Binding Connection}">
-        <ComboBox.ItemTemplate>
-          <DataTemplate>
-            <TextBlock Text="{Binding Name}" />
-          </DataTemplate>
-        </ComboBox.ItemTemplate>
-      </ComboBox>
-      <ComboBox MinWidth="140" ItemsSource="{Binding AvailableDatabases}"
-                SelectedItem="{Binding SelectedDatabase}"
-                IsVisible="{Binding HasDatabasePicker}" />
-    </StackPanel>
+    <!-- The "View" switcher (SE-75): a small segmented control, not tabs — picking Grid/JSON/Image swaps
+         the rendering of the *same* result set, where the ResultTab strip beside it picks a different one.
+         Reads as a compact toggle group so the two are not mistaken for each other. -->
+    <Style Selector="ListBox.ViewSwitcher ListBoxItem">
+      <Setter Property="Background" Value="{DynamicResource SEPanelBgBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox.ViewSwitcher ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ListBox.ViewSwitcher ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEAccentBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SEAccentFgBrush}" />
+    </Style>
+  </UserControl.Styles>
+  <Grid x:Name="RootGrid" RowDefinitions="Auto,260,Auto,Auto,Auto,*,Auto">
+
+    <!-- Row 0: mode-specific toolbar. Query = connection/database switcher + Run/Format; Browse = paging + filter.
+         Each bar lays out on an OverflowPanel (SE-255 §4): whatever does not fit at this window width moves
+         into the "…" flyout beside it. The controls that cannot function inside a closing menu — the
+         connection and database combos, the Browse filter box — are pinned and never move. -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8" IsVisible="{Binding IsQueryMode}">
+      <ctl:OverflowPanel Grid.Column="0" Name="QueryBar" Spacing="8">
+        <Button Classes="Accent" Content="{Binding Loc[Run]}" Command="{Binding RunCommand}"
+                IsVisible="{Binding !IsRunning}"
+                ctl:OverflowPanel.OverflowHeader="{Binding Loc[Run]}"
+                ctl:OverflowPanel.OverflowCommand="{Binding RunCommand}" />
+        <!-- Swaps in while a query runs: cancels the in-flight command via its CancellationToken. -->
+        <Button Classes="Accent" Content="{Binding Loc[Stop]}" Command="{Binding StopCommand}"
+                IsVisible="{Binding IsRunning}"
+                ctl:OverflowPanel.OverflowHeader="{Binding Loc[Stop]}"
+                ctl:OverflowPanel.OverflowCommand="{Binding StopCommand}" />
+        <Button Content="{Binding Loc[RunAtCursor]}" Command="{Binding RunAtCursorCommand}"
+                ctl:OverflowPanel.OverflowHeader="{Binding Loc[RunAtCursor]}"
+                ctl:OverflowPanel.OverflowCommand="{Binding RunAtCursorCommand}" />
+        <Button Content="{Binding Loc[Explain]}" Command="{Binding ExplainCommand}"
+                ctl:OverflowPanel.OverflowHeader="{Binding Loc[Explain]}"
+                ctl:OverflowPanel.OverflowCommand="{Binding ExplainCommand}" />
+        <Button Content="{Binding Loc[Format]}" Command="{Binding FormatCommand}"
+                ctl:OverflowPanel.OverflowHeader="{Binding Loc[Format]}"
+                ctl:OverflowPanel.OverflowCommand="{Binding FormatCommand}" />
+        <!-- Connection/database switcher (DBeaver-style): pick which saved connection — and which
+             database on it — this query tab runs against. Database combo hides itself when the engine
+             has no database layer (SQLite: HasDatabasePicker stays false). -->
+        <ComboBox MinWidth="160" ItemsSource="{Binding AvailableConnections}"
+                  SelectedItem="{Binding Connection}" ctl:OverflowPanel.IsPinned="True">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <ComboBox MinWidth="140" ItemsSource="{Binding AvailableDatabases}"
+                  SelectedItem="{Binding SelectedDatabase}"
+                  IsVisible="{Binding HasDatabasePicker}" ctl:OverflowPanel.IsPinned="True" />
+        <!-- Plugin contributions (SE-255), filtered per document by their own AppliesTo predicate. One
+             child, so the group overflows as a unit — but it lands in the flyout as its individual
+             actions, via the OverflowGroup attached property. -->
+        <ItemsControl ItemsSource="{Binding PluginToolbarItems}"
+                      IsVisible="{Binding PluginToolbarItems.Count}"
+                      ItemsPanel="{StaticResource PluginToolbarPanel}"
+                      ItemTemplate="{StaticResource PluginToolbarButtonTemplate}"
+                      BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
+                      Padding="8,0,0,0"
+                      ctl:OverflowPanel.OverflowGroup="{Binding PluginToolbarItems}" />
+      </ctl:OverflowPanel>
+      <Button Grid.Column="1" Classes="Subtle" Padding="7,4" Margin="6,0,0,0" VerticalAlignment="Center"
+              IsVisible="{Binding #QueryBar.HasOverflow}" ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">
+        <Path Width="15" Height="15" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Overflow}"
+              Fill="{DynamicResource SETextSecondaryBrush}" />
+        <Button.Flyout>
+          <MenuFlyout ItemsSource="{Binding #QueryBar.OverflowItems}"
+                      ItemContainerTheme="{StaticResource OverflowMenuItemTheme}" />
+        </Button.Flyout>
+      </Button>
+    </Grid>
 
     <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8" IsVisible="{Binding IsBrowseMode}">
-      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
-        <Button Grid.Column="0" Margin="0,0,6,0"
-                Content="{Binding Loc[PrevPage]}" Command="{Binding PrevPageCommand}" />
-        <Button Grid.Column="1" Margin="0,0,10,0"
-                Content="{Binding Loc[NextPage]}" Command="{Binding NextPageCommand}" />
-        <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="0,0,12,0"
-                   FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}"
-                   Text="{Binding RowRange}" />
-        <TextBox Grid.Column="3" MinWidth="160"
-                 Text="{Binding FilterText}"
-                 PlaceholderText="{Binding Loc[Filter]}" />
-        <Button Grid.Column="4" Margin="8,0,0,0"
-                Content="{Binding Loc[Apply]}" Command="{Binding ApplyFilterCommand}" IsDefault="True" />
+      <Grid ColumnDefinitions="*,Auto">
+        <ctl:OverflowPanel Grid.Column="0" Name="BrowseBar" Spacing="8">
+          <Button Content="{Binding Loc[PrevPage]}" Command="{Binding PrevPageCommand}"
+                  ctl:OverflowPanel.OverflowHeader="{Binding Loc[PrevPage]}"
+                  ctl:OverflowPanel.OverflowCommand="{Binding PrevPageCommand}" />
+          <Button Content="{Binding Loc[NextPage]}" Command="{Binding NextPageCommand}"
+                  ctl:OverflowPanel.OverflowHeader="{Binding Loc[NextPage]}"
+                  ctl:OverflowPanel.OverflowCommand="{Binding NextPageCommand}" />
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}"
+                     Text="{Binding RowRange}"
+                     ctl:OverflowPanel.OverflowHeader="{Binding RowRange}" />
+          <TextBox MinWidth="220"
+                   Text="{Binding FilterText}"
+                   PlaceholderText="{Binding Loc[Filter]}" ctl:OverflowPanel.IsPinned="True" />
+          <Button Content="{Binding Loc[Apply]}" Command="{Binding ApplyFilterCommand}" IsDefault="True"
+                  ctl:OverflowPanel.OverflowHeader="{Binding Loc[Apply]}"
+                  ctl:OverflowPanel.OverflowCommand="{Binding ApplyFilterCommand}" />
+          <!-- Plugin contributions (SE-255), filtered per document by their own AppliesTo predicate. One
+               child, so the group overflows as a unit — but it lands in the flyout as its individual
+               actions, via the OverflowGroup attached property. -->
+          <ItemsControl ItemsSource="{Binding PluginToolbarItems}"
+                        IsVisible="{Binding PluginToolbarItems.Count}"
+                        ItemsPanel="{StaticResource PluginToolbarPanel}"
+                        ItemTemplate="{StaticResource PluginToolbarButtonTemplate}"
+                        BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
+                        Padding="8,0,0,0"
+                        ctl:OverflowPanel.OverflowGroup="{Binding PluginToolbarItems}" />
+        </ctl:OverflowPanel>
+        <Button Grid.Column="1" Classes="Subtle" Padding="7,4" Margin="6,0,0,0" VerticalAlignment="Center"
+                IsVisible="{Binding #BrowseBar.HasOverflow}" ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">
+          <Path Width="15" Height="15" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Overflow}"
+                Fill="{DynamicResource SETextSecondaryBrush}" />
+          <Button.Flyout>
+            <MenuFlyout ItemsSource="{Binding #BrowseBar.OverflowItems}"
+                        ItemContainerTheme="{StaticResource OverflowMenuItemTheme}" />
+          </Button.Flyout>
+        </Button>
       </Grid>
 
       <!-- Per-column inline filter: one small box per browse-grid column, combined with the free-text
@@ -88,20 +207,51 @@
     </StackPanel>
 
     <!-- Row 0 (monitor): manual Refresh + auto-refresh interval. The grid below is the live sessions list. -->
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8"
-                VerticalAlignment="Center" IsVisible="{Binding IsMonitorMode}">
-      <Button Content="{Binding Loc[Refresh]}" Command="{Binding RefreshMonitorCommand}" />
-      <TextBlock Text="{Binding Loc[AutoRefresh]}" VerticalAlignment="Center"
-                 Foreground="{DynamicResource SETextSecondaryBrush}" />
-      <ComboBox MinWidth="90" ItemsSource="{Binding RefreshOptions}"
-                SelectedItem="{Binding SelectedRefreshOption}">
-        <ComboBox.ItemTemplate>
-          <DataTemplate>
-            <TextBlock Text="{Binding Label}" />
-          </DataTemplate>
-        </ComboBox.ItemTemplate>
-      </ComboBox>
-    </StackPanel>
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8" IsVisible="{Binding IsMonitorMode}">
+      <ctl:OverflowPanel Grid.Column="0" Name="MonitorBar" Spacing="8">
+        <Button Content="{Binding Loc[Refresh]}" Command="{Binding RefreshMonitorCommand}"
+                ctl:OverflowPanel.OverflowHeader="{Binding Loc[Refresh]}"
+                ctl:OverflowPanel.OverflowCommand="{Binding RefreshMonitorCommand}" />
+        <TextBlock Text="{Binding Loc[AutoRefresh]}" VerticalAlignment="Center"
+                   Foreground="{DynamicResource SETextSecondaryBrush}" />
+        <ComboBox MinWidth="90" ItemsSource="{Binding RefreshOptions}"
+                  SelectedItem="{Binding SelectedRefreshOption}" ctl:OverflowPanel.IsPinned="True">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Label}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Text="{Binding Loc[MonitorDatabase]}" VerticalAlignment="Center"
+                   Foreground="{DynamicResource SETextSecondaryBrush}"
+                   IsVisible="{Binding HasDatabaseFilter}" />
+        <ComboBox MinWidth="140" ItemsSource="{Binding MonitorDatabases}"
+                  SelectedItem="{Binding SelectedMonitorDatabase}"
+                  IsVisible="{Binding HasDatabaseFilter}" ctl:OverflowPanel.IsPinned="True" />
+        <CheckBox Content="{Binding Loc[MonitorBlockingOnly]}" IsChecked="{Binding BlockingOnly}"
+                  VerticalAlignment="Center" IsVisible="{Binding HasBlockingFilter}"
+                  ctl:OverflowPanel.IsPinned="True" />
+        <!-- Plugin contributions (SE-255), filtered per document by their own AppliesTo predicate. One
+             child, so the group overflows as a unit — but it lands in the flyout as its individual
+             actions, via the OverflowGroup attached property. -->
+        <ItemsControl ItemsSource="{Binding PluginToolbarItems}"
+                      IsVisible="{Binding PluginToolbarItems.Count}"
+                      ItemsPanel="{StaticResource PluginToolbarPanel}"
+                      ItemTemplate="{StaticResource PluginToolbarButtonTemplate}"
+                      BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
+                      Padding="8,0,0,0"
+                      ctl:OverflowPanel.OverflowGroup="{Binding PluginToolbarItems}" />
+      </ctl:OverflowPanel>
+      <Button Grid.Column="1" Classes="Subtle" Padding="7,4" Margin="6,0,0,0" VerticalAlignment="Center"
+              IsVisible="{Binding #MonitorBar.HasOverflow}" ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">
+        <Path Width="15" Height="15" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Overflow}"
+              Fill="{DynamicResource SETextSecondaryBrush}" />
+        <Button.Flyout>
+          <MenuFlyout ItemsSource="{Binding #MonitorBar.OverflowItems}"
+                      ItemContainerTheme="{StaticResource OverflowMenuItemTheme}" />
+        </Button.Flyout>
+      </Button>
+    </Grid>
 
     <!-- Row 1: SQL editor (query mode only; the row is collapsed for browse in code-behind). -->
     <Border Grid.Row="1" IsVisible="{Binding IsQueryMode}"
@@ -129,8 +279,17 @@
       </ae:TextEditor>
     </Border>
 
-    <!-- Row 2 is intentionally empty (Auto → 0 height): execution outcomes now surface only in the
-         host's Output panel, not inline under the editor. -->
+    <!-- Row 2: Query-editor/Result-grid splitter (SE-283). Not a GridSplitter: its neighbours are the
+         editor (row 1, a persisted pixel height) and the edit toolbar (row 3, Auto) — a GridSplitter would
+         trade pixels with that Auto row instead of the grid, the same wrong-neighbour problem SE-170 hit
+         for the subsystem-panel splitter. So this drags row 1 directly; the result grid (row 5, the only
+         remaining star row) absorbs the difference. -->
+    <Border Grid.Row="2" x:Name="EditorSplitter" Height="4"
+            Background="{DynamicResource SEHairlineBrush}" Cursor="SizeNorthSouth"
+            IsVisible="{Binding IsQueryMode}"
+            PointerPressed="OnEditorSplitterPressed"
+            PointerMoved="OnEditorSplitterMoved"
+            PointerReleased="OnEditorSplitterReleased" />
 
     <!-- Row 3: edit toolbar + pending-changes bar (shared by both modes). Equal space above and below. -->
     <Grid Grid.Row="3" Margin="0,8,0,8"
@@ -155,25 +314,65 @@
                  IsVisible="{Binding ReadOnlyReason, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
     </Grid>
 
-    <!-- Row 4: result-set tab strip — only shown for a multi-statement/multi-resultset run or Explain. -->
-    <ItemsControl Grid.Row="4" Margin="0,0,0,6" ItemsSource="{Binding ResultSets}"
-                  IsVisible="{Binding HasMultipleResultSets}">
-      <ItemsControl.ItemsPanel>
-        <ItemsPanelTemplate>
-          <StackPanel Orientation="Horizontal" Spacing="4" />
-        </ItemsPanelTemplate>
-      </ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate>
-        <DataTemplate>
-          <Button Classes="ResultTab" Classes.Accent="{Binding IsSelected}" Content="{Binding Label}"
-                  Command="{Binding $parent[ItemsControl].DataContext.SelectResultSetCommand}"
-                  CommandParameter="{Binding}" />
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <!-- Row 4: result-set tab strip (left) + the "View" switcher (right, SE-75). The row carries two
+         independent things now, so it shows when *either* has something to say: the tab strip only for a
+         multi-statement/multi-resultset run or Explain, the switcher whenever a viewer plugin applies. -->
+    <Grid Grid.Row="4" Margin="0,0,0,6" ColumnDefinitions="Auto,*,Auto">
+      <Grid.IsVisible>
+        <MultiBinding Converter="{x:Static conv:BoolConverters.Or}">
+          <Binding Path="HasMultipleResultSets" />
+          <Binding Path="HasViewSwitcher" />
+        </MultiBinding>
+      </Grid.IsVisible>
 
-    <!-- Row 5: editable result grid, framed. Columns are built per result set in code-behind. -->
+      <ItemsControl Grid.Column="0" ItemsSource="{Binding ResultSets}"
+                    IsVisible="{Binding HasMultipleResultSets}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="4" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Button Classes="ResultTab" Classes.Accent="{Binding IsSelected}" Content="{Binding Label}"
+                    Command="{Binding $parent[ItemsControl].DataContext.SelectResultSetCommand}"
+                    CommandParameter="{Binding}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                  IsVisible="{Binding HasViewSwitcher}">
+        <TextBlock Text="{Binding Loc[ViewLabel]}" VerticalAlignment="Center"
+                   FontSize="11.5" Foreground="{DynamicResource SETextFaintBrush}" />
+        <ListBox ItemsSource="{Binding AvailableViews}" SelectedItem="{Binding SelectedView}"
+                 Classes="ViewSwitcher" Background="Transparent" BorderThickness="0" Padding="0">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="4" />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Label}" FontSize="11.5" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </StackPanel>
+    </Grid>
+
+    <!-- Row 5: the result surface — the editable grid, or a viewer's control in its place (SE-75). The two
+         swap on visibility rather than both being mounted, so a viewer never runs behind the grid. Both are
+         also off in a plugin-owned tab (SE-216), which takes the whole body. -->
     <Border Grid.Row="5"
+            IsVisible="{Binding IsViewerSurface}"
+            BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+            CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
+      <ContentControl x:Name="ViewerHost" />
+    </Border>
+
+    <Border Grid.Row="5"
+            IsVisible="{Binding IsGridSurface}"
             BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
             CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
       <DataGrid x:Name="ResultsGrid"
@@ -218,8 +417,14 @@
 
     <!-- Row 6: query-result paging nav (SE-178) — under the grid, DataGrip/DBeaver-style. Browse has its own
          paging bar on top (with the filter box); this is the query-mode counterpart, prev/next + row range. -->
-    <Grid Grid.Row="6" ColumnDefinitions="Auto,Auto,Auto" Margin="0,6,0,0"
-          IsVisible="{Binding IsQueryPaged}">
+    <Grid Grid.Row="6" ColumnDefinitions="Auto,Auto,Auto" Margin="0,6,0,0">
+      <!-- Hidden behind a viewer: the paging nav belongs to the grid, and a viewer owns the whole area. -->
+      <Grid.IsVisible>
+        <MultiBinding Converter="{x:Static conv:BoolConverters.And}">
+          <Binding Path="IsQueryPaged" />
+          <Binding Path="IsGridView" />
+        </MultiBinding>
+      </Grid.IsVisible>
       <Button Grid.Column="0" Margin="0,0,6,0"
               Content="{Binding Loc[PrevPage]}" Command="{Binding PrevPageCommand}" />
       <Button Grid.Column="1" Margin="0,0,10,0"
@@ -228,5 +433,14 @@
                  FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}"
                  Text="{Binding RowRange}" />
     </Grid>
+
+    <!-- A plugin-owned tab (SE-216): the plugin's control gets the whole body. It spans every row rather
+         than living in one, because the host's rows are the query/browse/monitor layout and none of them
+         mean anything here. Everything else in this grid is already gated on a mode or on having a result,
+         except the results border above, which is why that one gets an explicit !IsPluginMode. -->
+    <ContentControl Grid.Row="0" Grid.RowSpan="7"
+                    x:CompileBindings="True" x:DataType="vm:DocumentViewModel"
+                    IsVisible="{Binding IsPluginMode}"
+                    Content="{Binding PluginView}" />
   </Grid>
 </UserControl>

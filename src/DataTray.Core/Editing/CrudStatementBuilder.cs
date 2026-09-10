@@ -35,8 +35,8 @@ public static class CrudStatementBuilder
             var statement = row.State switch
             {
                 RowState.Added => BuildInsert(row, columns, writable, table, dialect),
-                RowState.Modified => BuildUpdate(row, columns, writable, keys, table, dialect),
-                RowState.Deleted => BuildDelete(row, columns, keys, table, dialect),
+                RowState.Modified => BuildUpdate(row, columns, writable, keys, table, dialect, resultSet.EditFilterPredicate),
+                RowState.Deleted => BuildDelete(row, columns, keys, table, dialect, resultSet.EditFilterPredicate),
                 _ => null
             };
 
@@ -88,7 +88,8 @@ public static class CrudStatementBuilder
         int[] writable,
         int[] keys,
         string table,
-        ISqlDialect dialect)
+        ISqlDialect dialect,
+        string? editFilterPredicate)
     {
         var assignments = new List<string>();
         var parameters = new List<SqlParam>();
@@ -117,7 +118,7 @@ public static class CrudStatementBuilder
             return null;
         }
 
-        var where = BuildKeyPredicate(row, columns, keys, parameters, dialect);
+        var where = BuildKeyPredicate(row, columns, keys, parameters, dialect, editFilterPredicate);
         return new SqlStatement($"UPDATE {table} SET {string.Join(", ", assignments)} WHERE {where}", parameters);
     }
 
@@ -126,22 +127,28 @@ public static class CrudStatementBuilder
         IReadOnlyList<ResultColumn> columns,
         int[] keys,
         string table,
-        ISqlDialect dialect)
+        ISqlDialect dialect,
+        string? editFilterPredicate)
     {
         var parameters = new List<SqlParam>();
-        var where = BuildKeyPredicate(row, columns, keys, parameters, dialect);
+        var where = BuildKeyPredicate(row, columns, keys, parameters, dialect, editFilterPredicate);
         return new SqlStatement($"DELETE FROM {table} WHERE {where}", parameters);
     }
 
-    // WHERE clause on the primary-key columns, matched against their original values.
+    // WHERE clause on the primary-key columns, matched against their original values. When the key is
+    // only unique under a filter (a filtered/partial unique index — SQL Server: sys.indexes.filter_definition;
+    // Postgres: a partial index predicate), editFilterPredicate ANDs that condition in too, so the key
+    // columns alone — unique only among the filtered rows — can never match a row outside the filter (e.g.
+    // a duplicate soft-deleted row sharing the same key values).
     private static string BuildKeyPredicate(
         EditableRow row,
         IReadOnlyList<ResultColumn> columns,
         int[] keys,
         List<SqlParam> parameters,
-        ISqlDialect dialect)
+        ISqlDialect dialect,
+        string? editFilterPredicate)
     {
-        var predicates = new List<string>(keys.Length);
+        var predicates = new List<string>(keys.Length + 1);
         foreach (var i in keys)
         {
             var column = dialect.QuoteIdentifier(ColumnName(columns[i]));
@@ -155,6 +162,11 @@ public static class CrudStatementBuilder
             var name = $"p{parameters.Count}";
             predicates.Add($"{column} = @{name}");
             parameters.Add(new SqlParam(name, original));
+        }
+
+        if (editFilterPredicate is not null)
+        {
+            predicates.Add($"({editFilterPredicate})");
         }
 
         return string.Join(" AND ", predicates);

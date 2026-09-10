@@ -9,6 +9,14 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Above everything, including the migration below (SE-245). Velopack relaunches this exe during
+        // install, update and uninstall with --veloapp-* arguments and kills it if it has not exited
+        // again within 15-30 seconds; whatever sits above this call therefore runs on every one of
+        // those, and the migration below copies the entire app-data root. On an ordinary launch Run()
+        // returns and the rest of this method proceeds untouched — it never reads or creates the app
+        // data root itself, so the SE-206 ordering below still holds.
+        Velopack.VelopackApp.Build().Run();
+
         // FIRST, before anything touches the app data root (SE-206). The rename moved that root from
         // Lionear/SqlExplorer to Lionear/DataTray, and the migration only copies when the new root does
         // not exist yet — so anything that creates it first makes the migration a silent no-op and the
@@ -19,6 +27,13 @@ internal static class Program
         // Strictly after the copy above (it rewrites files inside the new root) and before anything reads
         // plugin state, which AppServices does while building the container.
         var pluginIds = DataTray.Core.Migration.PluginIdMigration.Migrate();
+
+        // Until now an unhandled exception killed the app with nothing on disk, so every "it crashed"
+        // report arrived without a stack trace and died there. Same file as the restart lines — it is the
+        // one "what happened to this process" log — and the same never-throw contract. Registered after
+        // the migrations above for the app-data-root reason spelled out there.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            DataTray.App.RestartDiagnostics.Log($"crash: {e.ExceptionObject}");
 
         // A relaunch (Restart-app button / in-app updater) must always take over the UI. Skip the
         // single-instance probe when relaunched, so the new instance doesn't connect to the old one's pipe

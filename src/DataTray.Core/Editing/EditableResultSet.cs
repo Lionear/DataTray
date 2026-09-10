@@ -24,12 +24,14 @@ public sealed class EditableResultSet
         IReadOnlyList<ResultColumn> columns,
         ObservableCollection<EditableRow> rows,
         EditTarget? target,
-        string? readOnlyReason)
+        string? readOnlyReason,
+        string? editFilterPredicate)
     {
         Columns = columns;
         Rows = rows;
         Target = target;
         ReadOnlyReason = readOnlyReason;
+        EditFilterPredicate = editFilterPredicate;
     }
 
     public IReadOnlyList<ResultColumn> Columns { get; }
@@ -44,13 +46,16 @@ public sealed class EditableResultSet
     /// <summary>Why the result is read-only, when <see cref="IsEditable"/> is false.</summary>
     public string? ReadOnlyReason { get; }
 
+    /// <summary>Passed through from <see cref="QueryResult.EditFilterPredicate"/> — see there.</summary>
+    public string? EditFilterPredicate { get; }
+
     public static EditableResultSet From(QueryResult result)
     {
         var rows = new ObservableCollection<EditableRow>(
             result.Rows.Select(EditableRow.Existing));
 
         var (target, reason) = ResolveTarget(result.Columns);
-        return new EditableResultSet(result.Columns, rows, target, reason);
+        return new EditableResultSet(result.Columns, rows, target, reason, result.EditFilterPredicate);
     }
 
     public bool HasChanges => Rows.Any(r => r.State != RowState.Unchanged);

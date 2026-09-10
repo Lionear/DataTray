@@ -10,4 +10,11 @@
     <ProjectReference Include="..\DataTray.Core\DataTray.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Packaging and updating are the same tool: vpk builds the download and the update feed in one
+         step, so the version here and the vpk version in build.yml must match — that is the only
+         combination Velopack supports. -->
+    <PackageReference Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
 </Project>

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ using DataTray.App.DependencyInjection;
 using DataTray.App.ViewModels;
 using DataTray.App.Views;
 using DataTray.Core.Connections;
+using DataTray.Core.Connections.Import;
 using DataTray.Core.Mcp;
 using DataTray.Sdk.Formatting;
 using DataTray.Core.History;
@@ -39,6 +41,7 @@ namespace DataTray.Screenshots;
 //   dotnet run --project src/DataTray.Screenshots -- --scene hero --out docs/images/hero.png [--size 1280x820]
 // Scenes: hero (main window browsing a synthetic demo DB), query (SQL editor with a query + results),
 // store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window),
+// importconnections (the DataGrip/DBeaver import picker), querysettings (the Query settings pane),
 // copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
@@ -163,18 +166,22 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, main, mcpsettings, aitree, copytable";
+    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, aitree, copytable, erdiagram";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
         "hero" => BuildHeroAsync(services, sandbox),
-        "query" => BuildQueryAsync(services, sandbox),
+        "query" => BuildQueryAsync(services, sandbox, state),
         "store" => Task.FromResult<Window?>(BuildStore(services)),
         "export" => Task.FromResult<Window?>(BuildExport(services)),
+        "importconnections" => Task.FromResult<Window?>(BuildImportConnections(services)),
+        "firstrun" => Task.FromResult<Window?>(BuildFirstRun(services, state)),
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
+        "querysettings" => Task.FromResult(BuildQuerySettings(services)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
+        "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
         _ => Task.FromResult<Window?>(null)
     };
 
@@ -271,6 +278,16 @@ internal static class SceneCatalog
 
     // The MCP settings pane with connection-creation turned on (SE-155), so the enable warning, the
     // allowed-hosts editor and the folder field are all visible.
+    // The Query settings pane, home of the HTML table style (SE-244). Its dropdown labels come from the
+    // resx, and a missing key renders as the key itself rather than failing a build — so this is rendered
+    // rather than assumed.
+    private static Window? BuildQuerySettings(IServiceProvider services)
+    {
+        var viewModel = services.GetRequiredService<SettingsViewModel>();
+        viewModel.SelectCategoryByKey("Query");
+        return new SettingsWindow { DataContext = viewModel };
+    }
+
     private static Window? BuildMcpSettings(IServiceProvider services)
     {
         var viewModel = services.GetRequiredService<SettingsViewModel>();
@@ -320,6 +337,117 @@ internal static class SceneCatalog
 
     // The hero shot: the main window browsing a synthetic SQLite "shop" database, so the schema tree and
     // an editable result grid are populated — with data that is obviously fake.
+
+    /// <summary>
+    /// The ER diagram (SE-82) in a plugin-owned tab (SE-216). This is the scene that proves the seam end
+    /// to end rather than by reasoning: a real MainWindow, a real DocumentViewModel in
+    /// <c>DocumentMode.Plugin</c>, and the plugin's own control resolved through the same
+    /// <c>IToolDocumentUi</c> path the tool menu uses — including DocumentView's binding to
+    /// <c>PluginView</c>, which is the part a compile cannot check.
+    /// </summary>
+    private static Task<Window?> BuildErDiagramAsync(IServiceProvider services, string sandbox, string state)
+    {
+        var tool = services.GetRequiredService<IToolRegistry>().All.FirstOrDefault(t => t.Id == "er-diagram");
+        if (tool is not IToolDocumentUi documentUi)
+        {
+            Console.Error.WriteLine("The er-diagram plugin isn't in this build's plugins/ folder.");
+            return Task.FromResult<Window?>(null);
+        }
+
+        var dbPath = Path.Combine(sandbox, "demo-shop.db");
+        DemoData.CreateShopDatabase(dbPath);
+
+        var connections = services.GetRequiredService<ConnectionService>();
+        var connection = connections.Save(
+            id: "demo-shop", name: "Demo shop", providerId: "sqlite",
+            values: new Dictionary<string, string?> { ["path"] = dbPath });
+
+        var viewModel = services.GetRequiredService<MainViewModel>();
+        viewModel.SyncConnectionsFromStore();
+        if (viewModel.ConnectionNodes.Count > 0)
+        {
+            viewModel.ConnectionNodes[0].IsExpanded = true;
+        }
+
+        var providers = services.GetRequiredService<IDbProviderRegistry>();
+        var profile = connections.Resolve(connection, database: null);
+
+        var context = new ToolDocumentContext(
+            providers.Get("sqlite"),
+            "sqlite",
+            profile,
+            node: null,
+            services.GetRequiredService<IToolRegistry>().LocalizerFor(tool.Id),
+            setTitle: _ => { },
+            openQueryEditor: _ => { },
+            closeDocument: () => { },
+            // A picker that answers with a fixed path, so the export and save paths can be driven without
+            // a dialog — the point is to prove the files are actually written, not to show a file chooser.
+            pickSaveFile: (name, extensions) => Task.FromResult<string?>(Path.Combine(
+                Path.GetTempPath(),
+                // "exportsvg" picks the last offered extension, which is how the SVG path gets exercised
+                // without a dialog to click through.
+                "er-export." + (state == "exportsvg" ? extensions[^1] : extensions[0]))),
+            pickOpenFile: _ => Task.FromResult<string?>(null));
+
+        var view = documentUi.CreateDocument(context);
+
+        var document = new DocumentViewModel(
+            providers,
+            connections,
+            services.GetRequiredService<ISqlFormatter>(),
+            services.GetRequiredService<IQueryHistoryStore>(),
+            services.GetRequiredService<IQueryLog>(),
+            services.GetRequiredService<ISchemaCache>(),
+            services.GetRequiredService<IServerVersionCache>(),
+            services.GetRequiredService<IAppSettingsStore>(),
+            services.GetRequiredService<ILocalizer>());
+        document.InitPluginDocument(connection, database: null, key: "er-diagram|demo-shop||",
+            title: "ER \u00b7 Demo shop", view, documentUi.Icon);
+        viewModel.Documents.Add(document);
+        viewModel.SelectedDocument = document;
+
+        // The schema read is a real round-trip on a real SQLite file. Settle() pumps the dispatcher while
+        // it waits; awaiting a plain Task.Delay here deadlocks, because the continuation is posted to a
+        // dispatcher that nothing is pumping.
+        Program.Settle(rounds: 60);
+
+        // "drawn" walks the picker the way a user would — tick everything, press Draw — through the real
+        // controls rather than a back door, so the capture proves the flow and not just the painting.
+        // "export" goes one further and presses Save and Export too, which is the only way to find out
+        // whether the files are really written through the seam's new pickers.
+        if (state is "drawn" or "export" or "exportsvg")
+        {
+            // The logical tree, not the visual one: the control has not been laid out yet at this point,
+            // so it has no visual children to walk.
+            foreach (var box in view.GetLogicalDescendants().OfType<CheckBox>())
+            {
+                box.IsChecked = true;
+            }
+
+            Program.Settle(rounds: 10);
+
+            var draw = view.GetLogicalDescendants().OfType<Button>()
+                .FirstOrDefault(b => b.Content as string == "Draw");
+            draw?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+            Program.Settle(rounds: 20);
+        }
+
+        if (state is "export" or "exportsvg")
+        {
+            foreach (var label in new[] { "Save…", "Export…" })
+            {
+                var button = view.GetLogicalDescendants().OfType<Button>()
+                    .FirstOrDefault(b => b.Content as string == label);
+                button?.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                Program.Settle(rounds: 20);
+            }
+        }
+
+        return Task.FromResult<Window?>(new MainWindow { DataContext = viewModel });
+    }
+
     private static async Task<Window?> BuildHeroAsync(IServiceProvider services, string sandbox)
     {
         var dbPath = Path.Combine(sandbox, "demo-shop.db");
@@ -352,7 +480,8 @@ internal static class SceneCatalog
             services.GetRequiredService<ISchemaCache>(),
             services.GetRequiredService<IServerVersionCache>(),
             services.GetRequiredService<IAppSettingsStore>(),
-            services.GetRequiredService<ILocalizer>());
+            services.GetRequiredService<ILocalizer>(),
+            services.GetRequiredService<DataTray.Core.Viewers.IViewerRegistry>());
         document.InitBrowse(connection, database: null, schema: null, table: "customers");
         viewModel.Documents.Add(document);
         viewModel.SelectedDocument = document;
@@ -418,7 +547,12 @@ internal static class SceneCatalog
 
     // The query editor: a SQL query typed into the editor with its result set loaded below — the same
     // synthetic "shop" database as the hero, driven through the real query path (InitQuery → Sql → Run).
-    private static async Task<Window?> BuildQueryAsync(IServiceProvider services, string sandbox)
+    /// <summary>
+    /// The SQL editor with a query and its results. <paramref name="state"/> picks which result view is
+    /// showing: the default grid, or a viewer plugin by its id (<c>json-tree</c>, <c>image</c>) — the
+    /// switcher and the viewers it mounts are otherwise unreachable without a display (SE-75).
+    /// </summary>
+    private static async Task<Window?> BuildQueryAsync(IServiceProvider services, string sandbox, string state)
     {
         var dbPath = Path.Combine(sandbox, "demo-shop.db");
         DemoData.CreateShopDatabase(dbPath);
@@ -446,7 +580,8 @@ internal static class SceneCatalog
             services.GetRequiredService<ISchemaCache>(),
             services.GetRequiredService<IServerVersionCache>(),
             services.GetRequiredService<IAppSettingsStore>(),
-            services.GetRequiredService<ILocalizer>());
+            services.GetRequiredService<ILocalizer>(),
+            services.GetRequiredService<DataTray.Core.Viewers.IViewerRegistry>());
 
         document.InitQuery(connection, database: null);
         // Set before the window is shown: DocumentView.OnDataContextChanged pushes VM.Sql into the editor
@@ -471,6 +606,19 @@ internal static class SceneCatalog
         await document.RunCommand.ExecuteAsync(null);
         Program.Settle(rounds: 20);
 
+        // No explicit row selection: picking a viewer with nothing selected is exactly the case that used
+        // to land on an empty "select a row" state, so the scene renders it the way a user meets it.
+        if (document.AvailableViews.FirstOrDefault(v => v.Id == state) is { } view)
+        {
+            document.SelectedView = view;
+            Program.Settle(rounds: 10);
+        }
+        else if (state is not ("input" or "grid"))
+        {
+            Console.Error.WriteLine(
+                $"No view '{state}' on this result set. Available: {string.Join(", ", document.AvailableViews.Select(v => v.Id))}");
+        }
+
         return new MainWindow(
             services.GetRequiredService<IAppSettingsStore>(),
             services.GetRequiredService<KeymapService>()) { DataContext = viewModel };
@@ -481,6 +629,81 @@ internal static class SceneCatalog
     {
         var loc = services.GetRequiredService<ILocalizer>();
         return new ExportDialog(loc, rowCount: 30, isSelection: false);
+    }
+
+    // SE-239 first-run wizard. --state welcome|engine|connection|import|done picks the step, since each one
+    // is a different screen and the point of a capture is to look at them. Fed sample import rows so the
+    // shot doesn't depend on what this machine happens to have installed.
+    private static Window BuildFirstRun(IServiceProvider services, string state)
+    {
+        var viewModel = services.GetRequiredService<FirstRunViewModel>();
+        viewModel.Configure(
+        [
+            new DiscoveredConnection("DBeaver", "prod-eu-1", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "db1.internal", ["port"] = "5432", ["database"] = "orders" }),
+            new DiscoveredConnection("DataGrip", "analytics", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "warehouse", ["port"] = "5432", ["database"] = "dwh" }),
+            new DiscoveredConnection("Workbench", "local-mysql", null, "mysql",
+                new Dictionary<string, string?> { ["host"] = "127.0.0.1", ["port"] = "3306" }),
+            new DiscoveredConnection("Compass", "atlas-cluster", null, null,
+                new Dictionary<string, string?>(), "provider 'mongodb' is not installed")
+        ]);
+
+        // Walk the same commands a user would, so a capture can only show a state the wizard can reach.
+        if (state is "engine" or "connection" or "import" or "done")
+        {
+            viewModel.NextCommand.Execute(null);
+        }
+
+        if (state is "connection" or "done")
+        {
+            viewModel.SelectEngineCommand.Execute(viewModel.Engines.FirstOrDefault(e => e.Id == "postgres")
+                                                  ?? viewModel.Engines.FirstOrDefault());
+            viewModel.NextCommand.Execute(null);
+        }
+
+        if (state is "import")
+        {
+            viewModel.StartImportCommand.Execute(null);
+        }
+
+        if (state is "done")
+        {
+            viewModel.NextCommand.Execute(null);
+        }
+
+        return new FirstRunWindow(viewModel);
+    }
+
+    // SE-233 import picker, fed with sample rows rather than this machine's real DataGrip/DBeaver config
+    // so the shot is identical everywhere — including the two "found but can't import" states.
+    private static Window BuildImportConnections(IServiceProvider services)
+    {
+        var viewModel = new ImportConnectionsDialogViewModel(services.GetRequiredService<ILocalizer>());
+        viewModel.Configure(
+        [
+            new DiscoveredConnection("DataGrip", "orders@prod", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "prod-db", ["port"] = "5432", ["database"] = "orders" }),
+            new DiscoveredConnection("DataGrip", "legacy reporting", null, "sqlserver",
+                new Dictionary<string, string?> { ["host"] = "sql01", ["port"] = "1433", ["database"] = "Sales" }),
+            new DiscoveredConnection("DBeaver", "Local Postgres", "Development", "postgres",
+                new Dictionary<string, string?> { ["host"] = "127.0.0.1", ["port"] = "5433", ["database"] = "app" }),
+            new DiscoveredConnection("DBeaver", "Notes", null, "sqlite",
+                new Dictionary<string, string?> { ["path"] = "/home/demo/notes.db" }),
+            new DiscoveredConnection("pg_service", "reporting", null, "postgres",
+                new Dictionary<string, string?> { ["host"] = "db.internal", ["port"] = "6432", ["database"] = "orders" },
+                SkipReason: null, HasPassword: true),
+            new DiscoveredConnection("Workbench", "Local instance", null, "mysql",
+                new Dictionary<string, string?> { ["host"] = "127.0.0.1", ["port"] = "3306", ["database"] = "shop" }),
+            new DiscoveredConnection("Compass", "Events", null, "mongodb",
+                new Dictionary<string, string?> { ["host"] = "mongo01", ["port"] = "27018", ["database"] = "events" }),
+            new DiscoveredConnection("DBeaver", "warehouse", "Analytics", null,
+                new Dictionary<string, string?>(), "unsupported engine 'informix'"),
+            new DiscoveredConnection("DataGrip", "session cache", null, null,
+                new Dictionary<string, string?>(), "provider 'redis' is not installed")
+        ]);
+
+        return new ImportConnectionsDialog { DataContext = viewModel };
     }
 }
 

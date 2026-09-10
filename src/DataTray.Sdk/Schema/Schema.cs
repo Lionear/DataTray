@@ -88,7 +88,29 @@ public enum DbNodeKind
 
     /// <summary>A single server login; "Properties…"/"Drop Login…" hang off it via the provider's
     /// <c>ICustomSecurityUi</c> view.</summary>
-    Login
+    Login,
+
+    /// <summary>A single SQL Server Agent job. Its own kind rather than <see cref="Object"/> so a tool can
+    /// target jobs exactly — <see cref="Object"/> is the catch-all for every provider-defined leaf, so a job
+    /// tool aimed at it would also offer itself on a server role or a certificate.</summary>
+    AgentJob,
+
+    /// <summary>Grouping node holding a server's Agent jobs. Its own kind rather than a plain
+    /// <see cref="Group"/> for the same reason <see cref="LoginFolder"/> is — so "New Job…" can be offered
+    /// on it without also appearing on every other cosmetic folder.</summary>
+    AgentJobFolder,
+
+    /// <summary>A single SQL Server Always On availability group (SE-284). Its own kind rather than
+    /// <see cref="Object"/> so a tool (a future "Fail Over…", SE-247) can target availability groups
+    /// exactly — <see cref="Object"/> is the catch-all for every provider-defined leaf, so a tool aimed at
+    /// it would also offer itself on a server role or a certificate.</summary>
+    AvailabilityGroup,
+
+    /// <summary>Grouping node holding a server's Always On availability groups. Its own kind rather than a
+    /// plain <see cref="Group"/> for the same reason <see cref="AgentJobFolder"/> is — so a future "New
+    /// Availability Group…" (SE-247) can be offered on it without also appearing on every other cosmetic
+    /// folder.</summary>
+    AvailabilityGroupFolder
 }
 
 /// <summary>

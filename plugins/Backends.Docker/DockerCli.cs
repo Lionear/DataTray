@@ -75,6 +75,43 @@ public sealed class DockerCli : IDockerCli, ISingletonService
             new[] { result.StdOut.TrimEnd(), result.StdErr.TrimEnd() }.Where(s => s.Length > 0));
     }
 
+    /// <summary>
+    /// The PATH the docker process searches, on macOS. A <c>.app</c> started from Finder or the Dock
+    /// inherits launchd's PATH — <c>/usr/bin:/bin:/usr/sbin:/sbin</c> — which holds none of the places
+    /// Docker Desktop puts its CLI, so <c>docker</c> is "not found" while the very same install works
+    /// from a terminal. Linux (<c>/usr/bin/docker</c>) and Windows (installer extends the system PATH)
+    /// don't have the problem, hence macOS-only.
+    ///
+    /// The dirs are <b>appended</b>: an inherited PATH still decides which docker wins, so launching
+    /// from a terminal behaves exactly as before.
+    /// </summary>
+    public static string MacSearchPath(string? currentPath) =>
+        string.Join(':', (currentPath ?? string.Empty)
+            .Split(':', StringSplitOptions.RemoveEmptyEntries)
+            .Concat([
+                "/usr/local/bin", // Docker Desktop, "System" install
+                "/opt/homebrew/bin", // Homebrew on Apple silicon
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".docker", "bin")
+            ])
+            .Distinct());
+
+    /// <summary>
+    /// The first <c>docker</c> that exists in <paramref name="searchPath"/>, as an absolute path, or
+    /// <c>null</c> when none of the dirs holds one.
+    ///
+    /// This has to be a path and not a name: on Unix, .NET resolves a bare <see
+    /// cref="ProcessStartInfo.FileName"/> against the <b>parent process's</b> PATH, so setting
+    /// <see cref="ProcessStartInfo.Environment"/> does not affect the lookup at all — measured, both
+    /// still throw <c>Win32Exception: No such file or directory</c>. The extended PATH is still handed
+    /// to the child, because the docker CLI looks up its own credential helper
+    /// (<c>docker-credential-desktop</c>, same dirs) through it; without that, pulls from a private
+    /// registry fail in the same invisible way.
+    /// </summary>
+    public static string? ResolveOnPath(string searchPath) =>
+        searchPath.Split(':', StringSplitOptions.RemoveEmptyEntries)
+            .Select(dir => Path.Combine(dir, Exe))
+            .FirstOrDefault(File.Exists);
+
     private static ContainerState ParseState(string? status) => status switch
     {
         "created" => ContainerState.Created,
@@ -88,7 +125,13 @@ public sealed class DockerCli : IDockerCli, ISingletonService
 
     private static async Task<DockerResult> RunAsync(string? workingDir, CancellationToken ct, params string[] args)
     {
-        var psi = new ProcessStartInfo(Exe)
+        // Resolved per call, not cached: installing Docker Desktop after seeing "not found" and pressing
+        // retry is the normal way out of that state — a cached miss would survive it until a restart.
+        var searchPath = OperatingSystem.IsMacOS()
+            ? MacSearchPath(Environment.GetEnvironmentVariable("PATH"))
+            : null;
+
+        var psi = new ProcessStartInfo(searchPath is null ? Exe : ResolveOnPath(searchPath) ?? Exe)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -100,6 +143,11 @@ public sealed class DockerCli : IDockerCli, ISingletonService
         if (workingDir is not null)
         {
             psi.WorkingDirectory = workingDir;
+        }
+
+        if (searchPath is not null)
+        {
+            psi.Environment["PATH"] = searchPath;
         }
 
         foreach (var arg in args)

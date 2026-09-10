@@ -332,6 +332,20 @@ public interface IDbProvider
     string SessionIdColumn => string.Empty;
 
     /// <summary>
+    /// Which <see cref="GetActiveSessionsAsync"/> column names the database a session is working in
+    /// (MSSQL <c>database</c>, Postgres <c>datname</c>, MySQL <c>db</c>) — drives the monitor's Database
+    /// filter. Empty (the default) hides that filter.
+    /// </summary>
+    string SessionDatabaseColumn => string.Empty;
+
+    /// <summary>
+    /// Which <see cref="GetActiveSessionsAsync"/> column holds the id of the session blocking this one
+    /// (MSSQL <c>blocking_session_id</c>) — drives the monitor's "blocking only" filter. Empty (the
+    /// default) hides that filter, for engines whose session view has no blocker column.
+    /// </summary>
+    string BlockingSessionColumn => string.Empty;
+
+    /// <summary>
     /// Hard kill: terminate the whole session/connection identified by <paramref name="sessionId"/>.
     /// Always present where <see cref="SupportsActivityMonitor"/> is true; the default throws.
     /// </summary>

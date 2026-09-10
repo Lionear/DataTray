@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "prometheus",
+  "type": "provider",
+  "name": "Prometheus",
+  "version": "0.1.0",
+  "hostApiVersion": 30,
+  "entryAssembly": "DataTray.Providers.Prometheus.dll"
+}

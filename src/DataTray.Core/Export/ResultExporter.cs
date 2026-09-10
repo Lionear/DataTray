@@ -116,37 +116,101 @@ public static class ResultExporter
     private static string FormatMarkdownValue(object? value) =>
         value is null or DBNull ? "" : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
 
+    // Palette and metrics for the styled variants. Hex rather than a theme brush on purpose: this HTML
+    // leaves the app, so it can't reference anything the app resolves at runtime.
+    private const string HtmlAccent = "#2563EB";
+    private const string HtmlGridLine = "#D6DDE7";
+    private const string HtmlHairline = "#DBE1E9";
+    private const string HtmlZebra = "#F2F6FD";
+    private const string HtmlPaper = "#FFFFFF";
+    private const string HtmlNullCell = "color:#8A93A1;font-style:italic;";
+    private const string HtmlTableCss = "border-collapse:collapse;font-family:Calibri,'Segoe UI',sans-serif;"
+        + "font-size:11pt;color:#131820;";
+
     /// <summary>An HTML <c>&lt;table&gt;</c> for pasting into rich-text targets (email, docs, chat). Column
-    /// names are the header row; every cell is HTML-escaped.</summary>
-    public static string ToHtml(IReadOnlyList<ResultColumn> columns, IEnumerable<object?[]> rows)
+    /// names are the header row; every cell is HTML-escaped.
+    /// <para>Everything <paramref name="style"/> adds is written <b>inline</b> per cell, because Outlook
+    /// renders with Word's engine: a <c>&lt;style&gt;</c> block is dropped and selectors like
+    /// <c>tr:nth-child(even)</c> don't exist, so zebra striping is a colour per row rather than a rule.
+    /// <see cref="HtmlTableStyle.Plain"/> emits exactly what it always did — no attributes at all.</para></summary>
+    public static string ToHtml(
+        IReadOnlyList<ResultColumn> columns,
+        IEnumerable<object?[]> rows,
+        HtmlTableStyle style = HtmlTableStyle.Plain)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("<table>");
-        sb.Append("  <thead><tr>");
-        foreach (var c in columns)
+        // Right-aligning numbers reads as a column of magnitudes rather than a column of strings; the
+        // declared type decides it, so an all-null numeric column still aligns with its neighbours.
+        var alignRight = columns.Select(c => IsNumeric(c.ClrType)).ToArray();
+
+        static string Attribute(string css) => css.Length == 0 ? "" : $" style=\"{css}\"";
+
+        string Align(int column) => alignRight[column] ? "right" : "left";
+
+        string HeaderCss(int column) => style switch
         {
-            sb.Append("<th>").Append(HtmlEscape(c.Name)).Append("</th>");
+            HtmlTableStyle.Plain => "",
+            HtmlTableStyle.Hairlines =>
+                $"padding:6px 12px;border-bottom:2px solid {HtmlAccent};font-weight:600;text-align:{Align(column)};",
+            _ => $"padding:7px 14px;background:{HtmlAccent};color:{HtmlPaper};border:1px solid {HtmlAccent};"
+                + $"font-weight:600;text-align:{Align(column)};",
+        };
+
+        // The cell background is written even when it's white: Outlook's dark mode recolours cells that
+        // don't state one, and a half-inverted table is worse than no colour at all.
+        string CellCss(int column, bool isNull, bool zebraRow) => style switch
+        {
+            HtmlTableStyle.Plain => "",
+            HtmlTableStyle.Hairlines =>
+                $"padding:6px 12px;border-bottom:1px solid {HtmlHairline};text-align:{Align(column)};"
+                + (isNull ? HtmlNullCell : ""),
+            _ => $"padding:6px 14px;border:1px solid {HtmlGridLine};"
+                + $"background:{(zebraRow && style == HtmlTableStyle.HeaderFillZebra ? HtmlZebra : HtmlPaper)};"
+                + $"text-align:{Align(column)};"
+                + (isNull ? HtmlNullCell : ""),
+        };
+
+        var sb = new StringBuilder();
+        sb.Append("<table").Append(Attribute(style == HtmlTableStyle.Plain ? "" : HtmlTableCss)).AppendLine(">");
+        sb.Append("  <thead><tr>");
+        for (var i = 0; i < columns.Count; i++)
+        {
+            sb.Append("<th").Append(Attribute(HeaderCss(i))).Append('>')
+                .Append(HtmlEscape(columns[i].Name)).Append("</th>");
         }
 
         sb.AppendLine("</tr></thead>");
         sb.AppendLine("  <tbody>");
+        var rowIndex = 0;
         foreach (var row in rows)
         {
             sb.Append("    <tr>");
             for (var i = 0; i < columns.Count; i++)
             {
                 var value = i < row.Length ? row[i] : null;
-                sb.Append("<td>").Append(HtmlEscape(value is null or DBNull
-                    ? "" : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "")).Append("</td>");
+                var isNull = value is null or DBNull;
+                // A styled table spells NULL out, so an empty cell stays distinguishable from the literal
+                // text "NULL" in a string column. Plain keeps its blank cell.
+                var text = isNull
+                    ? style == HtmlTableStyle.Plain ? "" : "NULL"
+                    : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+                sb.Append("<td").Append(Attribute(CellCss(i, isNull, rowIndex % 2 == 1))).Append('>')
+                    .Append(HtmlEscape(text)).Append("</td>");
             }
 
             sb.AppendLine("</tr>");
+            rowIndex++;
         }
 
         sb.AppendLine("  </tbody>");
         sb.AppendLine("</table>");
         return sb.ToString();
     }
+
+    private static bool IsNumeric(Type clrType) =>
+        Type.GetTypeCode(Nullable.GetUnderlyingType(clrType) ?? clrType) is
+            TypeCode.Byte or TypeCode.SByte or TypeCode.Int16 or TypeCode.UInt16 or TypeCode.Int32
+            or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64 or TypeCode.Single or TypeCode.Double
+            or TypeCode.Decimal;
 
     private static string HtmlEscape(string value) => value
         .Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");

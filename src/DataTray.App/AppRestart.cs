@@ -4,13 +4,13 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using DataTray.Core.Update;
 
 namespace DataTray.App;
 
 /// <summary>
-/// Relaunches or shuts the application down. Used by <c>PluginMaintenance</c> (restart to apply staged
-/// plugin changes) and by the in-app updater (SE-137) to finish an in-place update or rollback.
+/// Relaunches or shuts the application down. Used by <c>PluginMaintenance</c> to restart and apply staged
+/// plugin changes. The updater no longer comes through here: since SE-245 it replaces the app and starts
+/// it again itself.
 /// <see cref="Environment.ProcessPath"/> resolves to the app host (the executable inside the .app bundle on
 /// macOS), so starting it relaunches cleanly.
 /// </summary>
@@ -25,21 +25,6 @@ public static class AppRestart
         else
         {
             Shutdown();
-        }
-    }
-
-    /// <summary>Carries out an updater apply/rollback result: relaunch the new build and exit, exit for the
-    /// installer to take over, or (guided/failed) leave the app running.</summary>
-    public static void Execute(ApplyResult result)
-    {
-        switch (result.Action)
-        {
-            case ApplyAction.RelaunchAfterExit when result.RelaunchTarget is { } target:
-                RelaunchWith(target);
-                break;
-            case ApplyAction.ExitForInstaller:
-                Shutdown();
-                break;
         }
     }
 

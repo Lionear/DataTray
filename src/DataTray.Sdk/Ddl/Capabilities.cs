@@ -8,7 +8,12 @@ public enum DbObjectKind
 {
     Database,
     Schema,
-    Table
+    Table,
+
+    /// <summary>An index on an existing table. Unlike the three above, it is created <em>under</em> an
+    /// object rather than beside one, so its <see cref="CreateObjectSpec"/> carries the target
+    /// <see cref="CreateObjectSpec.Table"/> as well as a schema.</summary>
+    Index
 }
 
 /// <summary>
@@ -30,13 +35,31 @@ public sealed record CreateCapability(DbObjectKind Kind, DbNodeKind? ParentNode)
 /// </summary>
 public sealed record NewColumnSpec(string Name, string Type, bool Nullable, bool PrimaryKey, bool AutoIncrement);
 
+/// <summary>One column of a new index, in key order. <see cref="Descending"/> is per column, as every
+/// engine here allows — a two-column index can be ascending on one and descending on the other, and that
+/// ordering is the whole point of the index for a query that sorts that way.</summary>
+public sealed record NewIndexColumnSpec(string Name, bool Descending);
+
 /// <summary>
 /// Declarative input for DDL Create, collected by the host and handed to
 /// <see cref="IDbProvider.BuildCreateStatement"/>. <see cref="Schema"/> is the parent schema for a
 /// <see cref="DbObjectKind.Table"/>; <see cref="Columns"/> is populated only for tables.
 /// </summary>
+/// <param name="Table">The table an index is created on — meaningless for the other kinds, where
+/// <see cref="Name"/> is itself the object being created.</param>
+/// <param name="IndexColumns">The index's key columns, in order. Empty for the other kinds.</param>
+/// <param name="Unique">Whether the index enforces uniqueness. Every engine the host ships spells this
+/// the same way (<c>CREATE UNIQUE INDEX</c>), unlike clustering, which is why that one is not here: a
+/// SQL Server user who wants CLUSTERED types it into the dialog's editable SQL preview, rather than every
+/// other engine growing a checkbox that does nothing.</param>
 public sealed record CreateObjectSpec(
     DbObjectKind Kind,
     string Name,
     string? Schema,
-    IReadOnlyList<NewColumnSpec> Columns);
+    IReadOnlyList<NewColumnSpec> Columns,
+    string? Table = null,
+    IReadOnlyList<NewIndexColumnSpec>? IndexColumns = null,
+    bool Unique = false)
+{
+    public IReadOnlyList<NewIndexColumnSpec> IndexColumns { get; init; } = IndexColumns ?? [];
+}

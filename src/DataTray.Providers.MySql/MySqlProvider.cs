@@ -727,7 +727,8 @@ public sealed class MySqlProvider : IDbProvider
     public IReadOnlyList<CreateCapability> CreateCapabilities { get; } =
     [
         new(DbObjectKind.Database, null),
-        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+        new(DbObjectKind.Table, DbNodeKind.TableFolder),
+        new(DbObjectKind.Index, DbNodeKind.IndexFolder)
     ];
 
     public IReadOnlyList<string> ColumnTypes { get; } =
@@ -743,6 +744,9 @@ public sealed class MySqlProvider : IDbProvider
             // No schema layer to qualify with — the connection is already pointed at the target
             // database via ConnectionProfile.Database when this runs (see ExecuteDdlAsync).
             DbObjectKind.Table => BuildCreateTable(spec),
+            // No schema layer to qualify with here either: the connection is already pointed at the
+            // database, exactly as for CREATE TABLE above.
+            DbObjectKind.Index => IndexSql.Build(Dialect, spec, qualifyWithSchema: false),
             _ => throw new NotSupportedException($"MySQL cannot create a {spec.Kind}.")
         };
 
@@ -808,6 +812,8 @@ public sealed class MySqlProvider : IDbProvider
     public bool SupportsActivityMonitor => true;
 
     public string SessionIdColumn => "Id";
+
+    public string SessionDatabaseColumn => "db";
 
     public bool SupportsCancelQuery => true;
 

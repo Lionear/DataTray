@@ -149,19 +149,16 @@ public sealed class PostgresProvider : IDbProvider
 
     private static async Task<QueryResult> ReadResultAsync(NpgsqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)
     {
-        var columns = BuildColumns(reader);
+        var (columns, fields) = BuildColumns(reader);
 
         var rows = new List<object?[]>();
         while (await reader.ReadAsync(ct))
         {
-            var row = new object?[reader.FieldCount];
-            reader.GetValues(row!);
-            for (var i = 0; i < row.Length; i++)
+            var row = new object?[fields.Length];
+            for (var i = 0; i < fields.Length; i++)
             {
-                if (row[i] is DBNull)
-                {
-                    row[i] = null;
-                }
+                var value = reader.GetValue(fields[i]);
+                row[i] = value is DBNull ? null : value;
             }
 
             rows.Add(row);
@@ -178,13 +175,22 @@ public sealed class PostgresProvider : IDbProvider
 
     // Map the driver's column schema onto our ResultColumn metadata. BaseTable/IsKey come from
     // Npgsql's catalog lookup and let the host decide whether the result set is editable (Notes §8).
-    private static List<ResultColumn> BuildColumns(NpgsqlDataReader reader)
+    // KeyInfo can mark a column IsHidden when it's a key-resolution hint rather than a selected column — still
+    // counted in reader.FieldCount, so it must be filtered here or it leaks into the grid as a phantom, always-
+    // NULL column, the same driver-level behavior confirmed for SqlClient in SE-282.
+    private static (List<ResultColumn> Columns, int[] Fields) BuildColumns(NpgsqlDataReader reader)
     {
         var schema = reader.GetColumnSchema();
         var columns = new List<ResultColumn>(reader.FieldCount);
+        var fields = new List<int>(reader.FieldCount);
         for (var i = 0; i < reader.FieldCount; i++)
         {
             var col = schema[i];
+            if (col.IsHidden == true)
+            {
+                continue;
+            }
+
             columns.Add(new ResultColumn(reader.GetName(i), reader.GetFieldType(i))
             {
                 BaseSchema = col.BaseSchemaName,
@@ -194,9 +200,10 @@ public sealed class PostgresProvider : IDbProvider
                 IsReadOnly = col.IsReadOnly ?? false,
                 AllowDbNull = col.AllowDBNull ?? true
             });
+            fields.Add(i);
         }
 
-        return columns;
+        return (columns, [.. fields]);
     }
 
     public async Task<int> ExecuteBatchAsync(
@@ -935,7 +942,8 @@ public sealed class PostgresProvider : IDbProvider
     [
         new(DbObjectKind.Database, null),
         new(DbObjectKind.Schema, DbNodeKind.SchemaFolder),
-        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+        new(DbObjectKind.Table, DbNodeKind.TableFolder),
+        new(DbObjectKind.Index, DbNodeKind.IndexFolder)
     ];
 
     public IReadOnlyList<string> ColumnTypes { get; } =
@@ -948,6 +956,7 @@ public sealed class PostgresProvider : IDbProvider
             DbObjectKind.Database => $"CREATE DATABASE {Dialect.QuoteIdentifier(spec.Name)}",
             DbObjectKind.Schema => $"CREATE SCHEMA {Dialect.QuoteIdentifier(spec.Name)}",
             DbObjectKind.Table => BuildCreateTable(spec),
+            DbObjectKind.Index => IndexSql.Build(Dialect, spec, qualifyWithSchema: true),
             _ => throw new NotSupportedException($"Postgres cannot create a {spec.Kind}.")
         };
 
@@ -1019,6 +1028,8 @@ public sealed class PostgresProvider : IDbProvider
     public bool SupportsActivityMonitor => true;
 
     public string SessionIdColumn => "pid";
+
+    public string SessionDatabaseColumn => "datname";
 
     public bool SupportsCancelQuery => true;
 

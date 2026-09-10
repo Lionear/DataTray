@@ -48,9 +48,19 @@ public partial class MainWindow : Window
                 PopulateSubsystemMenu(vm);
                 vm.AboutRequested = ShowAboutAsync;
                 vm.Update.ChangelogRequested = ShowUpdateChangelogAsync;
-                // SE-151: the banner now downloads + installs inline, so wire its apply/reveal callbacks here.
-                vm.Update.ApplyRequested = result => { AppRestart.Execute(result); return Task.CompletedTask; };
-                vm.Update.OpenRequested = RevealFolderAsync;
+                // No apply/reveal callbacks since SE-245: the updater replaces the app and restarts it
+                // itself, so there is no relaunch for the host to carry out and no file to hand over.
+                // Removing the leftover pre-Velopack install runs someone's uninstaller, so it asks first;
+                // with no hook wired the command does nothing rather than proceeding unasked.
+                vm.Update.ConfirmRemoveLegacyInstall = async () =>
+                {
+                    var dialog = new ConfirmDialog(
+                        vm.Loc["UpdateLegacyInstallTitle"],
+                        vm.Loc["UpdateLegacyInstallMessage"],
+                        vm.Loc["UpdateLegacyInstallRemove"],
+                        vm.Loc["Cancel"]);
+                    return await dialog.ShowDialog<bool>(this);
+                };
                 RebuildKeyBindings();
 
                 // A language switch fires Loc.PropertyChanged(null) — the correct "everything on

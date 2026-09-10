@@ -82,6 +82,19 @@ public static class SqlScopeAnalyzer
         return new SqlScope(clause, sources, ctes.Keys.ToList());
     }
 
+    /// <summary>
+    /// The identifier ending at <paramref name="end"/> (exclusive), unquoted — <c>u</c> in <c>u.</c> just as
+    /// much as <c>dbo</c> in <c>[dbo].</c>, <c>`dbo`.</c> or <c>"dbo".</c>. <c>null</c> when what precedes it
+    /// isn't identifier-shaped (a number, a <c>)</c>, a string literal). Exposed so completion asks the real
+    /// tokenizer what an identifier is instead of keeping its own, narrower idea of one (SE-269).
+    /// </summary>
+    public static string? IdentifierBefore(string sql, int end)
+    {
+        end = Math.Clamp(end, 0, sql.Length);
+        var tokens = Tokenize(sql[..end]);
+        return tokens.Count > 0 && tokens[^1].Type == TokType.Word ? tokens[^1].Text : null;
+    }
+
     // ---- statement boundary --------------------------------------------------------------------------
 
     // The span containing the caret, and the caret re-based into it. Reuses the shared splitter so the

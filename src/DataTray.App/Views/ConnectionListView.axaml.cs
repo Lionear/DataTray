@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using DataTray.App.ViewModels;
+using DataTray.Core.Connections.Import;
 
 namespace DataTray.App.Views;
 
@@ -45,11 +46,34 @@ public partial class ConnectionListView : UserControl
             if (DataContext is ConnectionManagerViewModel vm)
             {
                 vm.ConfirmRequested = ShowConfirmAsync;
+                vm.ImportExternalRequested = ShowImportAsync;
             }
         };
     }
 
     private ConnectionManagerViewModel? ViewModel => DataContext as ConnectionManagerViewModel;
+
+    // The DataGrip/DBeaver import picker (SE-233): the VM has already scanned, this only asks which rows.
+    private async Task<IReadOnlyList<DiscoveredConnection>> ShowImportAsync(IReadOnlyList<DiscoveredConnection> found)
+    {
+        // Same adjustment the confirmation dialog needed (SE-289): this control used to be the window,
+        // so it could own a modal itself; now it has to go find the one it lives in.
+        if (ViewModel?.Loc is not { } loc || TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return [];
+        }
+
+        var dialogViewModel = new ImportConnectionsDialogViewModel(loc)
+        {
+            // SE-238: the picker offers to ask the OS for the passwords the other clients keep there. The VM
+            // owns the providers, so the fetch is routed back through it rather than reached for here.
+            FetchPasswordsRequested = ViewModel.FetchStoredPasswords
+        };
+        dialogViewModel.Configure(found);
+
+        var dialog = new ImportConnectionsDialog { DataContext = dialogViewModel };
+        return await dialog.ShowDialog<bool>(owner) ? dialogViewModel.Selected : [];
+    }
 
     private async Task<bool> ShowConfirmAsync(string title, string message)
     {

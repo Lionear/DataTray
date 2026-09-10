@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The index dialog's T-SQL building is internal to the plugin but is exactly the part worth testing:
+         a wrong option there silently changes an index nobody looks at again. -->
+    <InternalsVisibleTo Include="DataTray.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="icon.png" LogicalName="icon.png" Condition="Exists('icon.png')" />
   </ItemGroup>

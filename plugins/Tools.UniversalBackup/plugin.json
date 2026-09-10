@@ -3,7 +3,7 @@
   "id": "universal-backup",
   "type": "tool",
   "name": "Universal Backup & Restore",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "hostApiVersion": 2,
   "entryAssembly": "DataTray.Tools.UniversalBackup.dll",
   "localization": "Lang/strings"

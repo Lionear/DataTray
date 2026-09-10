@@ -18,9 +18,13 @@ using DataTray.Core.Providers;
 using DataTray.Core.Schema;
 using DataTray.Core.Settings;
 using DataTray.Core.Sql;
+using DataTray.Core.Viewers;
+using DataTray.App.Viewers;
 using DataTray.Sdk;
 using DataTray.Sdk.Editing;
+using DataTray.Sdk.Extensibility;
 using DataTray.Sdk.Ui;
+using DataTray.Sdk.Viewers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -30,7 +34,11 @@ public enum DocumentMode
 {
     Query,
     Browse,
-    Monitor
+    Monitor,
+
+    /// <summary>A tab whose content is supplied by a plugin (<see cref="IToolDocumentUi"/>, SE-216). The
+    /// host owns the tab — title, icon, close — and nothing inside it.</summary>
+    Plugin
 }
 
 /// <summary>One entry in the Activity Monitor's auto-refresh interval dropdown. <see cref="Seconds"/> 0
@@ -87,7 +95,7 @@ public sealed partial class ResultSetTab(string label, EditableResultSet set) : 
 /// (Notes §5). Both modes share the editable result grid and the save-flow (Notes §8),
 /// each tab bound to its own connection.
 /// </summary>
-public partial class DocumentViewModel : ViewModelBase
+public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 {
     private readonly IDbProviderRegistry _providers;
     private readonly ConnectionService _connections;
@@ -96,6 +104,7 @@ public partial class DocumentViewModel : ViewModelBase
     private readonly IQueryLog _queryLog;
     private readonly ISchemaCache _schemaCache;
     private readonly IServerVersionCache _serverVersions;
+    private readonly IViewerRegistry? _viewers;
 
     private string? _database;
     private string? _schema;
@@ -341,8 +350,10 @@ public partial class DocumentViewModel : ViewModelBase
         ISchemaCache schemaCache,
         IServerVersionCache serverVersions,
         IAppSettingsStore settingsStore,
-        ILocalizer localizer)
+        ILocalizer localizer,
+        IViewerRegistry? viewers = null)
     {
+        _viewers = viewers;
         _providers = providers;
         _connections = connections;
         _formatter = formatter;
@@ -356,6 +367,7 @@ public partial class DocumentViewModel : ViewModelBase
         var settings = _settingsStore.Load();
         EditorFontSize = settings.EditorFontSize;
         EditorWordWrap = settings.EditorWordWrap;
+        EditorHeight = settings.QueryEditorHeight;
         // Browse page size is a global preference read once per tab (like the editor font size); a changed
         // value applies to newly opened browse tabs. Guard against a zero/negative stored value.
         _pageSize = settings.BrowsePageSize > 0 ? settings.BrowsePageSize : 200;
@@ -369,12 +381,25 @@ public partial class DocumentViewModel : ViewModelBase
 
     public bool EditorWordWrap { get; }
 
+    /// <summary>Persisted query-editor row height (Query-editor/Result-grid split), read once from settings
+    /// at document creation like <see cref="EditorFontSize"/>. Null = no drag persisted yet, use the default.</summary>
+    public double? EditorHeight { get; }
+
     /// <summary>Persist a live editor-zoom change as the global font size, so it survives a restart and
     /// applies to newly opened tabs.</summary>
     public void PersistEditorFontSize(double size)
     {
         var settings = _settingsStore.Load();
         settings.EditorFontSize = size;
+        _settingsStore.Save(settings);
+    }
+
+    /// <summary>Persist a live drag of the Query-editor/Result-grid splitter as the global row height, so it
+    /// survives a restart and applies to newly opened tabs — same mechanism as <see cref="PersistEditorFontSize"/>.</summary>
+    public void PersistEditorHeight(double height)
+    {
+        var settings = _settingsStore.Load();
+        settings.QueryEditorHeight = height;
         _settingsStore.Save(settings);
     }
 
@@ -408,12 +433,92 @@ public partial class DocumentViewModel : ViewModelBase
 
     public bool IsMonitorMode => Mode == DocumentMode.Monitor;
 
+    public bool IsPluginMode => Mode == DocumentMode.Plugin;
+
+    // --- Query-toolbar contributions and IQueryDocument (SE-255) ------------------------------------
+
+    private IReadOnlyList<QueryToolbarContribution> _queryToolbarContributions = [];
+    private IHostUi? _pluginHostUi;
+
+    /// <summary>Stable for the lifetime of the tab — the id a contribution sees on <see cref="IQueryDocument"/>.</summary>
+    public string DocumentId { get; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>The plugin buttons this tab actually shows, rendered at the end of its mode bar. Refiltered
+    /// whenever the connection, database or mode changes.</summary>
+    public ObservableCollection<Controls.OverflowItem> PluginToolbarItems { get; } = [];
+
+    /// <summary>Hand this tab the registered query-toolbar contributions (MainViewModel does it for every
+    /// document it creates, and for the ones already open when plugins finish activating).</summary>
+    public void MountQueryToolbar(IReadOnlyList<QueryToolbarContribution> contributions, IHostUi hostUi)
+    {
+        _queryToolbarContributions = contributions;
+        _pluginHostUi = hostUi;
+        RefreshPluginToolbarItems();
+    }
+
+    private void RefreshPluginToolbarItems()
+    {
+        PluginToolbarItems.Clear();
+        if (_pluginHostUi is not { } hostUi || IsPluginMode)
+        {
+            return;
+        }
+
+        foreach (var contribution in _queryToolbarContributions)
+        {
+            // A predicate is plugin code on the UI thread: one that throws must cost its own button, not
+            // the toolbar. Same containment the activator gives Initialize.
+            try
+            {
+                if (!contribution.AppliesTo(this))
+                {
+                    continue;
+                }
+            }
+            catch (Exception ex)
+            {
+                Reported?.Invoke(OutputLevel.Error, $"{contribution.Id}: {ex.Message}");
+                continue;
+            }
+
+            var invoke = contribution.InvokeAsync;
+            PluginToolbarItems.Add(new Controls.OverflowItem(
+                contribution.Title,
+                contribution.Icon,
+                new AsyncRelayCommand(() => invoke(this, hostUi)),
+                contribution.Tooltip));
+        }
+    }
+
+    QueryDocumentKind IQueryDocument.Kind => Mode switch
+    {
+        DocumentMode.Browse => QueryDocumentKind.Browse,
+        DocumentMode.Monitor => QueryDocumentKind.Monitor,
+        // Plugin tabs have no row-0 bar, so no contribution is ever filtered against one.
+        _ => QueryDocumentKind.Query,
+    };
+
+    // SavedConnection.Values holds only the non-secret fields — secrets live in the keychain via
+    // ConnectionService — so this is the same view IManagedConnections.All() hands out.
+    ManagedConnectionInfo? IQueryDocument.Connection => Connection is { } c
+        ? new ManagedConnectionInfo(c.Id, c.Name, c.ProviderId, c.Folder, c.Values)
+        : null;
+
+    string? IQueryDocument.Database => _database;
+
+    string? IQueryDocument.SelectedSql => SelectionText.Length > 0 ? SelectionText : null;
+
+    void IQueryDocument.SetSql(string sql) => Sql = sql;
+
+    Task IQueryDocument.RunAsync(CancellationToken ct) => RunAsync(ct);
+
     /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
     /// tab is recognisable at a glance (SE-123, mockup icon-per-tabtype).</summary>
     public Avalonia.Media.Geometry TabIcon => Mode switch
     {
         DocumentMode.Browse => NodeIcons.TabBrowse,
         DocumentMode.Monitor => NodeIcons.TabMonitor,
+        DocumentMode.Plugin => _pluginIcon ?? NodeIcons.TabPlugin,
         _ => NodeIcons.TabQuery
     };
 
@@ -479,7 +584,7 @@ public partial class DocumentViewModel : ViewModelBase
             ExportFormat.Json => ResultExporter.ToJson(editable.Columns, raw),
             ExportFormat.Sql => ResultExporter.ToSqlInserts(editable.Columns, raw, _providers.Get(Connection.ProviderId).Dialect, Connection.ProviderId, ExportTableName(editable)),
             ExportFormat.Markdown => ResultExporter.ToMarkdown(editable.Columns, raw),
-            ExportFormat.Html => ResultExporter.ToHtml(editable.Columns, raw),
+            ExportFormat.Html => ResultExporter.ToHtml(editable.Columns, raw, _settingsStore.Load().HtmlTableStyle),
             _ => string.Empty
         };
     }
@@ -567,6 +672,12 @@ public partial class DocumentViewModel : ViewModelBase
 
     private string? _currentSessionId;
 
+    /// <summary>Provider-declared column names driving the two monitor filters (empty = filter hidden):
+    /// which column names the session's database, and which holds the id of its blocker.</summary>
+    private string _databaseColumn = string.Empty;
+
+    private string _blockingColumn = string.Empty;
+
     private bool _monitorSupportsCancel;
 
     private bool _monitorRefreshing;
@@ -588,6 +699,87 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private RefreshOption? _selectedRefreshOption;
 
+    /// <summary>Whether the provider's session list carries a database / blocker column — drives the
+    /// visibility of the two monitor filters.</summary>
+    public bool HasDatabaseFilter => _databaseColumn.Length > 0;
+
+    public bool HasBlockingFilter => _blockingColumn.Length > 0;
+
+    /// <summary>The databases seen in the latest snapshot, "(all)" first. Rebuilt on every refresh; the
+    /// current selection survives as long as that database still has sessions.</summary>
+    public ObservableCollection<string> MonitorDatabases { get; } = [];
+
+    [ObservableProperty]
+    private string? _selectedMonitorDatabase;
+
+    [ObservableProperty]
+    private bool _blockingOnly;
+
+    partial void OnSelectedMonitorDatabaseChanged(string? value) => RenderSessions();
+
+    partial void OnBlockingOnlyChanged(bool value) => RenderSessions();
+
+    // ── Plugin documents (SE-216) ─────────────────────────────────────────────────────────────────────
+
+    private Avalonia.Media.Geometry? _pluginIcon;
+
+    /// <summary>The plugin-supplied content of a <see cref="DocumentMode.Plugin"/> tab, bound by
+    /// DocumentView. Null in every other mode.</summary>
+    public Avalonia.Controls.Control? PluginView { get; private set; }
+
+    /// <summary>Identity of a plugin tab, so reopening the same tool on the same target focuses the tab
+    /// that is already open instead of stacking a second one. Null in every other mode.</summary>
+    public string? PluginDocumentKey { get; private set; }
+
+    /// <summary>
+    /// Turn this document into a plugin-owned tab. The host keeps the tab chrome — title, icon, close —
+    /// and hands everything inside it to <paramref name="view"/>.
+    /// </summary>
+    public void InitPluginDocument(
+        SavedConnection connection,
+        string? database,
+        string key,
+        string title,
+        Avalonia.Controls.Control view,
+        Avalonia.Media.Geometry? icon)
+    {
+        Mode = DocumentMode.Plugin;
+        // Same guard as InitBrowse/InitMonitor: the query connection combo is collapsed here but still
+        // realized, and would coerce Connection back to null without a seeded single-item list.
+        AvailableConnections = [connection];
+        Connection = connection;
+        SelectedDatabase = database;
+        Title = title;
+        PluginDocumentKey = key;
+        PluginView = view;
+        _pluginIcon = icon;
+    }
+
+    public bool MatchesPluginDocument(string key) =>
+        IsPluginMode && string.Equals(PluginDocumentKey, key, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Release a plugin tab's content when the tab closes. A document holds what a dialog never does — a
+    /// schema snapshot, a timer — and without this they would live as long as the app. Best-effort: a
+    /// plugin throwing on dispose must not stop the tab from closing.
+    /// </summary>
+    public void DisposePluginView()
+    {
+        if (PluginView is IDisposable disposable)
+        {
+            try
+            {
+                disposable.Dispose();
+            }
+            catch
+            {
+                // A plugin that fails to clean up is its own problem; the tab still goes.
+            }
+        }
+
+        PluginView = null;
+    }
+
     public void InitMonitor(SavedConnection connection)
     {
         Mode = DocumentMode.Monitor;
@@ -600,8 +792,12 @@ public partial class DocumentViewModel : ViewModelBase
 
         var provider = _providers.Get(connection.ProviderId);
         _sessionIdColumn = provider.SessionIdColumn;
+        _databaseColumn = provider.SessionDatabaseColumn;
+        _blockingColumn = provider.BlockingSessionColumn;
         _monitorSupportsCancel = provider.SupportsCancelQuery;
         OnPropertyChanged(nameof(MonitorSupportsCancel));
+        OnPropertyChanged(nameof(HasDatabaseFilter));
+        OnPropertyChanged(nameof(HasBlockingFilter));
 
         RefreshOptions =
         [
@@ -666,8 +862,8 @@ public partial class DocumentViewModel : ViewModelBase
             var profile = _connections.Resolve(Connection, _database);
             var snapshot = await provider.GetActiveSessionsAsync(profile, ct);
             _currentSessionId = snapshot.CurrentSessionId;
-            _lastRowCount = snapshot.Sessions.Rows.Count;
             _lastSessions = snapshot.Sessions;
+            SyncMonitorDatabases(snapshot.Sessions);
             RenderSessions();
         }
         catch (OperationCanceledException)
@@ -693,14 +889,141 @@ public partial class DocumentViewModel : ViewModelBase
             return;
         }
 
-        var sorted = new QueryResult
+        var filtered = new QueryResult
         {
             Columns = sessions.Columns,
-            Rows = SortSessionRows(sessions),
+            Rows = FilterSessionRows(
+                sessions,
+                _databaseColumn,
+                _blockingColumn,
+                _sessionIdColumn,
+                SelectedMonitorDatabase == MonitorDatabases.FirstOrDefault() ? null : SelectedMonitorDatabase,
+                BlockingOnly),
             RecordsAffected = sessions.RecordsAffected,
             Elapsed = sessions.Elapsed
         };
+        _lastRowCount = filtered.Rows.Count;
+
+        var sorted = new QueryResult
+        {
+            Columns = filtered.Columns,
+            Rows = SortSessionRows(filtered),
+            RecordsAffected = filtered.RecordsAffected,
+            Elapsed = filtered.Elapsed
+        };
         SetResultSets([new ResultSetTab("Sessions", EditableResultSet.From(sorted))]);
+    }
+
+    // Rebuild the Database dropdown from the databases actually present in this snapshot, "(all)" first.
+    // Rewritten in place so the combo keeps its selection when the set is unchanged (every 5s otherwise
+    // it would flicker); a selected database that no longer has sessions falls back to "(all)".
+    private void SyncMonitorDatabases(QueryResult sessions)
+    {
+        if (!HasDatabaseFilter)
+        {
+            return;
+        }
+
+        var index = ColumnIndex(sessions, _databaseColumn);
+        var names = new List<string> { Loc["MonitorAllDatabases"] };
+        if (index >= 0)
+        {
+            names.AddRange(sessions.Rows
+                .Select(row => row[index]?.ToString())
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Select(name => name!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+        }
+
+        if (names.SequenceEqual(MonitorDatabases))
+        {
+            return;
+        }
+
+        var selected = SelectedMonitorDatabase;
+        MonitorDatabases.Clear();
+        foreach (var name in names)
+        {
+            MonitorDatabases.Add(name);
+        }
+
+        // Assigning the property re-renders through OnSelectedMonitorDatabaseChanged; the caller's own
+        // RenderSessions then runs against the settled selection.
+        SelectedMonitorDatabase = selected is not null && names.Contains(selected) ? selected : names[0];
+    }
+
+    /// <summary>Apply the monitor's two filters to a session snapshot: keep only rows in
+    /// <paramref name="database"/> (null = all), and — when <paramref name="blockingOnly"/> — only rows
+    /// involved in blocking, i.e. blocked sessions plus the sessions blocking them. Pure and static so it
+    /// can be exercised without a view-model; missing columns mean the corresponding filter is a no-op.</summary>
+    public static IReadOnlyList<object?[]> FilterSessionRows(
+        QueryResult sessions,
+        string databaseColumn,
+        string blockingColumn,
+        string sessionIdColumn,
+        string? database,
+        bool blockingOnly)
+    {
+        var rows = sessions.Rows;
+
+        if (blockingOnly)
+        {
+            var blockingIndex = ColumnIndex(sessions, blockingColumn);
+            var sessionIndex = ColumnIndex(sessions, sessionIdColumn);
+            if (blockingIndex >= 0)
+            {
+                // Blockers are resolved against the full snapshot, before the database filter — a blocker
+                // in another database is then dropped by that filter, which is what "show me database X" means.
+                var blockers = rows
+                    .Select(row => BlockerId(row[blockingIndex]))
+                    .Where(id => id is not null)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                rows = rows.Where(row =>
+                    BlockerId(row[blockingIndex]) is not null ||
+                    (sessionIndex >= 0 && blockers.Contains(row[sessionIndex]?.ToString() ?? string.Empty)))
+                    .ToList();
+            }
+        }
+
+        if (database is not null)
+        {
+            var index = ColumnIndex(sessions, databaseColumn);
+            if (index >= 0)
+            {
+                rows = rows
+                    .Where(row => string.Equals(row[index]?.ToString(), database, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+
+        return rows;
+    }
+
+    // A blocker id, or null when the cell says "not blocked" — engines write that as NULL or 0.
+    private static string? BlockerId(object? cell)
+    {
+        var text = cell is null or DBNull ? null : cell.ToString();
+        return string.IsNullOrEmpty(text) || text == "0" ? null : text;
+    }
+
+    private static int ColumnIndex(QueryResult sessions, string column)
+    {
+        if (column.Length == 0)
+        {
+            return -1;
+        }
+
+        for (var i = 0; i < sessions.Columns.Count; i++)
+        {
+            if (sessions.Columns[i].Name == column)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private IReadOnlyList<object?[]> SortSessionRows(QueryResult sessions)
@@ -710,16 +1033,7 @@ public partial class DocumentViewModel : ViewModelBase
             return sessions.Rows;
         }
 
-        var index = -1;
-        for (var i = 0; i < sessions.Columns.Count; i++)
-        {
-            if (sessions.Columns[i].Name == _sortColumn)
-            {
-                index = i;
-                break;
-            }
-        }
-
+        var index = ColumnIndex(sessions, _sortColumn);
         if (index < 0)
         {
             return sessions.Rows;
@@ -952,6 +1266,24 @@ public partial class DocumentViewModel : ViewModelBase
         return new CellActionContext(profile, provider, editable.Columns[columnIndex].Name, row.CurrentAt(columnIndex), values);
     }
 
+    /// <summary>Hold the auto-refresh while this tab isn't the visible one: polling the server every 5s for
+    /// a grid nobody is looking at is waste, and it kept replacing the tab's rows behind the user's back.
+    /// Unlike <see cref="StopMonitor"/> the timer is kept, so <see cref="ResumeMonitor"/> can pick it up.</summary>
+    public void PauseMonitor() => _refreshTimer?.Stop();
+
+    /// <summary>Resume auto-refresh when the tab comes back, with an immediate catch-up refresh so the grid
+    /// isn't showing a stale snapshot for up to one interval. No-op while the interval is Off.</summary>
+    public void ResumeMonitor()
+    {
+        if (_refreshTimer is null || SelectedRefreshOption is not { Seconds: > 0 })
+        {
+            return;
+        }
+
+        _refreshTimer.Start();
+        _ = RefreshMonitorAsync();
+    }
+
     /// <summary>Stop and release the auto-refresh timer — called when the monitor tab closes so it doesn't
     /// keep polling in the background.</summary>
     public void StopMonitor()
@@ -969,6 +1301,10 @@ public partial class DocumentViewModel : ViewModelBase
     // connection/database and never touch either — this is a no-op there.
     partial void OnConnectionChanged(SavedConnection value)
     {
+        // Before the query-mode guard: a contribution scoped to a provider has to be re-evaluated on a
+        // browse or monitor tab too, and this is the assignment every Init* path goes through.
+        RefreshPluginToolbarItems();
+
         if (!IsQueryMode)
         {
             return;
@@ -986,7 +1322,11 @@ public partial class DocumentViewModel : ViewModelBase
 
     // The database dropdown writes straight through to the same _database field ExecuteAsync/SaveAsync
     // already resolve with — browse tabs set it once via InitBrowse and never touch this property.
-    partial void OnSelectedDatabaseChanged(string? value) => _database = value;
+    partial void OnSelectedDatabaseChanged(string? value)
+    {
+        _database = value;
+        RefreshPluginToolbarItems();
+    }
 
     private async Task RefreshDatabasesAsync(SavedConnection connection)
     {
@@ -996,6 +1336,12 @@ public partial class DocumentViewModel : ViewModelBase
 
         AvailableDatabases.Clear();
         SelectedDatabase = null;
+        // Put the target straight back: the picker stays empty until the list arrives, but the tab must
+        // keep running against its database in the meantime — listing the databases is a round-trip, and
+        // on a connection switch the clear above really does null _database out. A query run in that
+        // window (or on a provider whose listing fails, which never repopulates) would otherwise silently
+        // go to the connection's default. SE-267.
+        _database = target;
         OnPropertyChanged(nameof(HasDatabasePicker));
 
         try
@@ -1956,10 +2302,186 @@ public partial class DocumentViewModel : ViewModelBase
         DeleteRowCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged();
         DiscardCommand.NotifyCanExecuteChanged();
+        RefreshViewers();
     }
 
-    partial void OnSelectedRowChanged(EditableRow? value) =>
+    partial void OnSelectedRowChanged(EditableRow? value)
+    {
         DeleteRowCommand.NotifyCanExecuteChanged();
+        _viewerContext?.SetSelection(RowIndexOf(value), SelectedColumnIndex);
+    }
+
+    // ── Result viewers (SE-75) ───────────────────────────────────────────────────────────────────────
+    // The grid is entry zero and always present; plugin viewers are appended when they say they can render
+    // the current snapshot. Rebuilt on every Editable swap, because a page turn can change the answer (a
+    // NULL-only binary column on this page, bytes on the next).
+
+    /// <summary>Column index the grid last reported as selected; fed to the viewer context alongside the row.</summary>
+    [ObservableProperty]
+    private int? _selectedColumnIndex;
+
+    partial void OnSelectedColumnIndexChanged(int? value) =>
+        _viewerContext?.SetSelection(RowIndexOf(SelectedRow), value);
+
+    public ObservableCollection<ViewOption> AvailableViews { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsGridView))]
+    [NotifyPropertyChangedFor(nameof(IsGridSurface))]
+    [NotifyPropertyChangedFor(nameof(IsViewerSurface))]
+    private ViewOption? _selectedView;
+
+    /// <summary>True while the built-in grid is showing — the grid, the aggregation bar and the paging row
+    /// bind their visibility to this, so a viewer gets the whole area.</summary>
+    public bool IsGridView => SelectedView is null || SelectedView.IsGrid;
+
+    // Row 5 holds the grid and a viewer's control as siblings, and a plugin-owned tab (SE-216) covers the
+    // whole body. Neither may stay mounted underneath that — a hidden DataGrid still takes focus and
+    // keyboard — so both surfaces are gated on the mode as well as on the switcher.
+    public bool IsGridSurface => IsGridView && !IsPluginMode;
+
+    public bool IsViewerSurface => !IsGridView && !IsPluginMode;
+
+    /// <summary>Whether the switcher is worth drawing: only once something other than the grid is on offer.
+    /// Row 4 shows when this or <see cref="HasMultipleResultSets"/> holds.</summary>
+    public bool HasViewSwitcher => AvailableViews.Count > 1;
+
+    private DocumentViewerContext? _viewerContext;
+
+    /// <summary>The context handed to the active viewer's control. The view builds the control off this and
+    /// keeps it until the selection changes.</summary>
+    public DocumentViewerContext? ViewerContext => _viewerContext;
+
+    private void RefreshViewers()
+    {
+        if (_viewers is null)
+        {
+            return;
+        }
+
+        var snapshot = BuildResultView();
+        if (snapshot is null)
+        {
+            AvailableViews.Clear();
+            _viewerContext = null;
+            SelectedView = null;
+            OnPropertyChanged(nameof(HasViewSwitcher));
+            OnPropertyChanged(nameof(ViewerContext));
+            return;
+        }
+
+        var previousId = SelectedView?.Id;
+
+        AvailableViews.Clear();
+        AvailableViews.Add(new ViewOption(ViewOption.GridId, Loc["ViewGrid"], null));
+        foreach (var viewer in _viewers.Applicable(snapshot))
+        {
+            AvailableViews.Add(new ViewOption(viewer.Id, LabelFor(viewer), viewer));
+        }
+
+        OnPropertyChanged(nameof(HasViewSwitcher));
+
+        // Keep the choice across a refresh when it still applies; fall back to the grid when it doesn't,
+        // rather than leaving a viewer mounted over data it just said it cannot render.
+        var restored = previousId is null ? null : AvailableViews.FirstOrDefault(v => v.Id == previousId);
+        SelectedView = restored ?? AvailableViews[0];
+
+        if (SelectedView.Plugin is { } plugin)
+        {
+            // Same viewer as before → keep its control and its state, just push the new data in.
+            if (_viewerContext is not null && restored is not null)
+            {
+                _viewerContext.Update(snapshot);
+            }
+            else
+            {
+                _viewerContext = new DocumentViewerContext(snapshot, _viewers.LocalizerFor(plugin.Id));
+                OnPropertyChanged(nameof(ViewerContext));
+            }
+
+            // A refresh replaces every row object, so the old selection is gone — land on the first row of
+            // the new page rather than dropping the viewer back to its empty state mid-browse.
+            SelectFirstRowIfNoneSelected();
+            _viewerContext.SetSelection(RowIndexOf(SelectedRow), SelectedColumnIndex);
+        }
+        else
+        {
+            _viewerContext = null;
+            OnPropertyChanged(nameof(ViewerContext));
+        }
+    }
+
+    partial void OnSelectedViewChanged(ViewOption? value)
+    {
+        if (_viewers is null || value?.Plugin is not { } plugin || BuildResultView() is not { } snapshot)
+        {
+            _viewerContext = null;
+            OnPropertyChanged(nameof(ViewerContext));
+            return;
+        }
+
+        // A viewer renders the selected row, so opening one with nothing selected would land on its
+        // "select a row" state — an instruction where the user asked for content. Selecting the first row
+        // is what they'd have done next anyway, and it keeps the grid in step for when they switch back.
+        SelectFirstRowIfNoneSelected();
+
+        // A fresh context per switch: the previous viewer's control is discarded with it.
+        _viewerContext = new DocumentViewerContext(snapshot, _viewers.LocalizerFor(plugin.Id));
+        _viewerContext.SetSelection(RowIndexOf(SelectedRow), SelectedColumnIndex);
+        OnPropertyChanged(nameof(ViewerContext));
+    }
+
+    private void SelectFirstRowIfNoneSelected()
+    {
+        if (SelectedRow is null && Editable?.Rows.FirstOrDefault(r => !r.IsDeleted) is { } first)
+        {
+            SelectedRow = first;
+        }
+    }
+
+    private string LabelFor(IViewerPlugin viewer)
+    {
+        if (viewer.TitleKey is not { Length: > 0 } key)
+        {
+            return viewer.Title;
+        }
+
+        var localized = _viewers!.LocalizerFor(viewer.Id).Get(key);
+        return string.IsNullOrWhiteSpace(localized) ? viewer.Title : localized;
+    }
+
+    /// <summary>A read-only copy of what the grid currently holds. Deleted rows are left out — a viewer
+    /// should show what the result set is, not the pending-delete bookkeeping.</summary>
+    private ResultView? BuildResultView()
+    {
+        if (Editable is not { } editable)
+        {
+            return null;
+        }
+
+        var rows = editable.Rows
+            .Where(r => !r.IsDeleted)
+            .Select(r => Enumerable.Range(0, editable.Columns.Count).Select(r.CurrentAt).ToArray())
+            .ToList();
+
+        return new ResultView(editable.Columns, rows, Connection?.ProviderId ?? string.Empty)
+        {
+            QualifiedTable = editable.Target is { } target
+                ? target.Schema is { Length: > 0 } schema ? $"{schema}.{target.Table}" : target.Table
+                : null
+        };
+    }
+
+    private int? RowIndexOf(EditableRow? row)
+    {
+        if (row is null || Editable is not { } editable)
+        {
+            return null;
+        }
+
+        var index = editable.Rows.IndexOf(row);
+        return index >= 0 ? index : null;
+    }
 
     private static string BuildPreview(IReadOnlyList<SqlStatement> statements)
     {

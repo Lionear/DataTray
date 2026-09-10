@@ -87,6 +87,85 @@ Key points:
   state you need when you build the contribution, and offload heavy work yourself.
   (Shortcuts are window-scoped; a plugin cannot bind an editor-only key.)
 
+### Toolbar buttons (`IToolbarPlugin` / `IQueryToolbarPlugin`)
+
+**Standing-subsystem plugins only** (`type: "extension"`), gated by the
+`toolbar` capability — a separate consent string from `menu`, because a menu item
+sits behind a click where the user goes looking for it and a toolbar button is
+permanent chrome. Requires `"hostApiVersion": 8`.
+
+Two surfaces, two interfaces, mirroring how `IMenuPlugin` and
+`IConnectionMenuPlugin` already split the two menu surfaces.
+
+```csharp
+public sealed class ContainersExtension : ISubsystemPlugin, IToolbarPlugin
+{
+    public IReadOnlyList<ToolbarContribution> ToolbarItems =>
+    [
+        new("new-container", _ctx.Localizer["NewContainer"], ui => ShowCreateDialogAsync(ui))
+        {
+            Icon           = ContainerGeometry,
+            Tooltip        = _ctx.Localizer["NewContainerTip"],
+            DefaultGesture = "Mod+Shift+K",   // optional, and only a suggestion
+        },
+    ];
+}
+```
+
+The query-window surface adds an `AppliesTo` predicate and is handed the
+document, so it decides per tab whether it appears at all:
+
+```csharp
+public sealed class PlansExtension : ISubsystemPlugin, IQueryToolbarPlugin
+{
+    public IReadOnlyList<QueryToolbarContribution> QueryToolbarItems =>
+    [
+        new("actual-plan", _ctx.Localizer["ActualPlan"],
+            doc => doc.Kind == QueryDocumentKind.Query && doc.Connection?.ProviderId == "mssql",
+            (doc, ui) => CaptureAsync(doc, ui)) { Icon = PlanGeometry },
+    ];
+}
+```
+
+`IQueryDocument` is deliberately small — read the SQL (`Sql`, `SelectedSql`),
+rewrite it (`SetSql`), run it (`RunAsync`), plus `Kind`, `Connection` and
+`Database` to scope against. Enough for a formatter, a linter, a snippet
+inserter or a query assistant; the result grid, the paging state and the pending
+edit buffer stay out until a plugin needs them.
+
+Key points:
+
+- **The application toolbar is the user's.** A contribution proposes a button; whether
+  it is shown and where it sits is settled in Settings ▸ Toolbar. A plugin cannot claim
+  the front, reorder or remove host actions, or exempt itself from the overflow flyout.
+  A newly installed plugin's button *does* appear by default — absent from the saved
+  layout means new, not hidden.
+- **Ids are namespaced** (`pluginId:localId`) and persisted, in the toolbar layout and
+  in the keymap. Keep the local id stable.
+- **Every application-toolbar action is rebindable** in Settings ▸ Keyboard, whether or
+  not you set `DefaultGesture`. `null` ships it unbound but bindable. There is no
+  `DefaultGesture` on the query surface: the keymap has no notion of document scope.
+- **`ManagedConnectionInfo`, not a connection profile** — non-secret field values only.
+  A generic toolbar extension has no business holding a credential it does not need in
+  order to connect.
+- **Icons are a `Geometry` you own** (host icon resources are unreachable across the ALC
+  boundary), drawn `Stretch="Uniform"` and tinted with the theme. No icon fonts, no
+  emoji — see the icon note under *Theming a Route B view*. `null` renders text-only.
+- **Titles and tooltips are yours to localise** through your own
+  `IPluginRuntimeContext.Localizer` before you return the contribution. They are read
+  once at mount, so a live language switch does not re-label them until restart — the
+  same as plugin menu items and panels today.
+- **`InvokeAsync` runs on the UI thread** and one throwing contribution does not take
+  the toolbar down. Offload heavy work yourself.
+- **No disabled state and no toggle buttons.** A button is either there or it is not;
+  `AppliesTo` decides per-document applicability. A live enabled/pressed flag would mean
+  change notification across the ALC boundary, which no existing seam does. If the
+  action is not valid right now, say so when it is clicked.
+
+The design record — including what was rejected and why — is
+[Toolbar architecture](../toolbar-architecture.md).
+`plugins/Backends.Docker` is the reference implementation.
+
 ### Referencing Avalonia for a Route B view
 
 Route B capabilities (`ICustomToolUi`, `ICustomPluginSettingsUi`) return an

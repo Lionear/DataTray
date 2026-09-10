@@ -18,6 +18,16 @@ public static class PluginCapabilities
     /// <summary>Adds items to the top-bar menus.</summary>
     public const string Menu = "menu";
 
+    /// <summary>
+    /// Adds buttons to the application toolbar and to query windows (<see cref="IToolbarPlugin"/> /
+    /// <see cref="IQueryToolbarPlugin"/>). Deliberately not folded into <see cref="Menu"/>: that is
+    /// disclosed as "adds items to the top-bar menus" — items behind a click, in a place the user goes
+    /// looking for them — where a toolbar button is permanent chrome in the app's most valuable strip.
+    /// Different ask, different string. The user can still untick the button afterwards in
+    /// Settings ▸ Toolbar; consent is about what the plugin may propose.
+    /// </summary>
+    public const string Toolbar = "toolbar";
+
     /// <summary>Uses plugin-scoped persistent storage (<see cref="IPluginStorage"/>).</summary>
     public const string Storage = "storage";
 

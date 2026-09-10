@@ -44,13 +44,16 @@
     <ProjectReference Include="..\..\plugins\Providers.DragonflyDb\DataTray.Providers.DragonflyDb.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Providers.Elasticsearch\DataTray.Providers.Elasticsearch.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Providers.MongoDb\DataTray.Providers.MongoDb.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Providers.Prometheus\DataTray.Providers.Prometheus.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Providers.Redis\DataTray.Providers.Redis.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <!-- Cross-connection schema-diff / copy-table tools (SE-99 / SE-100): store-only, so Debug-staged for
          development but not bundled in Release — users install them from the Plugin Store (like the other tools). -->
     <ProjectReference Include="..\..\plugins\Tools.SchemaDiff\DataTray.Tools.SchemaDiff.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.GenerateScripts\DataTray.Tools.GenerateScripts.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.CopyTable\DataTray.Tools.CopyTable.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Tools.ErDiagram\DataTray.Tools.ErDiagram.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.UniversalBackup\DataTray.Tools.UniversalBackup.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
+    <ProjectReference Include="..\..\plugins\Viewers.Basic\DataTray.Viewers.Basic.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Tools.MsSqlBacpac\DataTray.Tools.MsSqlBacpac.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
     <ProjectReference Include="..\..\plugins\Backends.Docker\DataTray.Backends.Docker.csproj" ReferenceOutputAssembly="false" Private="false" Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>

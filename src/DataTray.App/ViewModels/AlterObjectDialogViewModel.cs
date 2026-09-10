@@ -58,8 +58,17 @@ public partial class AlterObjectDialogViewModel : ViewModelBase
 
     public AlterKind Kind { get; private set; }
 
-    /// <summary>The object being dropped/altered, for the confirmation message (e.g. a table name).</summary>
+    /// <summary>The object being dropped/altered, for the confirmation message — qualified with the
+    /// database and schema it will run against, e.g. <c>rick-test › DataSync</c>. A bare name is not
+    /// enough to confirm a DROP by: the statement is catalog-relative (<c>DROP SCHEMA [X]</c> names no
+    /// database at all), so the label is the only thing that can tell you where it lands (SE-270).</summary>
     public string ObjectLabel { get; private set; } = string.Empty;
+
+    /// <summary>Database › schema › object, skipping the levels this engine or action doesn't have —
+    /// SQLite has no schema, and Drop Database deliberately passes no database (it runs from the
+    /// connection's own catalog, so the target is the whole label).</summary>
+    public static string QualifiedLabel(string? database, string? schema, string label) =>
+        string.Join(" › ", new[] { database, schema, label }.Where(part => !string.IsNullOrEmpty(part)));
 
     public IReadOnlyList<string> ColumnTypes { get; private set; } = [];
 
@@ -102,7 +111,7 @@ public partial class AlterObjectDialogViewModel : ViewModelBase
         _database = database;
         _dialect = dialect;
         ColumnTypes = columnTypes;
-        ObjectLabel = objectLabel;
+        ObjectLabel = QualifiedLabel(database, schema, objectLabel);
         _schema = schema;
         _target = target;
         _isView = isView;

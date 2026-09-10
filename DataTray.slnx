@@ -5,11 +5,13 @@
     <Project Path="plugins/Providers.DuckDb/DataTray.Providers.DuckDb.csproj" />
     <Project Path="plugins/Providers.Elasticsearch/DataTray.Providers.Elasticsearch.csproj" />
     <Project Path="plugins/Providers.MongoDb/DataTray.Providers.MongoDb.csproj" />
+    <Project Path="plugins/Providers.Prometheus/DataTray.Providers.Prometheus.csproj" />
     <Project Path="plugins/Providers.Redis/DataTray.Providers.Redis.csproj" />
     <Project Path="plugins/Providers.Template/DataTray.Providers.Template.csproj" />
     <Project Path="plugins/Backends.Docker/DataTray.Backends.Docker.csproj" />
     <Project Path="plugins/Tools.MsSqlBacpac/DataTray.Tools.MsSqlBacpac.csproj" />
     <Project Path="plugins/Tools.UniversalBackup/DataTray.Tools.UniversalBackup.csproj" />
+    <Project Path="plugins/Viewers.Basic/DataTray.Viewers.Basic.csproj" />
     <Project Path="src/DataTray.Providers.MsSql/DataTray.Providers.MsSql.csproj" />
     <Project Path="src/DataTray.Providers.MySql/DataTray.Providers.MySql.csproj" />
     <Project Path="src/DataTray.Providers.Postgres/DataTray.Providers.Postgres.csproj" />
@@ -26,6 +28,7 @@
     <Project Path="src/DataTray.Screenshots/DataTray.Screenshots.csproj" />
     <Project Path="src/DataTray.Sdk/DataTray.Sdk.csproj" />
     <Project Path="plugins/Tools.CopyTable/DataTray.Tools.CopyTable.csproj" />
+    <Project Path="plugins/Tools.ErDiagram/DataTray.Tools.ErDiagram.csproj" />
     <Project Path="plugins/Tools.GenerateScripts/DataTray.Tools.GenerateScripts.csproj" />
     <Project Path="plugins/Tools.SchemaDiff/DataTray.Tools.SchemaDiff.csproj" />
   </Folder>
@@ -33,8 +36,11 @@
     <Project Path="tests/DataTray.App.Tests/DataTray.App.Tests.csproj" />
     <Project Path="tests/DataTray.Backends.Docker.Tests/DataTray.Backends.Docker.Tests.csproj" />
     <Project Path="tests/DataTray.Core.Tests/DataTray.Core.Tests.csproj" />
+    <Project Path="tests/DataTray.Providers.Prometheus.Tests/DataTray.Providers.Prometheus.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.CopyTable.Tests/DataTray.Tools.CopyTable.Tests.csproj" />
+    <Project Path="tests/DataTray.Tools.ErDiagram.Tests/DataTray.Tools.ErDiagram.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.GenerateScripts.Tests/DataTray.Tools.GenerateScripts.Tests.csproj" />
+    <Project Path="tests/DataTray.Tools.MsSqlAdmin.Tests/DataTray.Tools.MsSqlAdmin.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.SchemaDiff.Tests/DataTray.Tools.SchemaDiff.Tests.csproj" />
   </Folder>
 </Solution>

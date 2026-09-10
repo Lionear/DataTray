@@ -3,7 +3,7 @@
   "id": "schema-diff",
   "type": "tool",
   "name": "Schema Diff",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "hostApiVersion": 4,
   "entryAssembly": "DataTray.Tools.SchemaDiff.dll",
   "localization": "Lang/strings"

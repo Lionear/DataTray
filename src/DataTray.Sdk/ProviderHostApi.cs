@@ -137,7 +137,43 @@ public static class ProviderHostApi
     //     SELECT that may already be ordered (DataGrip/DBeaver-style result paging); SQL Server overrides it
     //     to append OFFSET/FETCH to an existing ORDER BY. All three purely additive at the type level — the
     //     version bump exists purely to gate them away from a host that predates them.
-    public const int Version = 27;
+    // v28 (2026-09-04): added QueryResult.EditFilterPredicate (string?, default null, SE-280) — a trusted,
+    //                   provider-generated SQL boolean expression ANDed into every generated UPDATE/DELETE
+    //                   WHERE on top of the key predicate. Lets a provider expose a filtered/partial unique
+    //                   index (SQL Server: sys.indexes.filter_definition) as an edit key: the index columns
+    //                   alone are only unique among the rows the filter covers (e.g. a soft-delete table's
+    //                   "UNIQUE (OrgId, ItemId) WHERE IsDeleted = 0"), so without ANDing the filter in, the
+    //                   key could still match more than one row outside it. Purely additive: a provider that
+    //                   never sets it (every other provider, today) is unaffected.
+    // v28 (2026-08-01): added IDbProvider.SessionDatabaseColumn + BlockingSessionColumn (both default
+    //                   string.Empty = "no such column in my session list") — they name which
+    //                   GetActiveSessionsAsync column holds the session's database and the id of its
+    //                   blocker, driving the Activity Monitor's Database dropdown and "Blocking only"
+    //                   filter. MSSQL declares both ("database"/"blocking_session_id"), Postgres/MySQL
+    //                   only the database one ("datname"/"db"). Purely additive: a provider that declares
+    //                   neither keeps the unfiltered monitor it had. Bumped rather than folded into v27,
+    //                   which shipped in 0.4.0 — same post-release rule as the v27 note above.
+    // v29 (2026-08-13): DDL Create learns indexes (SE-250) — DbObjectKind.Index, NewIndexColumnSpec, and
+    //                   three optional members on CreateObjectSpec (Table, IndexColumns, Unique) naming the
+    //                   table the index is created on and its key columns in order. Until now DataTray could
+    //                   create databases, schemas, tables and columns but had no path to a CREATE INDEX at
+    //                   all. Purely additive: the new spec members carry defaults, and a provider that omits
+    //                   the CreateCapability keeps the menu item hidden and is never handed the new kind.
+    // v30 (2026-08-15): SQL Server's Index Properties dialog (SE-252). New Route-B seam ICustomCreateUi —
+    //                   a provider replaces the host's generic "New …" dialog for a DbObjectKind it owns,
+    //                   because included columns, per-column sort order and filters are not things
+    //                   CreateObjectSpec models and would not be worth modelling for one engine.
+    //                   NodeInfoContext also gains NodePath/Ancestor() (an "Indexes" folder is called that
+    //                   under every table, so Node alone does not identify what the view describes — the
+    //                   same gap ToolExecutionContext.NodePath closed for tools) and OpenQueryEditor (a
+    //                   Script button), plus ICustomNodeInfoUi.InfoViewOwnsActionBar for a properties view
+    //                   that writes and brings its own OK/Cancel.
+    //                   Bumped rather than folded in, even though everything but ICustomCreateUi is a
+    //                   default member or a record property: ICustomCreateUi is a new *type*, and a plugin
+    //                   declaring 29 while implementing it would load on a v29 host and then die in
+    //                   GetTypes() with ReflectionTypeLoadException, taking the whole provider with it.
+    //                   That — new types, not "has this number shipped" — is the test for a bump.
+    public const int Version = 30;
 
     /// <summary>Oldest plugin ABI this host still loads. Additive bumps (v11→v22 style) keep this fixed;
     /// only a breaking change raises it. Raised to 23 by the v23 BuildNodeQuery signature change above —

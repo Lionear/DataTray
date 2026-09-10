@@ -3,7 +3,7 @@
   "id": "mssql-bacpac",
   "type": "tool",
   "name": "SQL Server BACPAC/DACPAC",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "hostApiVersion": 2,
   "entryAssembly": "DataTray.Tools.MsSqlBacpac.dll",
   "localization": "Lang/strings"

@@ -197,15 +197,38 @@
             </ComboBox>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
+            <!-- Hidden, not just disabled, when nothing can come of it: an install the updater does not
+                 manage has no path from "a newer build exists" to actually having it. The sentence
+                 below takes its place and says where to get one. -->
             <Button Content="{Binding Loc[UpdateCheckNow]}" Command="{Binding CheckForUpdatesNowCommand}"
-                    IsEnabled="{Binding !IsCheckingUpdate}" />
-            <Button Classes="Accent" Content="{Binding Loc[UpdateBannerViewChangelog]}"
-                    Command="{Binding ShowWhatsNewCommand}" IsVisible="{Binding Update.HasUpdate}" />
+                    IsEnabled="{Binding !IsCheckingUpdate}" IsVisible="{Binding !IsUnmanagedInstall}" />
+            <!-- The found update, actionable from here as well as from the main-window banner (SE-266) —
+                 the same commands, so starting a download here is the download the banner shows. Which
+                 control is visible follows the banner's state: download, then progress, then install. -->
+            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding Update.HasUpdate}">
+              <Button Classes="Accent" Content="{Binding Loc[UpdateDownloadNow]}"
+                      Command="{Binding Update.DownloadCommand}" IsVisible="{Binding Update.CanDownload}" />
+              <ProgressBar Width="120" Height="4" Minimum="0" Maximum="1" VerticalAlignment="Center"
+                           Value="{Binding Update.DownloadProgress}" IsVisible="{Binding Update.IsDownloading}" />
+              <Button Classes="Accent" Content="{Binding Loc[UpdateBannerUpdateNow]}"
+                      Command="{Binding Update.InstallAndRestartCommand}"
+                      IsVisible="{Binding Update.IsReadyToInstall}" />
+              <!-- Covers downloading, ready and failed alike: the one state with nothing to say is
+                   Available, where the button beside it already says everything. -->
+              <TextBlock Text="{Binding Update.StatusMessage}" VerticalAlignment="Center" FontSize="11.5"
+                         IsVisible="{Binding !Update.IsAvailable}" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SETextSecondaryBrush}" />
+              <Button Content="{Binding Loc[UpdateBannerViewChangelog]}"
+                      Command="{Binding ShowWhatsNewCommand}" />
+            </StackPanel>
             <TextBlock Text="{Binding UpdateCheckStatus}" VerticalAlignment="Center" FontSize="11.5"
                        Foreground="{DynamicResource SETextSecondaryBrush}" />
           </StackPanel>
-          <Button Content="{Binding Loc[UpdateRollback]}" Command="{Binding RollBackUpdateCommand}"
-                  IsVisible="{Binding CanRollback}" HorizontalAlignment="Left" Margin="0,2,0,0" />
+          <!-- Not a managed install (build directory, unpacked archive): say so instead of offering a
+               check that could never lead to an install (SE-245). -->
+          <TextBlock Text="{Binding Loc[UpdateUnmanagedInstall]}" IsVisible="{Binding IsUnmanagedInstall}"
+                     TextWrapping="Wrap" Margin="0,2,0,0" FontSize="11.5"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
         </StackPanel>
         </ScrollViewer>
 
@@ -294,6 +317,19 @@
           </Grid>
           <TextBlock Text="{Binding Loc[QueryPageSizeHint]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" />
+          <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+            <TextBlock Grid.Column="0" Text="{Binding Loc[HtmlTableStyleLabel]}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" Width="200" ItemsSource="{Binding HtmlTableStyles}"
+                      SelectedItem="{Binding SelectedHtmlTableStyleOption}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+          <TextBlock Text="{Binding Loc[HtmlTableStyleHint]}" FontSize="11" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextFaintBrush}" />
         </StackPanel>
 
         <!-- Query Log -->
@@ -354,6 +390,54 @@
           <TextBlock Text="{Binding Loc[MasterPwNoRecovery]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" Margin="0,8,0,0" />
         </StackPanel>
+
+        <!-- Toolbar (SE-255): one list, in toolbar order. Visibility and order are two properties of the
+             same row, so a two-list transfer control would make the operation people actually perform —
+             nudging one button left — needlessly indirect. -->
+        <Grid RowDefinitions="Auto,Auto,*,Auto"
+              IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Toolbar}">
+          <TextBlock Grid.Row="0" Text="{Binding Loc[SettingsToolbar]}" FontSize="14" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Text="{Binding Loc[ToolbarDesc]}" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" Margin="0,4,0,10" />
+
+          <Border Grid.Row="2" BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1" CornerRadius="6">
+            <ListBox x:Name="ToolbarList" Background="Transparent" BorderThickness="0" Padding="0,4"
+                     ItemsSource="{Binding ToolbarItems}"
+                     KeyDown="OnToolbarListKeyDown"
+                     PointerMoved="OnToolbarListPointerMoved"
+                     PointerReleased="OnToolbarListPointerReleased">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Height="34" Background="Transparent">
+                    <!-- Drag handle. A vector Path rather than a glyph: no icon fonts, no emoji. -->
+                    <Path Grid.Column="0" Width="10" Height="14" Margin="2,0,10,0" VerticalAlignment="Center"
+                          Cursor="SizeAll" PointerPressed="OnToolbarGripPressed"
+                          Fill="{DynamicResource SETextFaintBrush}"
+                          Data="M2,2 A1.1,1.1 0 1 1 2,2.01 M8,2 A1.1,1.1 0 1 1 8,2.01
+                                M2,7 A1.1,1.1 0 1 1 2,7.01 M8,7 A1.1,1.1 0 1 1 8,7.01
+                                M2,12 A1.1,1.1 0 1 1 2,12.01 M8,12 A1.1,1.1 0 1 1 8,12.01" />
+                    <CheckBox Grid.Column="1" Margin="0,0,6,0" VerticalAlignment="Center"
+                              IsChecked="{Binding IsShown}" />
+                    <Path Grid.Column="2" Width="14" Height="14" Stretch="Uniform" Margin="0,0,8,0"
+                          VerticalAlignment="Center" Data="{Binding Icon}"
+                          Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.4"
+                          StrokeJoin="Round" StrokeLineCap="Round" />
+                    <TextBlock Grid.Column="3" Text="{Binding Label}" FontSize="12.5" VerticalAlignment="Center" />
+                    <!-- The owning plugin, so a row can always be traced back to what put it there. -->
+                    <TextBlock Grid.Column="4" Text="{Binding PluginTitle}" FontSize="11" Margin="12,0,4,0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource SETextFaintBrush}" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Border>
+
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+            <Button Content="{Binding Loc[ToolbarResetDefaults]}" Command="{Binding ResetToolbarCommand}" />
+            <TextBlock Text="{Binding Loc[ToolbarSavedTo]}" FontSize="11" VerticalAlignment="Center"
+                       Margin="8,0,0,0" Foreground="{DynamicResource SETextFaintBrush}" />
+          </StackPanel>
+        </Grid>
 
         <!-- Keyboard -->
         <Grid RowDefinitions="Auto,Auto,Auto,*"

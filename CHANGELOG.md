@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to SQL Explorer are documented here.
+All notable changes to DataTray are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/). Add finished work under `## [Unreleased]`; releasing a
@@ -10,6 +10,353 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 _Nothing yet._
+
+## [0.8.0] - 2026-08-16
+
+### Added
+
+- **A plugin can open its own tab.** Until now a tool plugin got a dialog: collect input, run, report,
+  close. That is the wrong container for anything you want to keep open while working — so a tool may now
+  open as a tab in the main window instead, beside your query tabs, with its own content, title and icon.
+  Reopening the same tool on the same target brings you back to the tab you already have rather than
+  stacking another. Nothing changes for existing tools. The first plugin to use it will be the ER diagram.
+- **Bring your connections over from DataGrip or DBeaver instead of retyping them.** The Connection Manager
+  toolbar has a new import button: it scans the places both clients keep their config — every installed
+  JetBrains IDE's `dataSources.xml`, every DBeaver workspace's `data-sources.json` — and shows what it found
+  with a tick box per connection. Host, port, database, user and DBeaver's folder come along; the engine is
+  read from the JDBC URL, so PostgreSQL, MySQL/MariaDB, SQL Server and SQLite all land on the right provider
+  with their fields filled.
+- **Passwords are deliberately not imported.** DataGrip keeps them in the IDE keychain and DBeaver in its own
+  encrypted credentials file — both are another application's secret store, and DataTray does not read them.
+  An imported connection arrives without a password and asks for it once, on first connect.
+- Anything found but not importable — an engine DataTray has no provider for, a provider whose plugin is not
+  installed, an entry with no JDBC URL — is still listed with the reason, so a partial import says so rather
+  than quietly skipping rows.
+- **SQL Server Agent jobs can be started, stopped, enabled and disabled**, the way SSMS does it from a job's
+  context menu. The four actions sit straight on a job's context menu, next to *Delete Job…* and with *New
+  Job…* on the Agent Jobs folder — no submenu in between. Nothing to fill in, so the dialog is a short
+  explanation, a button and the log Agent's answer lands in. The job editor (steps, schedules,
+  notifications) is not part of this.
+- **The Agent Jobs folder says when the Agent service is not running**, instead of looking live while every
+  action on it comes back refused. A job's configuration sits in msdb whether or not Agent runs, so the jobs
+  themselves still list — the folder just tells you nothing will fire.
+- **The job list says what it is worth saying at a glance.** A job that is switched off reads *disabled*, a
+  job whose last run failed, retried or was cancelled carries that as a badge, and hovering any job shows
+  when it last ran. A job that has never run stays unlabelled rather than being reported as failed.
+- **Agent jobs have a Properties dialog.** Right-click a job ▸ Properties… opens the same page-rail dialog
+  Database Properties uses. **General** shows what the job is and lets you change it — enabled, description,
+  category and owner are editable and saved back to Agent. **History** lists every run Agent still holds,
+  job outcomes and step rows together, with the message that says why a run ended the way it did. No cap of
+  our own: Agent's own retention already bounds what is there.
+- **Job steps can be edited, not just read.** The **Steps** page adds, changes, deletes and reorders a job's
+  steps: name, type, the account it runs as, database, command, output file, retry attempts and interval, and
+  what happens on success and on failure — including jumping to a specific step. The type list comes from the
+  server rather than a fixed set, so a box without SSIS or replication does not offer them.
+- **Schedules can be created, changed and removed** from the **Schedules** page: daily, weekly, monthly on a
+  day or on a relative day ("the second Friday"), one time, or tied to Agent starting or the CPUs going idle
+  — each either at one moment or repeating inside a window. The page writes the sentence it is about to save
+  as you build it, so "every 2 weeks on Mon, Wed, Fri, every 30 minutes between 08:00:00 and 17:00:00" is
+  something you read rather than something you infer from six numeric fields. Removing a schedule detaches it
+  and only deletes it when no other job still uses it.
+- **Alerts, Notifications and Targets complete the dialog.** **Alerts** creates and edits the alerts that
+  respond by running the job — on an error number, an error severity, or a performance condition, optionally
+  narrowed to one database and a phrase in the message. **Notifications** sets who Agent tells and when, per
+  channel. **Targets** shows which servers run the job, and says so plainly when none does: a job with no
+  target server is configured but will never fire.
+- **Jobs can be created and deleted from the tree.** *New Job…* on the Agent Jobs folder makes a job and
+  targets it at the local server in one step, so it is not born in that never-fires state. *Delete Job…* on a
+  job removes it with its steps and history.
+- **SSIS job steps have a real editor.** On the **Steps** page of an Agent job, picking `SSIS` as the type
+  now replaces the command box with the fields the command is actually made of: where the package lives —
+  the SSIS catalog, the file system, or either package store — the package itself, the environment to run it
+  against, the logging level, the 32-bit runtime flag, and per-connection-manager overrides. Catalog packages
+  are picked from a browser rather than typed, folder to project to package. The `dtexec` command is built
+  from those fields and shown read-only, because it is a generated argument string in which every escaped
+  quote matters and a hand-typed mistake only surfaces when the job runs.
+- **Existing SSIS steps are read back into that editor**, which matters more than the editor does: nearly
+  every one of them was written by SSMS. A step whose command uses an option the editor does not model keeps
+  its text box with the command untouched, and says which option that was — a dropped option would change
+  what the step does without anyone touching the field. An environment reference the catalog no longer has is
+  reported by id instead of quietly resetting to none, which is the most common way an SSIS step is broken
+  and the one whose run-time error points nowhere.
+- **The Run as list now only offers proxies that may run the selected type.** A proxy is granted per
+  subsystem, and offering one without the grant produced a step that failed to save or could not start. Where
+  a step has no proxy the SSIS editor names the account it will actually use — the Agent service account,
+  which usually has no rights on SSISDB — instead of the unhelpfully vague "(default)".
+- **The connection import reaches four more clients.** Alongside DataGrip and DBeaver it now also finds:
+  - **`.pg_service.conf`** — libpq's connection-service file, where each `[section]` is a named PostgreSQL
+    service.
+  - **MySQL Workbench** — the saved connections in `connections.xml`.
+  - **Azure Data Studio and VS Code** — the `mssql.connections` profiles in your user settings. The SQL
+    Server way of writing one endpoint as `host,1433`, `tcp:host,1433` or `host\INSTANCE` is split into the
+    host and port fields; a named instance is dropped, since resolving it needs the SQL Browser.
+  - **MongoDB Compass** — its saved connections, including Atlas `mongodb+srv://` URIs (which carry no port
+    to import, so the provider's default stands).
+- **A password that the source file spells out now comes along**, so you don't retype what DataTray just
+  read: the `password=` line in `.pg_service.conf`, an inline `user:password@host` in a URI, and the
+  `password` an editor writes when you decline its credential store. It goes straight to your OS keychain,
+  the same place a hand-typed password lands, and never into the config file.
+- **A password held in another application's secret store is still left alone** — not the OS keychain
+  entries DataGrip and MongoDB Compass use, and not DBeaver's encrypted credentials file. Those
+  connections arrive without one and ask on first connect.
+- Because that differs per client, each row in the picker says whether a password is coming with it.
+- **The import can now fetch the passwords DataGrip keeps in your system's credential store**, so a
+  DataGrip connection arrives ready to use instead of asking you to retype what it already had. Nothing is
+  fetched while DataTray reads config files: the picker shows a separate *"Also fetch N passwords…"*
+  button, and pressing it is the opt-in. Your operating system still decides — it may prompt, and it may
+  refuse; both simply mean the connection comes in without a password, exactly as before.
+- Whatever comes back goes straight into DataTray's own keychain, the same place a hand-typed password
+  lands, and never into a config file.
+- **DBeaver is deliberately still left alone.** Its passwords are sealed with a key that ships inside
+  DBeaver itself rather than held by your operating system, so nothing there is asked on your behalf —
+  which is the whole basis on which reading another client's passwords is reasonable.
+- **A first launch now welcomes you instead of leaving you with a tray icon.** A four-step wizard —
+  welcome, engine, connection, done — runs once on a fresh profile and never again. Skip is on every step,
+  and skipping counts as an answer: it won't ask again.
+- **Choosing an engine is where the plugin model is introduced**, because it's where it answers a question
+  you're already asking. The four included engines sit above the ones the Plugin Store offers, and picking
+  one of those opens the store to install it.
+- Plugins load when DataTray starts, so an engine installed during onboarding needs a restart before you
+  can connect with it. The wizard says so, restarts, and **comes back to the step and engine you were on**
+  rather than starting over.
+- **The wizard offers to take over your existing connections** the moment you reach the engine step —
+  anyone installing a database client already has one, and DataTray reads six of them. Rows that can't be
+  imported (a MongoDB connection with no MongoDB plugin, say) are listed and disabled rather than hidden.
+- The connection step asks for the engine's basic fields and nothing else. Colour, folder, read-only mode
+  and AI access are all real settings, and all of them belong in the Connection Manager rather than on
+  someone's first screen.
+- The last step names the three things nobody finds on their own: DataTray keeps running in the tray after
+  you close its window, AI access is off for every connection until you turn it on, and there are more
+  engines and tools under *Tools › Plugin Store*.
+- **"Copy as HTML" now produces a formatted table, and you pick the look.** Settings → Query → *HTML table
+  style* offers a filled header (the new default), hairlines, a filled header with striped rows, or the plain
+  table it used to be. The styled variants right-align numeric columns, spell NULL out in grey so an empty
+  cell stays distinguishable from the text "NULL", and carry their own font — all of it inline, because
+  Outlook renders with Word's engine and ignores a stylesheet. The same setting applies to the HTML export.
+- **Activity Monitor for SQL Server, modelled on SSMS.** Right-click a SQL Server connection ▸ Activity Monitor —
+  the same entry point as before — for a live tab: four graphs (% Processor Time, Waiting Tasks, Database I/O,
+  Batch Requests/sec) over five collapsible grids — Processes (all fifteen SSMS columns, with Kill Process),
+  Resource Waits, Data File I/O, Recent Expensive Queries and Active Expensive Queries. Every grid sorts and
+  filters, and the whole tab refreshes on a timer (10 seconds by default, 5s–60s or off). Read-only apart
+  from Kill Process, which asks first.
+- On SQL Server this replaces the previous one-grid Activity Monitor, which showed ten columns of the same
+  session list. Postgres and MySQL keep theirs unchanged.
+- **Index maintenance from the tree (SQL Server).** The Indexes node under a table now offers Rebuild All,
+  Reorganize All and Disable All straight on its context menu, and a single index offers Rebuild,
+  Reorganize, Disable and Drop the way SSMS has them — no submenu in between. Each one confirms against the
+  table's **current fragmentation** — index, type, fragmentation percentage and page count, read from
+  `sys.dm_db_index_physical_stats` as the dialog opens — so a bulk rebuild is decided on which indexes are
+  actually fragmented rather than on the table's name. Disabling
+  and dropping ask for confirmation first; dropping an index that backs a primary key or unique constraint
+  says so, and names the constraint to drop instead, rather than passing on SQL Server's "an explicit DROP
+  INDEX is not allowed".
+- Tool plugins are now told which node they were launched under, not just its name — an index tool can tell
+  which table it is acting on. Tools that ignore it are unaffected (tool API 7). A tool's own dialog view
+  is told the same thing, so it can show live data about that object (tool API 8).
+- **New Index….** Right-click a table's Indexes node to create one: a name, its key columns in order (each
+  ascending or descending, picked from the table's own columns) and whether it is unique. The generated
+  `CREATE INDEX` is shown before it runs and can be edited first — which is also where a SQL Server user
+  adds `CLUSTERED`, or anyone writes an index on an expression. Available on SQL Server, PostgreSQL, MySQL
+  and SQLite. Until now DataTray could create databases, schemas, tables and columns, but there was no path
+  to a `CREATE INDEX` anywhere in the app.
+- **Index Properties for SQL Server.** SQL Server's Indexes node now opens SSMS' Index Properties dialog
+  instead of the generic New Index form: key columns in order with a sort direction each, included columns,
+  clustered or nonclustered, and unique. The same dialog opens on an existing index from Properties…, so an
+  index can be changed rather than dropped and rebuilt by hand — and **Script** hands the T-SQL to a query
+  tab without running it. Editing an index re-emits its full option set, because SQL Server's
+  `DROP_EXISTING` silently resets every setting a rebuild does not restate; without that, changing one
+  column would quietly revert fill factor, page locks and statistics settings nobody had touched.
+  PostgreSQL, MySQL and SQLite keep the generic New Index dialog unchanged.
+- **Index options, storage and filter.** Locking, duplicate handling, statistics recompute, sequential-key
+  optimisation, fill factor and padding are all editable, as are the filegroup or partition scheme the index
+  lives on and its filter predicate. Every setting says when it takes effect — **on OK** in place, **rebuilds**
+  the index, or **next rebuild** only and stored nowhere — a distinction SSMS leaves invisible and which is
+  the difference between a metadata change and reading every page of the index. Flipping only an in-place
+  setting now runs `ALTER INDEX … SET` rather than rebuilding for it.
+- **Index fragmentation and extended properties.** A Fragmentation page showing how fragmented the index is
+  and how much space it takes — opening on the cheap scan, with the full one behind a button that says up
+  front how many pages and megabytes it will read, since SSMS's version of this page scans the whole index
+  before it shows you anything. Extended properties are editable as a Name/Value grid, written on OK with
+  the rest of the dialog rather than the moment you type them.
+- **The toolbar at the top of the window is yours now.** *Settings ▸ Toolbar* lists every action that can
+  sit there: drag a row to reorder it, untick one to hide it. The arrangement is saved to `toolbar.json`
+  beside your keymap, and *Reset to defaults* puts it back in one click. Hiding a button takes nothing
+  away — the action stays in the menus and can still be given a keyboard shortcut.
+- **Toolbars now follow the window instead of getting cut off.** The application toolbar and each query
+  window's toolbar measure what fits at the current width and move the rest into a "…" menu beside them —
+  so a narrow window keeps every action reachable rather than clipping it. The controls you cannot operate
+  from a menu that closes when you click it — the connection and database pickers, the Browse filter box —
+  stay put whatever the width. Your order is also the priority order: what you put first survives longest
+  as the window narrows.
+- **Plugins can put buttons in both toolbars.** A plugin asks for the new `toolbar` permission at install —
+  listed separately from `menu`, because a button in the toolbar is not the same request as an item in a
+  menu — and its actions then join the same list everyone else is in: you decide whether to show them,
+  where they sit, and what key they answer to. A query-window button decides for itself which tabs it
+  belongs on, so an SQL Server-only action simply is not there on a PostgreSQL tab.
+- **Local Containers 0.5.0** puts *New container* one click away in the application toolbar instead of two
+  in the Tools menu. Update it from *Tools ▸ Plugin Store*; it needs this release of DataTray.
+- **The SQL Server Activity Monitor says which server you are looking at.** The build and the operating
+  system under it — "Microsoft SQL Server 2025 (RTM-CU6) - 17.0.4055.5 (X64) · Linux (Ubuntu 24.04.4 LTS)"
+  — sit at the right-hand end of the monitor's toolbar, with the full `@@VERSION` on the tooltip.
+- **Database Properties gains the pages and rows SSMS has.** For SQL Server: a **Configurations** page
+  (database-scoped configurations, with their secondary values) and a **Transaction Log Shipping** page,
+  plus a log-shipping row on General. Filegroups now shows `Autogrow All Files` and the FILESTREAM and
+  memory-optimized sections it used to filter out entirely. Options fills in the rows that were simply
+  absent — the whole Cursor and ANSI blocks, database state, target recovery time, delayed durability,
+  trustworthy, parameterization, FILESTREAM and the rest of Service Broker. Query Store gains its Capture
+  Policy section and a current-disk-usage bar.
+- **A result set can be shown as something other than a grid.** Next to the result-set tabs there is now a
+  *View* switcher — Grid, plus whatever viewer plugins apply to what you are looking at. The grid stays the
+  default and is always the first entry; a viewer is read-only, so switching to one never puts your pending
+  edits at risk. The switcher only appears when there is something to switch to.
+- **Viewers are a plugin type**, the fourth alongside providers, tools and MCP plugins. A viewer declares
+  `type: "viewer"` and gets handed a read-only snapshot of the current result set; it decides for itself
+  whether it can render one, so it drops out of the switcher on a result set it has nothing to say about. It
+  follows the tab from there — turning a browse page or letting a monitor refresh updates the viewer in place
+  instead of rebuilding it, so its scroll position and expanded nodes survive.
+- **Basic Result Viewers** is the first one — a store-only plugin carrying two renderers, neither of which
+  adds a dependency to DataTray:
+  - **JSON** shows a row as an object tree, and parses a text cell that itself holds JSON into a subtree
+    rather than one long escaped string — the reason to reach for it on a table with a `jsonb` column. It
+    opens on the first row and follows the grid from there, so switching to it shows your data rather than
+    asking you to pick some first.
+  - **Image** decodes the selected row's binary column to a picture (PNG, JPEG, GIF, BMP). A BLOB column holds
+    arbitrary bytes, so bytes that are not a picture say so in place rather than making the view vanish
+    mid-browse.
+- **See the schema as a diagram.** A new **store-only** tool plugin — install it from *Tools › Plugin
+  Store*; it is not bundled with the app. Right-click a connection, database or schema on Postgres,
+  MySQL, SQL Server or SQLite and pick *ER Diagram*, and it opens as a tab beside your queries rather
+  than as a dialog, so you can read it while you work. It opens on a picker rather than on a canvas:
+  a schema with two hundred tables drawn blind is a hairball nobody reads, so you choose what to draw
+  and **+ Related** pulls in what a table connects to, one hop at a time. Tables are laid out by
+  dependency depth, left to right, with the foreign keys drawn between the columns that hold them.
+- **A diagram can be saved, reopened and exported.** Saving records which tables you drew and nothing
+  about what is inside them, so reopening reads the database as it is *now* — and says so when a table
+  you had drawn no longer exists, rather than quietly leaving it out. Export writes PNG for pasting, or
+  SVG when you want the table names to stay searchable text.
+The Activity Monitor's Processes, Recent Expensive Queries and Active Expensive Queries grids each have a
+Database dropdown again, listing the databases that currently have rows. It stacks with the free-text
+filter beside it, so "user processes in Sales" is one grid away, and it survives the auto-refresh.
+
+Double-clicking a row in either query grid opens the whole statement in a window, with the server's own
+line breaks and indentation, selectable and with a Copy button — the grids collapse a query onto one line
+to keep the rows readable, which recognises a statement but cannot read one.
+- **The Activity Monitor can be narrowed to one database, or to just the blocking sessions.** Two new
+  toolbar controls: a **Database** dropdown listing the databases that actually have sessions right now,
+  and a **Blocking only** checkbox that keeps the blocked sessions *and* the sessions blocking them — so
+  the culprit is on screen next to the victim, not filtered away. Both filter the snapshot you already
+  have, so they apply instantly and survive auto-refresh. On SQL Server both are available; Postgres and
+  MySQL get the Database filter (their session views have no blocker column).
+
+### Changed
+
+- **The plugin-cyan in the first-run wizard is readable in the light theme.** The Store tiles, their
+  "Install" labels and the plugin bullet used one fixed cyan that was too pale on a light background and too
+  dark on a dark one. Each theme now has its own, and the brand colours behind them live in one place instead
+  of being repeated per view.
+- **Updates are delivered by Velopack.** The download, the installer and the update feed are now built by one
+  tool, so an update installs itself and restarts the app on every platform — including macOS, which used to
+  hand you a disk image to finish by hand. Installs on the previous update method are carried across
+  automatically: the build they are offered is a Velopack build, so everything after that one is handled by
+  the new updater. Windows shows the new installer once during that step, and macOS goes through the disk
+  image one last time.
+- **The Windows download is no longer a single self-extracting file.** The updater replaces an application
+  folder and patches it file by file, which a packed single executable makes impossible. Pick the
+  `-Setup.exe` for a per-user install with a Start-menu entry, or the `-Portable.zip` to keep it loose.
+- **An older Windows installation is now pointed out.** The previous installer and the new one use different
+  folders, so the old copy stays behind with a working Start-menu shortcut that opens the previous version on
+  the same data. DataTray offers to remove it once, and leaves it alone if you would rather keep both. Your
+  connections, settings and installed plugins live elsewhere and are never touched.
+- **Database Properties can change things now, not just show them.** For SQL Server the Options page is
+  editable — recovery model, the auto-* settings, page verify, the ANSI and cursor blocks, trustworthy,
+  parameterization, delayed durability, target recovery time, read-only, restrict access, snapshot
+  isolation and the broker — as are database-level extended properties and each file's autogrowth and
+  maximum size. Everything is written when you press **OK**, so a dialog you cancel leaves nothing behind,
+  and only the settings you actually changed are issued. The four options SQL Server cannot change while
+  other sessions are connected say so and stay unwritten until you explicitly agree to disconnect them:
+  left to itself, SQL Server does not refuse those, it waits indefinitely, which looks exactly like the
+  application hanging.
+
+### Removed
+
+- **"Roll back to the previous version" is gone.** It only ever worked on the Linux AppImage, where the
+  previous build was kept beside the running one, and the new updater has no equivalent. To go back, install
+  the older version from the releases page.
+- **The update dialog no longer shows the build date and commit.** Those came from a manifest DataTray
+  published itself; the new update feed does not carry them. The version and the release notes stay.
+
+### Fixed
+
+- **DataTray starts even when an old SQL Explorer install is running.** The two shared one
+  single-instance lock, left over from the rename, so launching DataTray while the older app was open
+  did nothing visible — DataTray quietly exited and raised the *other* app's window instead. They now
+  run side by side, which is what having separate settings folders already implied.
+- **"Copy as HTML" now pastes as a real table.** The result went onto the clipboard as plain text, so
+  Outlook, Word and other rich-text targets pasted the markup instead of a formatted table — a paste
+  target picks by clipboard format, not by what the text happens to look like. The copy now carries the
+  platform's own HTML format alongside the plain text, so text-only targets still get the markup.
+- **On macOS, DataTray is called DataTray in the menu bar.** It used to say "Avalonia Application" next
+  to the Apple logo, and in **About …**, **Hide …** and **Quit …** — the one place the app's name is
+  not taken from the bundle.
+- **Local Containers finds Docker on macOS.** The panel reported "Docker was not found on this machine"
+  with Docker Desktop running and working. An app started from Finder or the Dock inherits a minimal
+  search path that contains none of the places Docker Desktop puts its command-line tool, so DataTray
+  looked in four directories that never hold it. It now also looks where Docker Desktop and Homebrew
+  actually install — which fixes pulls from a private registry on macOS too, since the credential helper
+  lives in the same place.
+- **The macOS build is signed again.** Bundled plugins brought native libraries for platforms DataTray
+  does not run on — Android, iOS, WebAssembly — and a per-architecture copy of the SQL Server driver in
+  folders macOS mistakes for nested app bundles. Signing refused the whole app over it. The payload now
+  carries only what the target platform uses, which also makes the download smaller.
+- Query editor: a string literal holding a mail address or a URL is no longer coloured as a link — string literals now always get the string colour.
+- **The SQL Server Activity Monitor no longer dies on "An item with the same key has already been
+  added".** SQL Server keeps one row of query statistics per cached *plan*, so the same statement shows up
+  several times over — once per database a shared batch ran in, once more after a recompile, once each for
+  a serial and a parallel plan. Recent Expensive Queries treated those rows as separate queries, which
+  split one query's cost across several rows and, when two of them collided, failed the whole refresh. The
+  rows for a statement are now summed into one, so the grid shows each query once with its full cost.
+- **"% Processor Time" in the SQL Server Activity Monitor works on SQL Server on Linux.** The graph read a
+  perfmon counter the resource governor fills in, which comes back flat zero on some Linux builds — so the
+  one graph that answers "is this server busy" sat at nothing while the server worked. It is now measured
+  from the engine's own CPU accounting, the same on either platform, and differenced between two refreshes
+  like every other rate in the tab. It therefore says nothing on the first refresh and a figure from the
+  second on.
+- **Database Properties ▸ Permissions showed rows that meant different things but looked identical.** It
+  listed every grant in the database — including one per table, view and column — while never showing which
+  object each was on, so a dozen rows reading `public / SELECT / Object Or Column` were a dozen different
+  grants. It now shows permissions on the database itself, which is what this dialog is about and what SSMS
+  shows here, and names the grantor as well as the grantee.
+- **Context menus have a visible edge again, and no longer open with a stray line at the top.** On a
+  dark theme the popup was the same near-black as the panel behind it and Linux draws no shadow around
+  it, so the tree rows a menu half-covered looked like part of the menu — the right-click menu on an
+  Indexes folder read as a jumble of half-words and commands. Menus now carry a hairline border. The
+  separator that groups a node's own actions (Rebuild All, Reorganize All, …) is also gone from the top
+  of those menus: everything above it is hidden on exactly the nodes that have such actions, so it was
+  dividing nothing.
+- **The SQL Server Activity Monitor's grids update, and their column headers sort.** Every grid in the tab
+  was showing the values it was first drawn with: the cells were bound to the row in a way that never
+  announced a change, so ten seconds of new figures arrived behind a screen that kept the old ones — and a
+  click on a column header reordered rows nobody could see move. Both are fixed together. Numeric columns
+  now also sort by value rather than by digits, including the ones written with a unit ("1,234 ms" no
+  longer sorts between "1 ms" and "2 ms"), and rows a sorted column cannot tell apart keep their order
+  instead of reshuffling on every refresh.
+The Activity Monitor's Recent Expensive Queries grid showed an empty Database for almost every row.
+`sys.dm_exec_sql_text` only fills in a database for compiled objects and leaves it NULL for ad-hoc
+batches, which is most of that grid; the database a query actually ran against is on the plan, and is now
+read from there. The same statement executed against several databases is therefore several rows again —
+one per database, each with its own cost — instead of one row labelled with an arbitrary one of them.
+- **The Activity Monitor stops rebuilding its grid on every refresh.** Each auto-refresh threw the whole
+  column layout away and built it back identically, so column widths you had dragged reset every five
+  seconds, and a refresh landing at the wrong moment could take the app down with it — a crash reported
+  as "it dies when I click the Activity Monitor again" that nobody could reproduce. The refresh now
+  replaces only the rows unless the columns genuinely changed. A monitor tab you are not looking at no
+  longer queries the server at all, and comes back with fresh sessions the moment you return to it.
+- **A row action can no longer act on a session that has just been refreshed away.** With the context
+  menu open across an auto-refresh, *Kill* and *Cancel Query* still pointed at the row from the previous
+  snapshot.
+- **A crash now leaves something behind.** An unhandled error took the app down without writing anything,
+  so a crash you could not reproduce was a dead end for whoever had to look into it. It is now appended
+  to `restart.log` in the app's settings folder, stack trace and all.
 
 ## [0.7.0] - 2026-07-29
 
@@ -447,7 +794,8 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/DataTray/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Lionear/DataTray/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Lionear/DataTray/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Lionear/DataTray/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Lionear/DataTray/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Lionear/DataTray/compare/v0.5.0...v0.6.0

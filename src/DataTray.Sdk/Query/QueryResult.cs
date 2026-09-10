@@ -47,4 +47,16 @@ public sealed class QueryResult
     /// or the last page was reached. Only meaningful when <see cref="Sdk.IDbProvider.SupportsCursorPaging"/>.
     /// </summary>
     public string? NextCursor { get; init; }
+
+    /// <summary>
+    /// A trusted, provider-generated SQL boolean expression that must be ANDed into every generated
+    /// UPDATE/DELETE WHERE clause for this result set, on top of the key-column predicate — e.g. a
+    /// filtered unique index's filter (SQL Server: <c>sys.indexes.filter_definition</c>, "WHERE
+    /// IsDeleted = 0") that makes a set of columns unique only for the rows it covers. Without it, a key
+    /// built from those columns alone could match more than one row outside the filter (a duplicate
+    /// soft-deleted row, say) and update/delete the wrong ones. Null for an ordinary primary key/unique
+    /// constraint, which is already unique across the whole table. The provider is trusted to hand back
+    /// only its own engine-generated text here — never anything derived from user input.
+    /// </summary>
+    public string? EditFilterPredicate { get; init; }
 }

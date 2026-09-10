@@ -10,3 +10,9 @@ scratchpad/
 
 # macOS
 .DS_Store
+
+# Output of `dotnet publish -o publish/...`, which is how the release artifacts are built locally
+# when reproducing a packaging problem. Not covered by the bin/obj rules above, and an accidental
+# `git add -A` with one of these present is ~800 MB of binaries in a commit.
+/publish/
+/publish-clean/

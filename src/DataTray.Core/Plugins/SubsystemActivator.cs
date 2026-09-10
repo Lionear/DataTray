@@ -11,7 +11,15 @@ public sealed record SubsystemActivationResult(
     IReadOnlyList<IPanelPlugin> Panels,
     IReadOnlyList<IMenuPlugin> Menus,
     IReadOnlyList<IBackgroundPlugin> Background,
-    IReadOnlyList<IConnectionMenuPlugin> ConnectionMenus);
+    IReadOnlyList<IConnectionMenuPlugin> ConnectionMenus,
+    IReadOnlyList<SubsystemToolbar> Toolbars,
+    IReadOnlyList<IQueryToolbarPlugin> QueryToolbars);
+
+/// <summary>An application-toolbar contributor with the identity the host needs to mount it: the plugin id
+/// namespaces its action ids, and the plugin's name is what the user sees beside the action in
+/// Settings ▸ Toolbar and in the button's tooltip — so a button can always be traced back to what put it
+/// there. The query-toolbar seam needs neither: its buttons carry no persisted layout and no keybinding.</summary>
+public sealed record SubsystemToolbar(string PluginId, string PluginName, IToolbarPlugin Plugin);
 
 /// <summary>
 /// Activates the loaded subsystem plugins (SE-164) <em>after</em> the host's ServiceProvider is built — the
@@ -73,6 +81,8 @@ public sealed class SubsystemActivator
         var menus = new List<IMenuPlugin>();
         var background = new List<IBackgroundPlugin>();
         var connectionMenus = new List<IConnectionMenuPlugin>();
+        var toolbars = new List<SubsystemToolbar>();
+        var queryToolbars = new List<IQueryToolbarPlugin>();
         foreach (var activation in _activations)
         {
             try
@@ -109,6 +119,20 @@ public sealed class SubsystemActivator
                 {
                     connectionMenus.Add(connMenu);
                 }
+
+                // "toolbar" rather than "menu" (SE-255): permanent chrome is a different ask than an item
+                // behind a click, so a plugin with only "menu" gets no button even if it implements these.
+                if (activation.Capabilities.Contains(PluginCapabilities.Toolbar)
+                    && activation.Plugin is IToolbarPlugin toolbar)
+                {
+                    toolbars.Add(new SubsystemToolbar(activation.Id, activation.Name ?? activation.Id, toolbar));
+                }
+
+                if (activation.Capabilities.Contains(PluginCapabilities.Toolbar)
+                    && activation.Plugin is IQueryToolbarPlugin queryToolbar)
+                {
+                    queryToolbars.Add(queryToolbar);
+                }
             }
             catch (Exception ex)
             {
@@ -117,7 +141,7 @@ public sealed class SubsystemActivator
         }
 
         return new SubsystemActivationResult(
-            new SubsystemRegistry(active), panels, menus, background, connectionMenus);
+            new SubsystemRegistry(active), panels, menus, background, connectionMenus, toolbars, queryToolbars);
     }
 
     // The plugin's own-service resolver, or null when it has no host container / registered no services.

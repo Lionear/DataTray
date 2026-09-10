@@ -1,0 +1,377 @@
+name: Publish plugins
+
+# Builds and publishes store plugins, the way `build.yml` does the app: decide once what to publish,
+# fan out over a matrix, then land the result in one place.
+#
+# What decides that a plugin is published is its own `version` in `plugins/<name>/plugin.json` (or
+# `src/<project>/plugin.json` for the bundled engines). When that version is newer than the newest one
+# the live store advertises, the plugin is built and published — a path diff would republish on a
+# whitespace fix and says nothing about intent, while a version bump says exactly one thing. See
+# `tools/plugin-publish-plan.py`.
+#
+# The published version is `<plugin.json version>.<run number>`, e.g. 1.2.0.41. Two things make that
+# safe, and both are load-bearing:
+#   - `SemVer.Compare` (src/DataTray.Core/Store/SemVer.cs) compares the dotted core segment by segment
+#     and pads the shorter side with zeros, so 1.2.0.41 reads as newer than 1.2.0.
+#   - the installed version is read from the `plugin.json` *inside the zip* (PluginInstaller ->
+#     PluginManifest.Version), not from the index. So the version is stamped into the manifest before
+#     packing. Publish 1.2.0.41 around a manifest that still says 1.2.0 and the app offers the same
+#     update forever.
+#
+# Assets and index both live in the store repo (`Lionear/plugins.lionear.dev`), which GITHUB_TOKEN
+# cannot reach: this needs a `STORE_TOKEN` secret — a fine-grained PAT with contents:write on that repo
+# and nothing else. Without it the workflow still builds and verifies, it just cannot publish.
+#
+# Publishing runs from `main` only. A store entry's homepage points at
+# `github.com/Lionear/DataTray/tree/main/...` and a plugin published from `develop` leaves a 404 there
+# until the merge lands, with the version number already spent. A dispatch from any other branch is
+# forced to a dry run.
+on:
+  workflow_dispatch:
+    inputs:
+      plugins:
+        description: "Plugin ids to publish (comma-separated). Empty = whatever the version check finds."
+        required: false
+        default: ""
+      dry_run:
+        description: "Build and verify, but publish nothing"
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - "src/DataTray.Providers.*/**"
+      - "src/DataTray.Tools.*/**"
+      - "src/DataTray.Mcp.Server/**"
+      - ".github/workflows/publish-plugins.yml"
+      - "tools/plugin-publish-plan.py"
+      - "tools/plugin-store-entry.py"
+
+# One run at a time, and never cancelled: two runs would race on the store's single index.json, and a
+# run cancelled between "release created" and "index updated" leaves an asset nothing points at.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Resolve what to publish
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+      dry_run: ${{ steps.mode.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve mode
+        id: mode
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          REF_NAME: ${{ github.ref_name }}
+          HAVE_TOKEN: ${{ secrets.STORE_TOKEN != '' && 'yes' || 'no' }}
+        run: |
+          set -euo pipefail
+          DRY=false
+          if [ "${INPUT_DRY_RUN:-false}" = "true" ]; then
+            DRY=true
+            echo "Dry run requested."
+          elif [ "$REF_NAME" != main ]; then
+            DRY=true
+            echo "::warning::Running from '$REF_NAME', not main — forcing a dry run. Publish from main."
+          elif [ "$HAVE_TOKEN" != yes ]; then
+            # Not an error: a build that verifies is still worth having. It is loud, because a silent
+            # "published nothing" is exactly the failure this workflow exists to remove.
+            DRY=true
+            echo "::warning::No STORE_TOKEN secret — building and verifying only, nothing will be published."
+          fi
+          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+          echo "have_token=$HAVE_TOKEN" >> "$GITHUB_OUTPUT"
+
+      # Whenever there is a token to check, dry run or not: this read-only call is the only rehearsal
+      # the credential gets. Gated on the publish path instead, the first time a fine-grained PAT is
+      # tried would be the live publish — and it would surface halfway through the matrix, after some
+      # plugins have a release and the index has none of them.
+      - name: Check the store token
+        if: steps.mode.outputs.have_token == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.STORE_TOKEN }}
+        run: |
+          set -euo pipefail
+          PUSH=$(gh api repos/Lionear/plugins.lionear.dev --jq .permissions.push 2>&1) || {
+            echo "::error::STORE_TOKEN cannot read Lionear/plugins.lionear.dev: $PUSH" >&2
+            exit 1
+          }
+          if [ "$PUSH" != true ]; then
+            echo "::error::STORE_TOKEN has no write access to Lionear/plugins.lionear.dev" >&2
+            exit 1
+          fi
+          echo "Store token can write to Lionear/plugins.lionear.dev."
+
+      - name: Plan
+        id: plan
+        env:
+          ONLY: ${{ inputs.plugins }}
+        run: |
+          set -euo pipefail
+          python3 tools/plugin-publish-plan.py --self-test
+          python3 tools/plugin-publish-plan.py --only "${ONLY:-}" --github-output > plan.json
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          jobs = json.load(open("plan.json"))
+          print("### Plugins to publish\n")
+          print("\n".join(f"- `{j['id']}` {j['published'] or '(new)'} -> {j['version']}" for j in jobs)
+                or "Nothing to publish.")
+          PY
+
+  build:
+    name: ${{ matrix.id }} ${{ matrix.version }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      # Deep enough to find the commit that last touched this plugin's manifest — that is the version
+      # bump, and its subject is the one-line changelog the store shows for this version. A miss (older
+      # than the window) costs the note, nothing else.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Resolve version
+        id: version
+        # Matrix values reach bash through env, never through `${{ }}` spliced into a command line —
+        # GitHub substitutes those textually before the shell parses the line (same rule as build.yml).
+        env:
+          BASE: ${{ matrix.version }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          VERSION="$BASE.$RUN_NUMBER"
+          # This value reaches MSBuild args, file names and a release tag; keep it boring.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Refusing version '$VERSION': expected four numeric segments" >&2
+            exit 1
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp the manifest
+        env:
+          MANIFEST: ${{ matrix.manifest }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          path = os.environ["MANIFEST"]
+          manifest = json.load(open(path))
+          manifest["version"] = os.environ["VERSION"]
+          with open(path, "w") as handle:
+              json.dump(manifest, handle, indent=2)
+              handle.write("\n")
+          PY
+          cat "$MANIFEST"
+
+      - name: Publish
+        env:
+          PROJECT: ${{ matrix.project }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          # No -r: a plugin zip is RID-agnostic. The host loads it from a per-user folder on whatever
+          # platform it runs, and ProviderLoadContext resolves the native half per RID out of the
+          # plugin's own .deps.json — which needs every runtimes/<rid>/ the package ships.
+          dotnet publish "$PROJECT" -c Release -p:Version="$VERSION" -o out
+
+      - name: Drop runtimes for platforms the app never ships
+        run: |
+          set -euo pipefail
+          # DuckDB's five RIDs are 316 MB uncompressed and the app builds four of them, so
+          # runtimes/linux-arm64/ could never be loaded by any installed copy — 20 MB of a 102 MB zip
+          # for nothing. The keep-list is read out of build.yml rather than repeated here, because the
+          # only thing that makes this safe is that the two agree.
+          KEEP=$(grep -oE '^ +rid: [a-z0-9-]+' .github/workflows/build.yml | awk '{print $2}' | sort -u)
+          if [ -z "$KEEP" ]; then
+            echo "::error::No 'rid:' entries found in build.yml — refusing to guess which runtimes to keep." >&2
+            exit 1
+          fi
+          echo "Shipped RIDs: $(echo "$KEEP" | tr '\n' ' ')"
+
+          [ -d out/runtimes ] || { echo "No runtimes/ in this plugin."; exit 0; }
+          for dir in out/runtimes/*/; do
+            rid=$(basename "$dir")
+            # Only concrete <os>-<arch> RIDs are candidates. The portable ones (unix, win, browser) are
+            # fallback targets that a concrete RID resolves through — dropping those breaks the load.
+            case "$rid" in
+              *-*) ;;
+              *) continue ;;
+            esac
+            if ! printf '%s\n' "$KEEP" | grep -qx "$rid"; then
+              echo "Dropping runtimes/$rid (the app ships no such build)"
+              rm -rf "$dir"
+            fi
+          done
+
+      - name: Pack
+        id: pack
+        env:
+          PLUGIN_ID: ${{ matrix.id }}
+          ENTRY_ASSEMBLY: ${{ matrix.entryAssembly }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          ZIP="$PWD/${PLUGIN_ID}-${VERSION}.zip"
+          (cd out && zip -qr "$ZIP" .)
+
+          # The same four facts the store's own verify-store.py checks after the fact, checked here
+          # where the build can still be stopped: manifest at the root, matching id and version, and the
+          # entry assembly actually present.
+          PLUGIN_ID="$PLUGIN_ID" ENTRY_ASSEMBLY="$ENTRY_ASSEMBLY" VERSION="$VERSION" ZIP="$ZIP" python3 - <<'PY'
+          import json, os, sys, zipfile
+          archive = zipfile.ZipFile(os.environ["ZIP"])
+          names = archive.namelist()
+          if "plugin.json" not in names:
+              sys.exit("::error::the archive has no plugin.json at its root")
+          manifest = json.loads(archive.read("plugin.json"))
+          if manifest["id"] != os.environ["PLUGIN_ID"]:
+              sys.exit(f"::error::archive declares id {manifest['id']!r}")
+          if manifest["version"] != os.environ["VERSION"]:
+              sys.exit(f"::error::archive declares version {manifest['version']!r}, expected {os.environ['VERSION']!r}")
+          if os.environ["ENTRY_ASSEMBLY"] not in names:
+              sys.exit(f"::error::entry assembly {os.environ['ENTRY_ASSEMBLY']} is not in the archive")
+          print(f"{len(names)} entries, manifest and entry assembly present")
+          PY
+
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c%s "$ZIP")" >> "$GITHUB_OUTPUT"
+
+      # The store shows this as the plugin's per-version changelog. The subject of the commit that last
+      # bumped the manifest is what that version *is*, and it is already written in the house's
+      # conventional-commit style. Resolved in its own step, and outside the publish gate, so a dry run
+      # exercises it too — a note that only ever runs on the live path is a note nothing tests.
+      - name: Resolve the release note
+        id: notes
+        env:
+          PLUGIN_NAME: ${{ matrix.name }}
+          PLUGIN_DIR: ${{ matrix.dir }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          NOTES=$(git log -1 --pretty=%s -- "$PLUGIN_DIR/plugin.json" || true)
+          # Empty when the bump is older than the checkout window; the plugin's own name still beats
+          # publishing a version with no note at all.
+          [ -n "$NOTES" ] || NOTES="$PLUGIN_NAME $VERSION"
+          echo "value=$NOTES" >> "$GITHUB_OUTPUT"
+          echo "Note: $NOTES"
+
+      - name: Create the release asset
+        if: needs.plan.outputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.STORE_TOKEN }}
+          GH_REPO: Lionear/plugins.lionear.dev
+          PLUGIN_ID: ${{ matrix.id }}
+          PLUGIN_NAME: ${{ matrix.name }}
+          VERSION: ${{ steps.version.outputs.value }}
+          NOTES: ${{ steps.notes.outputs.value }}
+          ZIP: ${{ steps.pack.outputs.zip }}
+        run: |
+          set -euo pipefail
+          gh release create "${PLUGIN_ID}-v${VERSION}" "$ZIP" \
+            --title "$PLUGIN_NAME $VERSION" --notes "$NOTES"
+
+      - name: Write the publish record
+        env:
+          PLUGIN_ID: ${{ matrix.id }}
+          MIN_HOST_API: ${{ matrix.hostApiVersion }}
+          VERSION: ${{ steps.version.outputs.value }}
+          SHA256: ${{ steps.pack.outputs.sha256 }}
+          SIZE: ${{ steps.pack.outputs.size }}
+          NOTES: ${{ steps.notes.outputs.value }}
+        run: |
+          set -euo pipefail
+          mkdir -p records
+          python3 - <<'PY'
+          import json, os
+          plugin_id, version = os.environ["PLUGIN_ID"], os.environ["VERSION"]
+          record = {
+              "id": plugin_id,
+              "version": version,
+              # The plugin declares only the API it was built against; the host decides the upper bound
+              # from its own [MinimumSupported, Current] window (HostApiVersions.CompatFor).
+              "minHostApiVersion": int(os.environ["MIN_HOST_API"]),
+              "downloadUrl": f"https://github.com/Lionear/plugins.lionear.dev/releases/download/"
+                             f"{plugin_id}-v{version}/{plugin_id}-{version}.zip",
+              "sha256": os.environ["SHA256"],
+              "size": int(os.environ["SIZE"]),
+              "notes": os.environ.get("NOTES") or None,
+          }
+          json.dump(record, open(f"records/{plugin_id}.json", "w"), indent=2)
+          print(json.dumps(record, indent=2))
+          PY
+
+      - name: Upload the publish record
+        uses: actions/upload-artifact@v4
+        with:
+          name: record-${{ matrix.id }}
+          path: records/*.json
+          retention-days: 14
+          if-no-files-found: error
+
+  index:
+    name: Update the store index
+    needs: [plan, build]
+    if: ${{ needs.plan.outputs.count != '0' && needs.plan.outputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Lionear/plugins.lionear.dev
+          token: ${{ secrets.STORE_TOKEN }}
+          path: store
+
+      - name: Download the publish records
+        uses: actions/download-artifact@v4
+        with:
+          pattern: record-*
+          path: records
+
+      - name: Add the versions
+        run: |
+          set -euo pipefail
+          python3 app/tools/plugin-store-entry.py --self-test
+          python3 app/tools/plugin-store-entry.py \
+            --index store/sql-explorer/index.json --records records | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Pushing here is what makes the plugins live for every installed copy, so it is the last thing
+      # that happens and it happens once. The store repo's own verify-store.yml picks it up from here:
+      # it re-downloads every advertised newest version and proves it is installable.
+      - name: Commit and push
+        working-directory: store
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- sql-explorer/index.json; then
+            echo "::warning::index.json unchanged — the releases were created but nothing advertises them."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sql-explorer/index.json
+          git commit -m "Publish $(ls ../records/*/*.json | wc -l) plugin version(s) from DataTray@${GITHUB_SHA::7}"
+          git push

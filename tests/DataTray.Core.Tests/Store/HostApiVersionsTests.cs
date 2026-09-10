@@ -1,6 +1,7 @@
 using DataTray.Core.Plugins;
 using DataTray.Core.Store;
 using DataTray.Sdk.Tools;
+using DataTray.Sdk.Viewers;
 
 namespace DataTray.Core.Tests.Store;
 
@@ -14,6 +15,7 @@ public class HostApiVersionsTests
     [InlineData(PluginManifest.Types.Tool)]
     [InlineData(PluginManifest.Types.Mcp)]
     [InlineData(PluginManifest.Types.Extension)]
+    [InlineData(PluginManifest.Types.Viewer)]
     public void IsKnown_true_for_shipped_types(string type) =>
         Assert.True(PluginManifest.Types.IsKnown(type));
 
@@ -34,5 +36,19 @@ public class HostApiVersionsTests
         Assert.Equal(ToolHostApi.Version, extension.Current);
         Assert.Equal(ToolHostApi.MinimumSupported, extension.MinSupported);
         Assert.Equal(tool, extension);
+    }
+
+    // A viewer versions independently of every other kind (SE-75). Judging it against the provider window —
+    // the `_ =>` default before this arm existed — would have let the Store offer a viewer built for a
+    // future contract, or refused one the loader would happily take.
+    [Fact]
+    public void Viewer_uses_its_own_host_api_window()
+    {
+        var viewer = HostApiVersions.CompatFor(PluginManifest.Types.Viewer);
+
+        Assert.Equal(ViewerHostApi.Version, viewer.Current);
+        Assert.Equal(ViewerHostApi.MinimumSupported, viewer.MinSupported);
+        Assert.True(viewer.Accepts(ViewerHostApi.Version));
+        Assert.False(viewer.Accepts(ViewerHostApi.Version + 1));
     }
 }

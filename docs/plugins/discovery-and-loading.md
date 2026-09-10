@@ -2,16 +2,16 @@
 
 ## How discovery and loading work
 
-At startup (`src/App/DependencyInjection/AppServices.cs`), the host:
+At startup (`src/DataTray.App/DependencyInjection/AppServices.cs`), the host:
 
 1. Resolves `plugins/` next to the executable (`AppContext.BaseDirectory`).
 2. Runs `ProviderPluginLoader.Load(pluginsDir)`
-   (`src/Core/Plugins/ProviderPluginLoader.cs`), which for each subfolder:
+   (`src/DataTray.Core/Plugins/ProviderPluginLoader.cs`), which for each subfolder:
    - Skips folders without a `plugin.json`.
    - Parses the manifest; skips it if `type != "provider"` or
      `hostApiVersion` doesn't match `ProviderHostApi.Version`.
    - Loads `entryAssembly` into a fresh, isolated `ProviderLoadContext`
-     (`src/Core/Plugins/ProviderLoadContext.cs`, an `AssemblyLoadContext`
+     (`src/DataTray.Core/Plugins/ProviderLoadContext.cs`, an `AssemblyLoadContext`
      subclass using `AssemblyDependencyResolver` against the plugin's own
      `.deps.json`) — so each plugin can carry its own driver version
      independent of every other plugin.
@@ -24,7 +24,7 @@ At startup (`src/App/DependencyInjection/AppServices.cs`), the host:
    (keyed by manifest `id`) as the DI singleton `IDbProviderRegistry`.
 
 `type: "tool"` plugins load in parallel through `ToolPluginLoader`
-(`src/Core/Plugins/ToolPluginLoader.cs`), which mirrors the above but reflects for
+(`src/DataTray.Core/Plugins/ToolPluginLoader.cs`), which mirrors the above but reflects for
 `IToolPlugin` (and instantiates every implementation in the assembly, since one
 tool assembly may ship several). Right after loading, the host scans every loaded
 plugin for the optional capabilities: `IPluginSettings`/`ICustomPluginSettingsUi`

@@ -17,7 +17,10 @@ public partial class PluginStoreWindow : Window
             if (DataContext is PluginStoreViewModel vm)
             {
                 vm.CloseRequested = Close;
-                vm.RestartRequested = AppRestart.Restart;
+                // Only the default: whoever opened the store may need to do something first. The first-run
+                // wizard routes it through its own restart, which writes down where onboarding is before
+                // the app goes down and takes the wizard window with it (SE-268).
+                vm.RestartRequested ??= AppRestart.Restart;
                 vm.InstallFromFileRequested = PickPluginZipAsync;
                 vm.ChangelogRequested = ShowChangelogAsync;
             }

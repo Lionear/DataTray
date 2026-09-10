@@ -44,25 +44,14 @@
           </NativeMenu>
         </NativeMenuItem.Menu>
       </NativeMenuItem>
-      <NativeMenuItem Header="{Binding Loc[MenuEdit]}">
-        <NativeMenuItem.Menu>
-          <NativeMenu>
-            <NativeMenuItem Header="{Binding Loc[Preferences]}" Command="{Binding OpenSettingsCommand}" />
-          </NativeMenu>
-        </NativeMenuItem.Menu>
-      </NativeMenuItem>
+      <!-- Edit and Help are gone here (SE-278, macOS only): Preferences moved into the DataTray
+           app-menu (Cmd+,, App.axaml.cs) — Edit had nothing else in it — and About lives there too,
+           so a Help menu holding only About was redundant. Windows/Linux (Menu below) are untouched. -->
       <NativeMenuItem Header="{Binding Loc[MenuTools]}">
         <NativeMenuItem.Menu>
           <NativeMenu>
             <NativeMenuItem Header="{Binding Loc[QueryLogMenu]}" Command="{Binding OpenQueryLogCommand}" />
             <NativeMenuItem Header="{Binding Loc[PluginStoreMenu]}" Command="{Binding OpenPluginStoreCommand}" />
-          </NativeMenu>
-        </NativeMenuItem.Menu>
-      </NativeMenuItem>
-      <NativeMenuItem Header="{Binding Loc[MenuHelp]}">
-        <NativeMenuItem.Menu>
-          <NativeMenu>
-            <NativeMenuItem Header="{Binding Loc[About]}" Command="{Binding ShowAboutCommand}" />
           </NativeMenu>
         </NativeMenuItem.Menu>
       </NativeMenuItem>

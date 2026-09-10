@@ -11,7 +11,8 @@ namespace DataTray.Core.Plugins;
 /// localizer. The context is deliberately <em>not</em> built here — <see cref="SubsystemActivator"/> builds it
 /// and calls <c>Initialize</c> later, once the host services it needs (e.g. <c>ConnectionService</c>) exist.</summary>
 public sealed record SubsystemActivation(
-    string Id, IReadOnlyList<string> Capabilities, ISubsystemPlugin Plugin, IPluginLocalizer? Localizer);
+    string Id, IReadOnlyList<string> Capabilities, ISubsystemPlugin Plugin, IPluginLocalizer? Localizer,
+    string? Name = null);
 
 /// <summary>Outcome of loading one <c>type: "extension"</c> plugin: the activation it produced, or an error
 /// explaining why it was skipped.</summary>
@@ -96,7 +97,8 @@ public sealed class SubsystemPluginLoader
                     warn => _log?.Invoke($"{manifest.Id}: {warn}"))
                 : null;
 
-            var activation = new SubsystemActivation(manifest.Id, manifest.Capabilities, subsystem, localizer);
+            var activation = new SubsystemActivation(
+                manifest.Id, manifest.Capabilities, subsystem, localizer, manifest.Name);
             return new SubsystemLoadResult(dir, manifest.Id, activation, null);
         }
         catch (Exception ex)

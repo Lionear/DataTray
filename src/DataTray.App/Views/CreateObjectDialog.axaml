@@ -56,6 +56,40 @@
               HorizontalAlignment="Left" />
     </StackPanel>
 
+    <!-- Index columns: index creation only. Same two-Grid, fixed-width layout as the column grid above
+         (60/28 for Descending/remove) so header and rows line up. -->
+    <StackPanel Spacing="4" IsVisible="{Binding IsIndex}">
+      <CheckBox Content="{Binding Loc[IndexUnique]}" IsChecked="{Binding Unique}"
+                ToolTip.Tip="{Binding Loc[IndexUniqueHint]}" />
+      <Grid ColumnDefinitions="*,60,28" Margin="0,4,0,0">
+        <TextBlock Grid.Column="0" Text="{Binding Loc[IndexColumn]}" FontSize="11"
+                   Foreground="{DynamicResource SETextFaintBrush}" />
+        <TextBlock Grid.Column="1" Text="{Binding Loc[IndexDescending]}" FontSize="11"
+                   HorizontalAlignment="Center" TextAlignment="Center"
+                   Foreground="{DynamicResource SETextFaintBrush}"
+                   ToolTip.Tip="{Binding Loc[IndexDescendingHint]}" />
+      </Grid>
+      <ItemsControl ItemsSource="{Binding IndexColumns}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="*,60,28" Margin="0,2">
+              <!-- Editable, like the type box above: the table's columns are suggestions, so an index on
+                   an expression or on a column the tree could not list is still reachable. -->
+              <ComboBox Grid.Column="0" Margin="0,0,4,0" IsEditable="True"
+                        ItemsSource="{Binding $parent[ItemsControl].DataContext.TableColumns}"
+                        Text="{Binding Name, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+              <CheckBox Grid.Column="1" HorizontalAlignment="Center" IsChecked="{Binding Descending}" />
+              <Button Grid.Column="2" Classes="Subtle" Content="×" Padding="0" HorizontalAlignment="Center"
+                      Command="{Binding $parent[ItemsControl].DataContext.RemoveIndexColumnCommand}"
+                      CommandParameter="{Binding}" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button Classes="Subtle" Content="{Binding Loc[AddIndexColumn]}" Command="{Binding AddIndexColumnCommand}"
+              HorizontalAlignment="Left" />
+    </StackPanel>
+
     <TextBlock Text="{Binding Loc[SqlPreview]}" Margin="0,4,0,0" />
     <TextBox Text="{Binding SqlPreview}" AcceptsReturn="True" TextWrapping="Wrap"
              FontFamily="Cascadia Code,Consolas,Menlo,monospace" FontSize="12"
