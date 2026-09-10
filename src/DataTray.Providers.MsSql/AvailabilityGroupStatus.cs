@@ -56,8 +56,14 @@ public static class AvailabilityGroupStatus
         isSuspended ? $"Yes — {reasonDesc ?? "unknown reason"}" : "No";
 
     /// <summary>SSMS-style wording for <c>automated_backup_preference_desc</c> — SQL Server's own value is
-    /// a constant name (<c>SECONDARY_ONLY</c>), not a sentence.</summary>
-    public static string BackupPreferenceText(string? desc) => desc switch
+    /// a constant name (<c>SECONDARY_ONLY</c>), not a sentence.
+    /// <para>
+    /// Matched case-insensitively on purpose: <c>sys.availability_groups</c> returns this column
+    /// <em>lowercase</em> ("secondary"), even though the documentation and every <c>sys.dm_hadr_*</c>
+    /// equivalent are uppercase. Verified against a real group (SQL Server 2025) — see
+    /// <c>tools/mssql-ag-lab</c>. Matching "SECONDARY" ordinally silently fell through to the raw value.
+    /// </para></summary>
+    public static string BackupPreferenceText(string? desc) => desc?.ToUpperInvariant() switch
     {
         "PRIMARY" => "Prefer primary",
         "SECONDARY_ONLY" => "Secondary only",
