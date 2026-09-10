@@ -28,6 +28,12 @@ public partial class TreeNodeViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isExpanded;
 
+    // SE-285: cleared by the sidebar filter when neither this node nor a loaded descendant matches.
+    // Defaults to true so an untyped filter leaves the tree exactly as it was; MainViewModel owns the
+    // walk that sets it (see MainViewModel.ApplyTreeFilter).
+    [ObservableProperty]
+    private bool _isFilterVisible = true;
+
     // Connection-root state, shown as a status dot and gating Connect/Disconnect (root nodes only).
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanConnect))]
@@ -126,6 +132,47 @@ public partial class TreeNodeViewModel : ViewModelBase
     public string Name { get; private set; }
 
     public string Title { get; private set; }
+
+    // SE-285: the active filter text, so a row can show WHICH part of it matched. Set by the filter
+    // walk; null when nothing is being filtered.
+    private string? _highlight;
+
+    /// <summary><see cref="Title"/> split around the filter match, so the middle piece can be drawn
+    /// highlighted. With no filter (or no hit in this row's title) it is all <see cref="TitleBefore"/>.</summary>
+    public string TitleBefore => Split().Before;
+
+    public string TitleMatch => Split().Match;
+
+    public string TitleAfter => Split().After;
+
+    /// <summary>Tell this row which text is being filtered on (null = none).</summary>
+    public void SetHighlight(string? filter)
+    {
+        _highlight = filter;
+        RefreshHighlight();
+    }
+
+    private (string Before, string Match, string After) Split()
+    {
+        if (string.IsNullOrEmpty(_highlight))
+        {
+            return (Title, string.Empty, string.Empty);
+        }
+
+        // Matched on Name, highlighted on Title: Title is Name plus an optional "(12)"/": detail"
+        // suffix, so the hit is in there — but a filter that only matches the suffix is no hit at all.
+        var at = Title.IndexOf(_highlight, StringComparison.OrdinalIgnoreCase);
+        return at < 0
+            ? (Title, string.Empty, string.Empty)
+            : (Title[..at], Title.Substring(at, _highlight.Length), Title[(at + _highlight.Length)..]);
+    }
+
+    private void RefreshHighlight()
+    {
+        OnPropertyChanged(nameof(TitleBefore));
+        OnPropertyChanged(nameof(TitleMatch));
+        OnPropertyChanged(nameof(TitleAfter));
+    }
 
     /// <summary>Optional right-aligned size badge (e.g. "1.8G"); set by the provider on database/table nodes.</summary>
     public string? Badge { get; private set; }
@@ -352,6 +399,7 @@ public partial class TreeNodeViewModel : ViewModelBase
         Name = connection.Name;
         Title = connection.Name;
         OnPropertyChanged(nameof(Title));
+        RefreshHighlight(); // the title just changed, so its split did too
         OnPropertyChanged(nameof(ConnectionColorBrush));
         OnPropertyChanged(nameof(HasConnectionColor));
 

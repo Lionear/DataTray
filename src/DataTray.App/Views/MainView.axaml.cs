@@ -489,6 +489,17 @@ public partial class MainView : UserControl
         }
     }
 
+    // SE-285: the filter shortcut lands on the window, so the VM asks the view to move focus. Selecting
+    // the existing text means a second press re-filters from scratch instead of appending.
+    private void FocusTreeFilter()
+    {
+        if (this.FindControl<TextBox>("TreeFilterBox") is { } box)
+        {
+            box.Focus();
+            box.SelectAll();
+        }
+    }
+
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         if (_viewModel is not null)
@@ -513,7 +524,6 @@ public partial class MainView : UserControl
             }
 
             _viewModel.OutputEntries.CollectionChanged += OnOutputEntriesChanged;
-            _viewModel.ConnectionManagerRequested = ShowConnectionManagerAsync;
             _viewModel.CreateObjectDialogRequested = ShowCreateObjectDialogAsync;
             _viewModel.NewUserDialogRequested = ShowNewUserDialogAsync;
             _viewModel.AlterObjectDialogRequested = ShowAlterObjectDialogAsync;
@@ -539,6 +549,7 @@ public partial class MainView : UserControl
             _viewModel.PluginStoreRequested = ShowPluginStoreAsync;
             _viewModel.PluginUpdates.ChangelogRequested = ShowPluginChangelogAsync;
             _viewModel.QueryLogRequested = ShowQueryLogAsync;
+            _viewModel.TreeFilterFocusRequested = FocusTreeFilter;
             _viewModel.RestartRequested = () => { AppRestart.Restart(); return Task.CompletedTask; };
             _viewModel.ConfirmRequested = ShowConfirmAsync;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -554,18 +565,6 @@ public partial class MainView : UserControl
         {
             Dispatcher.UIThread.Post(() => this.FindControl<TextBox>("SearchBox")?.Focus());
         }
-    }
-
-    // The VM asks; the view owns the window, so it creates and shows the Connection Manager (modal).
-    private async Task ShowConnectionManagerAsync(ConnectionManagerViewModel managerViewModel)
-    {
-        if (TopLevel.GetTopLevel(this) is not Window owner)
-        {
-            return;
-        }
-
-        var window = new ConnectionManagerWindow { DataContext = managerViewModel };
-        await window.ShowDialog(owner);
     }
 
     // Yes/no confirmation (e.g. "reconnect now?"). Yes → true, No/closed → false.

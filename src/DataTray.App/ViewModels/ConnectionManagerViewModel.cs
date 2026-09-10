@@ -27,7 +27,7 @@ public enum DropPosition
 }
 
 /// <summary>
-/// Backs the Connection Manager window (master-detail). The left tree groups saved connections into
+/// Backs connection management (master-detail). The left tree groups saved connections into
 /// nested folders derived from each connection's <c>/</c>-joined <see cref="SavedConnection.Folder"/>
 /// path; the right side edits the selected connection (reusing <see cref="ConnectionDialogViewModel"/>),
 /// renames/deletes the selected folder, or shows an empty state. Folders exist only as path prefixes,
@@ -65,12 +65,23 @@ public partial class ConnectionManagerViewModel : ViewModelBase
 
     public ILocalizer Loc { get; }
 
-    /// <summary>Set by the window so the VM can ask a yes/no question (title, message); false if unavailable.</summary>
+    /// <summary>Set by the view so the VM can ask a yes/no question (title, message); false if unavailable.</summary>
     public Func<string, string, Task<bool>>? ConfirmRequested { get; set; }
 
     /// <summary>Set by the window: show the discovered DataGrip/DBeaver connections and return the ones
     /// the user ticked (empty when cancelled). Null = no UI available, so the import command is a no-op.</summary>
     public Func<IReadOnlyList<DiscoveredConnection>, Task<IReadOnlyList<DiscoveredConnection>>>? ImportExternalRequested { get; set; }
+
+    /// <summary>Raised when the user is done managing connections (SE-289). This used to be "the window
+    /// closed"; now that the master-detail lives inside the main window, the host listens for this to
+    /// hand the sidebar back to the schema tree.</summary>
+    public event Action? CloseRequested;
+
+    [RelayCommand]
+    private void Close() => CloseRequested?.Invoke();
+
+    [RelayCommand]
+    private void ClearFilter() => Filter = string.Empty;
 
     /// <summary>The manager tree: nested folder nodes + connection leaves.</summary>
     public ObservableCollection<ConnectionManagerNode> Nodes { get; } = [];
@@ -79,7 +90,12 @@ public partial class ConnectionManagerViewModel : ViewModelBase
     private ConnectionManagerNode? _selectedNode;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFilter))]
     private string _filter = string.Empty;
+
+    /// <summary>Whether the tree is currently narrowed — drives the clear button and the accent ring,
+    /// same as the schema tree's filter in the other state of this column (SE-285/SE-289).</summary>
+    public bool HasFilter => Filter.Trim().Length > 0;
 
     // The connection form shown when a connection (or a new draft) is selected; reused from the old modal.
     [ObservableProperty]
@@ -95,6 +111,12 @@ public partial class ConnectionManagerViewModel : ViewModelBase
     /// <summary>Editable folder name in the folder-detail panel.</summary>
     [ObservableProperty]
     private string _folderName = string.Empty;
+
+    /// <summary>Sub-line under the selected folder's name: "{connections} · {subfolders}" (SE-287 mockup).
+    /// Counted on the node itself, so it is this folder's contents and not the whole tree's.</summary>
+    public string FolderSummary => _selectedFolder is { } folder
+        ? Loc.Get("FolderSummary", folder.ConnectionCount, folder.Children.Count(c => c.IsFolder))
+        : string.Empty;
 
     public bool IsConnectionPane => Pane == ManagerPane.Connection;
     public bool IsFolderPane => Pane == ManagerPane.Folder;
@@ -165,6 +187,7 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         {
             _selectedFolder = value;
             FolderName = value.Name;
+            OnPropertyChanged(nameof(FolderSummary));
             Detail = null;
             Pane = ManagerPane.Folder;
         }

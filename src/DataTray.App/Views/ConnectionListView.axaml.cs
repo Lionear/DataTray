@@ -2,14 +2,18 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using DataTray.App.ViewModels;
 using DataTray.Core.Connections.Import;
 
 namespace DataTray.App.Views;
 
-public partial class ConnectionManagerWindow : Window
+/// <summary>
+/// The connection/folder tree, hosted in the main window's sidebar (SE-289 — it used to be the left
+/// half of the Connection Manager window). Everything below is the window's drag &amp; drop code
+/// unchanged; only the confirmation dialog had to learn to find its owner window instead of being one.
+/// </summary>
+public partial class ConnectionListView : UserControl
 {
     private const double DragThreshold = 5;
 
@@ -26,7 +30,7 @@ public partial class ConnectionManagerWindow : Window
     private ConnectionManagerNode? _highlighted;
     private ConnectionManagerNode? _insertHint;
 
-    public ConnectionManagerWindow()
+    public ConnectionListView()
     {
         InitializeComponent();
 
@@ -49,25 +53,12 @@ public partial class ConnectionManagerWindow : Window
 
     private ConnectionManagerViewModel? ViewModel => DataContext as ConnectionManagerViewModel;
 
-    // File-type connection field: pick a path (moved here from the retired ConnectionDialog).
-    private async void OnBrowseClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: ConnectionFieldInput input })
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = false });
-        if (files.Count > 0)
-        {
-            input.Value = files[0].TryGetLocalPath() ?? files[0].Path.ToString();
-        }
-    }
-
     // The DataGrip/DBeaver import picker (SE-233): the VM has already scanned, this only asks which rows.
     private async Task<IReadOnlyList<DiscoveredConnection>> ShowImportAsync(IReadOnlyList<DiscoveredConnection> found)
     {
-        if (ViewModel?.Loc is not { } loc)
+        // Same adjustment the confirmation dialog needed (SE-289): this control used to be the window,
+        // so it could own a modal itself; now it has to go find the one it lives in.
+        if (ViewModel?.Loc is not { } loc || TopLevel.GetTopLevel(this) is not Window owner)
         {
             return [];
         }
@@ -81,14 +72,19 @@ public partial class ConnectionManagerWindow : Window
         dialogViewModel.Configure(found);
 
         var dialog = new ImportConnectionsDialog { DataContext = dialogViewModel };
-        return await dialog.ShowDialog<bool>(this) ? dialogViewModel.Selected : [];
+        return await dialog.ShowDialog<bool>(owner) ? dialogViewModel.Selected : [];
     }
 
     private async Task<bool> ShowConfirmAsync(string title, string message)
     {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return false;
+        }
+
         var loc = ViewModel?.Loc;
         var dialog = new ConfirmDialog(title, message, loc?["Yes"] ?? "Yes", loc?["No"] ?? "No");
-        return await dialog.ShowDialog<bool>(this);
+        return await dialog.ShowDialog<bool>(owner);
     }
 
     // --- Drag & drop: reparent a connection/folder by dropping it onto a folder (or the root). ---

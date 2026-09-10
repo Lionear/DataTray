@@ -18,10 +18,22 @@ public partial class ConnectionFieldInput : ObservableObject
     private string? _value;
 
     public string Label => Field.Required ? $"{Field.Label} *" : Field.Label;
+
+    /// <summary>The label without the required marker, so the marker can be drawn in its own colour
+    /// (SE-287 mockup) while the label keeps wrapping inside the fixed label column.</summary>
+    public string LabelText => Field.Label;
+
+    /// <summary>" *" for a required field, empty otherwise — rendered as a separate, red run.</summary>
+    public string RequiredMarker => Field.Required ? " *" : string.Empty;
+
     public string? Watermark => Field.Placeholder;
     public bool IsFile => Field.Type == ConnectionFieldType.File;
     public bool IsBool => Field.Type == ConnectionFieldType.Bool;
     public bool IsChoice => Field.Type == ConnectionFieldType.Choice;
+
+    /// <summary>A number field gets a short box: a port or a timeout in a full-width control reads as if
+    /// a long value is expected (SE-287 mockup renders these narrow).</summary>
+    public bool IsNumber => Field.Type == ConnectionFieldType.Number;
 
     /// <summary>Options for a <see cref="ConnectionFieldType.Choice"/> field; empty otherwise.</summary>
     public IReadOnlyList<string> Choices => Field.Choices ?? [];

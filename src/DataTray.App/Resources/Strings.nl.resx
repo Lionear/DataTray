@@ -57,6 +57,15 @@
   <data name="Connections" xml:space="preserve">
     <value>Connecties</value>
   </data>
+  <data name="FilterTree" xml:space="preserve">
+    <value>Filter connecties en objecten…</value>
+  </data>
+  <data name="ClearFilter" xml:space="preserve">
+    <value>Filter wissen</value>
+  </data>
+  <data name="TreeFilterMatches" xml:space="preserve">
+    <value>{0} treffers in {1} geladen objecten · Esc wist</value>
+  </data>
   <data name="SelectRows" xml:space="preserve">
     <value>Rijen tonen (top 100)</value>
   </data>
@@ -431,6 +440,66 @@
   </data>
   <data name="ConnectionColor" xml:space="preserve">
     <value>Kleur</value>
+  </data>
+  <data name="SectionIdentity" xml:space="preserve">
+    <value>Identiteit</value>
+  </data>
+  <data name="SectionIdentityHint" xml:space="preserve">
+    <value>hoe deze connectie in de boom staat</value>
+  </data>
+  <data name="SectionServer" xml:space="preserve">
+    <value>Verbinding</value>
+  </data>
+  <data name="SectionAccess" xml:space="preserve">
+    <value>Toegang</value>
+  </data>
+  <data name="SectionAccessHint" xml:space="preserve">
+    <value>wie wat mag met deze connectie</value>
+  </data>
+  <data name="SectionFolder" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="FieldGroupSecurity" xml:space="preserve">
+    <value>Beveiliging</value>
+  </data>
+  <data name="FieldGroupConnection" xml:space="preserve">
+    <value>Verbinding</value>
+  </data>
+  <data name="FieldGroupSSHtunnel" xml:space="preserve">
+    <value>SSH-tunnel</value>
+  </data>
+  <data name="ColorNone" xml:space="preserve">
+    <value>Geen kleur</value>
+  </data>
+  <data name="ColorRed" xml:space="preserve">
+    <value>Rood</value>
+  </data>
+  <data name="ColorOrange" xml:space="preserve">
+    <value>Oranje</value>
+  </data>
+  <data name="ColorAmber" xml:space="preserve">
+    <value>Amber</value>
+  </data>
+  <data name="ColorGreen" xml:space="preserve">
+    <value>Groen</value>
+  </data>
+  <data name="ColorBlue" xml:space="preserve">
+    <value>Blauw</value>
+  </data>
+  <data name="ColorPurple" xml:space="preserve">
+    <value>Paars</value>
+  </data>
+  <data name="ConnectionColorHint" xml:space="preserve">
+    <value>kleurt de vlag in de boom</value>
+  </data>
+  <data name="AiPill" xml:space="preserve">
+    <value>AI · {0}</value>
+  </data>
+  <data name="ReadOnlyPill" xml:space="preserve">
+    <value>Alleen-lezen</value>
+  </data>
+  <data name="MoreActions" xml:space="preserve">
+    <value>Meer acties</value>
   </data>
   <data name="ReadOnlyMode" xml:space="preserve">
     <value>Alleen-lezen (veilige modus)</value>
@@ -993,6 +1062,9 @@
   <data name="ManageConnections" xml:space="preserve">
     <value>Connecties beheren</value>
   </data>
+  <data name="CloseManager" xml:space="preserve">
+    <value>Klaar met connectiebeheer</value>
+  </data>
   <data name="FilterConnections" xml:space="preserve">
     <value>Filter connecties</value>
   </data>
@@ -1019,6 +1091,9 @@
   </data>
   <data name="ManagerSummary" xml:space="preserve">
     <value>{0} connecties · {1} mappen</value>
+  </data>
+  <data name="FolderSummary" xml:space="preserve">
+    <value>{0} connecties · {1} submappen</value>
   </data>
   <data name="DeleteConnectionConfirm" xml:space="preserve">
     <value>Connectie "{0}" verwijderen?</value>
@@ -1244,6 +1319,9 @@
   </data>
   <data name="ToggleSearch" xml:space="preserve">
     <value>Ga naar / zoeken</value>
+  </data>
+  <data name="FocusTreeFilter" xml:space="preserve">
+    <value>Connectieboom filteren</value>
   </data>
   <data name="ToggleComment" xml:space="preserve">
     <value>Regelcommentaar aan/uit</value>

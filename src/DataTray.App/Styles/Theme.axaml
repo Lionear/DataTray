@@ -45,6 +45,9 @@
           <SolidColorBrush x:Key="SEExtensibilityWashBrush" Color="#06B6D4" Opacity="0.13" />
           <SolidColorBrush x:Key="SEExtensibilityWashBorderBrush" Color="#06B6D4" Opacity="0.33" />
           <SolidColorBrush x:Key="SEAiBrush" Color="#7C3AED" />
+          <!-- Filter-match highlight in the sidebar tree (SE-285). -->
+          <SolidColorBrush x:Key="SEMatchBgBrush" Color="#4A3C12" />
+          <SolidColorBrush x:Key="SEMatchFgBrush" Color="#E0A33E" />
         </ResourceDictionary>
 
         <!-- Light -->
@@ -82,6 +85,9 @@
           <SolidColorBrush x:Key="SEExtensibilityWashBrush" Color="#06B6D4" Opacity="0.13" />
           <SolidColorBrush x:Key="SEExtensibilityWashBorderBrush" Color="#06B6D4" Opacity="0.33" />
           <SolidColorBrush x:Key="SEAiBrush" Color="#7C3AED" />
+          <!-- Filter-match highlight in the sidebar tree (SE-285). -->
+          <SolidColorBrush x:Key="SEMatchBgBrush" Color="#FDF0CE" />
+          <SolidColorBrush x:Key="SEMatchFgBrush" Color="#8A6013" />
         </ResourceDictionary>
 
       </ResourceDictionary.ThemeDictionaries>
@@ -184,10 +190,23 @@
     <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
     <Setter Property="Padding" Value="8,6" />
   </Style>
+  <!-- A single-line TextBox is 32px tall from the control theme's MinHeight, which is more than the
+       padding + one line of text needs. Without this the content is anchored to the top and every input
+       carries its slack at the bottom — the text reads as sitting high, and the smaller the font, the
+       worse it gets. Scoped to AcceptsReturn=False on purpose: the SQL-preview / cell-value boxes are
+       multi-line and their first line belongs at the top, not floating in the middle. -->
+  <Style Selector="TextBox[AcceptsReturn=False]">
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
   <Style Selector="TextBox /template/ TextBlock#PART_Watermark">
     <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
   </Style>
   <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{DynamicResource SEAccentBrush}" />
+  </Style>
+  <!-- A filter box that is actually filtering keeps the accent ring even when focus moves away, so a
+       narrowed tree never looks like the whole tree (SE-285 mockup: .filterbox vs .filterbox.idle). -->
+  <Style Selector="TextBox.Filtering /template/ Border#PART_BorderElement">
     <Setter Property="BorderBrush" Value="{DynamicResource SEAccentBrush}" />
   </Style>
 
