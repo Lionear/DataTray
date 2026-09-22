@@ -1578,9 +1578,15 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         }
     }
 
+    // A browse tab has no script to run: Sql is the query editor's field and InitBrowse never fills it, so
+    // Run/F5 used to hand RunScriptAsync an empty string (SE-293 — Mongo and Elastic reject that with
+    // "Empty query.", SQL engines just did nothing). Reload the page instead — the same branch ReloadAsync
+    // already makes for Discard/Save.
     [RelayCommand]
-    private async Task RunAsync(CancellationToken ct) =>
-        await RunScriptAsync(SelectionText.Length > 0 ? SelectionText : Sql, ct);
+    private Task RunAsync(CancellationToken ct) =>
+        IsBrowseMode
+            ? LoadPageAsync(ct)
+            : RunScriptAsync(SelectionText.Length > 0 ? SelectionText : Sql, ct);
 
     [RelayCommand]
     private async Task RunAtCursorAsync(CancellationToken ct)

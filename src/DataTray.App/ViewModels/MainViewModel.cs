@@ -2411,6 +2411,15 @@ public partial class MainViewModel : ViewModelBase
 
             // Keep quick-open/autocomplete in sync (the old full-tree refresh did this via the state wiring).
             RebuildSchemaCache(node.Connection);
+
+            // The tree isn't the only thing showing this table: an open Data tab keeps the rows it last
+            // loaded until something reloads it (SE-293 — after a truncate it went on showing the deleted
+            // rows). A dropped table has nothing left to load, so leave that tab as it is.
+            if (kind != AlterKind.DropTable &&
+                Documents.FirstOrDefault(d => d.MatchesBrowse(node.Connection.Id, database, schema, target)) is { } browse)
+            {
+                await browse.LoadPageAsync(CancellationToken.None);
+            }
         }
         catch (Exception ex)
         {
