@@ -81,4 +81,9 @@
     <Using Include="DataTray.Sdk.Ui" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- So a view-side helper can be tested without being made public API (SE-291). -->
+    <InternalsVisibleTo Include="DataTray.App.Tests" />
+  </ItemGroup>
+
 </Project>

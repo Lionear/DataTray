@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Linq;
@@ -166,9 +167,23 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, aitree, copytable, erdiagram";
+    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, settings, aitree, copytable, erdiagram";
 
-    public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
+    public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state)
+    {
+        // SE-291: the caption buttons are the platform's on macOS and ours everywhere else, so on any one
+        // machine only one of the two bars can be seen. --state windows|mac forces either.
+        DataTray.App.Views.MainWindow.SystemCaptionButtons = state switch
+        {
+            "windows" => false,
+            "mac" => true,
+            _ => OperatingSystem.IsMacOS(),
+        };
+
+        return Build(scene, services, sandbox, state);
+    }
+
+    private static Task<Window?> Build(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
         "hero" => BuildHeroAsync(services, sandbox),
         "query" => BuildQueryAsync(services, sandbox, state),
@@ -179,6 +194,7 @@ internal static class SceneCatalog
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "querysettings" => Task.FromResult(BuildQuerySettings(services)),
+        "settings" => Task.FromResult(BuildSettings(services, state)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
         "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
@@ -285,6 +301,16 @@ internal static class SceneCatalog
     {
         var viewModel = services.GetRequiredService<SettingsViewModel>();
         viewModel.SelectCategoryByKey("Query");
+        return new SettingsWindow { DataContext = viewModel };
+    }
+
+    /// <summary>Any Preferences page, named by its category key through <c>--state</c> (SE-290) — the rail's
+    /// grouping and a page's numbered sections are the kind of thing that has to be looked at, and there are
+    /// eleven of them.</summary>
+    private static Window? BuildSettings(IServiceProvider services, string state)
+    {
+        var viewModel = services.GetRequiredService<SettingsViewModel>();
+        viewModel.SelectCategoryByKey(string.IsNullOrWhiteSpace(state) ? "General" : state);
         return new SettingsWindow { DataContext = viewModel };
     }
 
@@ -784,7 +810,8 @@ internal static class DemoData
                 var price = 19.95 + i * 12.5;
                 Execute(connection,
                     $"INSERT INTO products (id, sku, name, price, stock) VALUES " +
-                    $"({i + 1}, 'SKU-{1000 + i}', '{products[i]}', {price:0.00}, {20 + i * 5});");
+                    $"({i + 1}, 'SKU-{1000 + i}', '{products[i]}', " +
+                    $"{price.ToString("0.00", CultureInfo.InvariantCulture)}, {20 + i * 5});");
             }
 
             string[] statuses = ["paid", "shipped", "delivered", "refunded", "pending"];
@@ -796,7 +823,8 @@ internal static class DemoData
                 var total = (19.95 + (prod - 1) * 12.5) * qty;
                 Execute(connection,
                     $"INSERT INTO orders (id, customer_id, product_id, quantity, total, status, ordered_at) VALUES " +
-                    $"({i + 1}, {cust}, {prod}, {qty}, {total:0.00}, '{statuses[i % statuses.Length]}', " +
+                    $"({i + 1}, {cust}, {prod}, {qty}, " +
+                    $"{total.ToString("0.00", CultureInfo.InvariantCulture)}, '{statuses[i % statuses.Length]}', " +
                     $"'2024-06-{1 + i % 27:D2}');");
             }
 

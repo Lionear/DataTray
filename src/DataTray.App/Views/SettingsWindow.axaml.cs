@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DataTray.App.Controls;
 using DataTray.App.ViewModels;
@@ -38,6 +39,12 @@ public partial class SettingsWindow : Window
                 };
             }
         };
+
+        // The Updates channel list has a selected item, and a freshly realized ListBox brings that item into
+        // view — which drags the whole General pane down with it, so Preferences opened halfway through the
+        // page instead of at its title. Only visible now that the page is taller (SE-290). Posted, because at
+        // Opened the scroll that needs undoing has not happened yet.
+        Opened += (_, _) => Dispatcher.UIThread.Post(GeneralScroll.ScrollToHome, DispatcherPriority.Background);
 
         // Unsubscribe the VM from the MCP service singleton when the window closes (SE-147) — the transient VM
         // would otherwise leak a StateChanged handler on the long-lived service each time Settings opens.

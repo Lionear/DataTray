@@ -5,7 +5,7 @@
         xmlns:settings="using:DataTray.Core.Settings"
         x:Class="DataTray.App.Views.SettingsWindow"
         Title="{Binding Loc[Preferences]}"
-        Width="800" Height="540" MinWidth="640" MinHeight="440"
+        Width="880" Height="600" MinWidth="700" MinHeight="460"
         WindowStartupLocation="CenterOwner">
   <Window.Resources>
     <!-- One row per PluginSettingField (Route A) — same shape/look as the connection dialog's fields. -->
@@ -37,6 +37,61 @@
     <Style Selector="ctl|ShortcutCaptureBox.conflict">
       <Setter Property="BorderBrush" Value="{DynamicResource SEStatusErrorBrush}" />
     </Style>
+    <!-- ===== Page furniture (SE-290) =====
+         Every pane opens the same way: a big title with a "?" beside it, one grey line saying what the page
+         is for, a hairline, and from there numbered section headings. The headings are deliberately quieter
+         than the bold ones they replace — the number carries the hierarchy, so the weight doesn't have to. -->
+    <Style Selector="TextBlock.PageTitle">
+      <Setter Property="FontSize" Value="19" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.PageSub">
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="MaxWidth" Value="620" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Margin" Value="0,4,0,0" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.PageRule">
+      <Setter Property="Height" Value="1" />
+      <Setter Property="Margin" Value="0,13,0,0" />
+      <Setter Property="Background" Value="{DynamicResource SEHairlineBrush}" />
+    </Style>
+    <!-- The round "?": its tooltip is the page's own description, so a long explanation has somewhere to
+         live other than the page body. -->
+    <Style Selector="Border.Help">
+      <Setter Property="Width" Value="15" />
+      <Setter Property="Height" Value="15" />
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+    <Style Selector="Border.Help > TextBlock">
+      <Setter Property="Text" Value="?" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+    <Style Selector="TextBlock.SectionHead">
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="LetterSpacing" Value="0.7" />
+      <Setter Property="Margin" Value="0,18,0,0" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <!-- Group heading in the category rail — same idea, one size smaller and fainter. -->
+    <Style Selector="TextBlock.RailGroup">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="LetterSpacing" Value="0.7" />
+      <Setter Property="Margin" Value="2,10,0,2" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+
     <!-- Mirrors the Plugin Store's Card look — used by the Plugin sources pane so its rows read the
          same as they did before the Sources tab moved here (SE-122). -->
     <Style Selector="Border.Card">
@@ -48,7 +103,7 @@
     </Style>
   </Window.Styles>
 
-  <Grid ColumnDefinitions="172,*">
+  <Grid ColumnDefinitions="200,*">
 
     <!-- ============ Category rail ============ -->
     <Border Grid.Column="0" Background="{DynamicResource SEPanelBgBrush}"
@@ -57,16 +112,29 @@
         <!-- Search box (SE-161): filters the categories below by label or keyword. -->
         <TextBox Grid.Row="0" Margin="8,8,8,4" PlaceholderText="{Binding Loc[SettingsSearch]}"
                  Text="{Binding SettingsSearch}" />
+        <!-- One list, two kinds of row (SE-290): the categories, and the grey group headings between them.
+             A heading is neither focusable nor hit-testable, so neither a click nor an arrow key can land
+             on it — cheaper than a disabled container, which the theme would also grey out a second time. -->
         <ListBox Grid.Row="1" Background="Transparent" Padding="0,4"
                  ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem">
+              <Setter Property="IsHitTestVisible" Value="{Binding !IsHeader}" />
+              <Setter Property="Focusable" Value="{Binding !IsHeader}" />
+            </Style>
+          </ListBox.Styles>
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="10">
-                <Path Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Data="{Binding Icon}"
-                      Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.3"
-                      StrokeJoin="Round" StrokeLineCap="Round" />
-                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
-              </StackPanel>
+              <Panel>
+                <TextBlock Classes="RailGroup" IsVisible="{Binding IsHeader}"
+                           Text="{Binding Label, Converter={x:Static c:UpperCaseConverter.Instance}}" />
+                <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding !IsHeader}">
+                  <Path Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Data="{Binding Icon}"
+                        Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.3"
+                        StrokeJoin="Round" StrokeLineCap="Round" />
+                  <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Panel>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
@@ -78,27 +146,40 @@
       <Panel Grid.Row="0" Margin="24,20">
 
         <!-- General (scrollable: the Updates cards can push it past the window height) -->
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+        <ScrollViewer x:Name="GeneralScroll" HorizontalScrollBarVisibility="Disabled"
                       IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=General}">
         <StackPanel Spacing="10">
-          <TextBlock Text="{Binding Loc[SettingsGeneralCat]}" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Text="{Binding Loc[SettingsGeneral]}" FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}" />
-          <TextBlock Text="{Binding Loc[Language]}" FontWeight="SemiBold" Margin="0,6,0,0" />
-          <ComboBox Width="200" HorizontalAlignment="Left"
-                    ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}">
-            <ComboBox.ItemTemplate>
-              <DataTemplate>
-                <TextBlock Text="{Binding Name}" />
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-          <TextBlock Text="{Binding Loc[Startup]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+          <StackPanel Spacing="0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsGeneralCat]}" />
+              <Border Classes="Help" ToolTip.Tip="{Binding Loc[SettingsGeneral]}"><TextBlock /></Border>
+            </StackPanel>
+            <TextBlock Classes="PageSub" Text="{Binding Loc[SettingsGeneral]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
+
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSecLanguageStartup], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" Text="{Binding Loc[Language]}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" Width="200"
+                      ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
           <ToggleSwitch IsChecked="{Binding RestoreTabsOnStartup}"
                         OnContent="{Binding Loc[RestoreTabsOnStartup]}" OffContent="{Binding Loc[RestoreTabsOnStartup]}" />
           <ToggleSwitch IsChecked="{Binding PromptSaveQueryOnClose}"
                         OnContent="{Binding Loc[PromptSaveQueryOnClose]}" OffContent="{Binding Loc[PromptSaveQueryOnClose]}" />
           <ToggleSwitch IsChecked="{Binding ConfirmOnExit}"
                         OnContent="{Binding Loc[ConfirmOnExit]}" OffContent="{Binding Loc[ConfirmOnExit]}" />
+
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSecWindowInstances], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
           <ToggleSwitch IsChecked="{Binding CloseToTray}"
                         OnContent="{Binding Loc[CloseToTray]}" OffContent="{Binding Loc[CloseToTray]}" />
           <TextBlock Text="{Binding Loc[CloseToTrayHint]}" FontSize="11" TextWrapping="Wrap"
@@ -107,7 +188,8 @@
                         OnContent="{Binding Loc[AllowMultipleInstances]}" OffContent="{Binding Loc[AllowMultipleInstances]}" />
           <TextBlock Text="{Binding Loc[AllowMultipleInstancesHint]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" Margin="24,0,0,0" />
-          <TextBlock Text="{Binding Loc[SettingsSchemaTree]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSchemaTree], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='3. {0}'}" />
           <ToggleSwitch IsChecked="{Binding ShowSystemDatabases}"
                         OnContent="{Binding Loc[ShowSystemDatabases]}" OffContent="{Binding Loc[ShowSystemDatabases]}" />
           <ToggleSwitch IsChecked="{Binding KeepFavoritesInTheirFolder}"
@@ -115,7 +197,8 @@
           <TextBlock Text="{Binding Loc[KeepFavoritesInTheirFolderHint]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" Margin="24,0,0,0" />
 
-          <TextBlock Text="{Binding Loc[SettingsUpdates]}" FontWeight="SemiBold" FontSize="14" Margin="0,14,0,0" />
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsUpdates], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='4. {0}'}" />
           <TextBlock Text="{Binding Loc[SettingsUpdatesHint]}" FontSize="12" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextSecondaryBrush}" Margin="0,0,0,4" />
 
@@ -235,9 +318,17 @@
         <!-- Appearance -->
         <StackPanel Spacing="10"
                     IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Appearance}">
-          <TextBlock Text="{Binding Loc[SettingsAppearance]}" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Text="{Binding Loc[AppearanceDesc]}" FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}" />
-          <TextBlock Text="{Binding Loc[Theme]}" FontWeight="SemiBold" Margin="0,6,0,0" />
+          <StackPanel Spacing="0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsAppearance]}" />
+              <Border Classes="Help" ToolTip.Tip="{Binding Loc[AppearanceDesc]}"><TextBlock /></Border>
+            </StackPanel>
+            <TextBlock Classes="PageSub" Text="{Binding Loc[AppearanceDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
+
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[Theme], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
           <StackPanel Orientation="Horizontal" Spacing="12">
             <RadioButton GroupName="Theme" Content="{Binding Loc[ThemeSystem]}"
                          IsChecked="{Binding Theme, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter={x:Static settings:AppTheme.System}, Mode=OneWay}"
@@ -250,7 +341,8 @@
                          Command="{Binding SetThemeCommand}" CommandParameter="{x:Static settings:AppTheme.Dark}" />
           </StackPanel>
 
-          <TextBlock Text="{Binding Loc[PanelsSectionTitle]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[PanelsSectionTitle], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
           <ToggleSwitch IsChecked="{Binding SingleBottomPanel}"
                         OnContent="{Binding Loc[SingleBottomPanel]}" OffContent="{Binding Loc[SingleBottomPanel]}" />
           <TextBlock Text="{Binding Loc[SingleBottomPanelHint]}" FontSize="11" TextWrapping="Wrap"
@@ -260,8 +352,18 @@
         <!-- Editor -->
         <StackPanel Spacing="10"
                     IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Editor}">
-          <TextBlock Text="{Binding Loc[SettingsEditor]}" FontSize="14" FontWeight="SemiBold" />
-          <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+          <StackPanel Spacing="0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsEditor]}" />
+              <Border Classes="Help" ToolTip.Tip="{Binding Loc[SettingsEditorDesc]}"><TextBlock /></Border>
+            </StackPanel>
+            <TextBlock Classes="PageSub" Text="{Binding Loc[SettingsEditorDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
+
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSecEditing], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
+          <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Text="{Binding Loc[EditorFontSize]}" VerticalAlignment="Center" />
             <NumericUpDown Grid.Column="1" Width="150"
                            Minimum="8" Maximum="32" Value="{Binding EditorFontSize}" />
@@ -269,7 +371,8 @@
           <ToggleSwitch IsChecked="{Binding EditorWordWrap}"
                         OnContent="{Binding Loc[EditorWordWrap]}" OffContent="{Binding Loc[EditorWordWrap]}" />
 
-          <TextBlock Text="{Binding Loc[FormatSectionTitle]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[FormatSectionTitle], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
           <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
             <TextBlock Grid.Column="0" Text="{Binding Loc[FormatKeywordCasingLabel]}" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" Width="200" ItemsSource="{Binding KeywordCasings}"
@@ -291,8 +394,18 @@
         <!-- Query -->
         <StackPanel Spacing="10"
                     IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Query}">
-          <TextBlock Text="{Binding Loc[SettingsQuery]}" FontSize="14" FontWeight="SemiBold" />
-          <ToggleSwitch IsChecked="{Binding ConfirmBeforeSave}" Margin="0,6,0,0"
+          <StackPanel Spacing="0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsQuery]}" />
+              <Border Classes="Help" ToolTip.Tip="{Binding Loc[SettingsQueryDesc]}"><TextBlock /></Border>
+            </StackPanel>
+            <TextBlock Classes="PageSub" Text="{Binding Loc[SettingsQueryDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
+
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSecExecution], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
+          <ToggleSwitch IsChecked="{Binding ConfirmBeforeSave}"
                         OnContent="{Binding Loc[ConfirmBeforeSave]}" OffContent="{Binding Loc[ConfirmBeforeSave]}" />
           <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
             <TextBlock Grid.Column="0" Text="{Binding Loc[QueryTimeout]}" VerticalAlignment="Center" />
@@ -301,7 +414,9 @@
           </Grid>
           <TextBlock Text="{Binding Loc[QueryTimeoutHint]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" />
-          <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSecPaging], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
+          <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Text="{Binding Loc[BrowsePageSize]}" VerticalAlignment="Center" />
             <NumericUpDown Grid.Column="1" Width="150" Minimum="1" Maximum="100000" FormatString="0"
                            Value="{Binding BrowsePageSize}" />
@@ -317,7 +432,9 @@
           </Grid>
           <TextBlock Text="{Binding Loc[QueryPageSizeHint]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" />
-          <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSecCopyExport], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='3. {0}'}" />
+          <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Text="{Binding Loc[HtmlTableStyleLabel]}" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" Width="200" ItemsSource="{Binding HtmlTableStyles}"
                       SelectedItem="{Binding SelectedHtmlTableStyleOption}">
@@ -335,15 +452,22 @@
         <!-- Query Log -->
         <StackPanel Spacing="8" MaxWidth="560" HorizontalAlignment="Left"
                     IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=QueryLog}">
-          <TextBlock Text="{Binding Loc[SettingsQueryLog]}" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Text="{Binding Loc[QueryLogDesc]}" FontSize="12" TextWrapping="Wrap"
-                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+          <StackPanel Spacing="0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsQueryLog]}" />
+              <Border Classes="Help" ToolTip.Tip="{Binding Loc[QueryLogDesc]}"><TextBlock /></Border>
+            </StackPanel>
+            <TextBlock Classes="PageSub" Text="{Binding Loc[QueryLogDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
 
-          <ToggleSwitch IsChecked="{Binding QueryLogEnabled}" Margin="0,6,0,0"
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SettingsSecLogging], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
+          <ToggleSwitch IsChecked="{Binding QueryLogEnabled}"
                         OnContent="{Binding Loc[QueryLogEnabledLabel]}" OffContent="{Binding Loc[QueryLogEnabledLabel]}" />
 
-          <TextBlock Text="{Binding Loc[QueryLogSources]}" FontWeight="SemiBold" Margin="0,4,0,0"
-                     IsEnabled="{Binding QueryLogEnabled}" />
+          <TextBlock Classes="SectionHead" IsEnabled="{Binding QueryLogEnabled}"
+                     Text="{Binding Loc[QueryLogSources], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
           <ToggleSwitch IsChecked="{Binding QueryLogApp}" IsEnabled="{Binding QueryLogEnabled}" Margin="12,0,0,0"
                         OnContent="{Binding Loc[QueryLogAppLabel]}" OffContent="{Binding Loc[QueryLogAppLabel]}" />
           <ToggleSwitch IsChecked="{Binding QueryLogMcp}" IsEnabled="{Binding QueryLogEnabled}" Margin="12,0,0,0"
@@ -356,9 +480,17 @@
         <!-- Security (master password) -->
         <StackPanel Spacing="8" MaxWidth="560" HorizontalAlignment="Left"
                     IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Security}">
-          <TextBlock Text="{Binding Loc[SettingsSecurity]}" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Text="{Binding Loc[MasterPwSectionDesc]}" FontSize="12" TextWrapping="Wrap"
-                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+          <StackPanel Spacing="0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsSecurity]}" />
+              <Border Classes="Help" ToolTip.Tip="{Binding Loc[MasterPwSectionDesc]}"><TextBlock /></Border>
+            </StackPanel>
+            <TextBlock Classes="PageSub" Text="{Binding Loc[MasterPwSectionDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
+
+          <!-- One concern, one section: the page is the master password and what it locks. Numbering a
+               single section would be a number that never counts to two (SE-290). -->
 
           <!-- Not set -->
           <StackPanel Spacing="8" IsVisible="{Binding !MasterPasswordEnabled}">
@@ -396,9 +528,14 @@
              nudging one button left — needlessly indirect. -->
         <Grid RowDefinitions="Auto,Auto,*,Auto"
               IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Toolbar}">
-          <TextBlock Grid.Row="0" Text="{Binding Loc[SettingsToolbar]}" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Grid.Row="1" Text="{Binding Loc[ToolbarDesc]}" FontSize="12" TextWrapping="Wrap"
-                     Foreground="{DynamicResource SETextSecondaryBrush}" Margin="0,4,0,10" />
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+            <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsToolbar]}" />
+            <Border Classes="Help" ToolTip.Tip="{Binding Loc[ToolbarDesc]}"><TextBlock /></Border>
+          </StackPanel>
+          <StackPanel Grid.Row="1" Spacing="0" Margin="0,0,0,14">
+            <TextBlock Classes="PageSub" Text="{Binding Loc[ToolbarDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
 
           <Border Grid.Row="2" BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1" CornerRadius="6">
             <ListBox x:Name="ToolbarList" Background="Transparent" BorderThickness="0" Padding="0,4"
@@ -442,9 +579,14 @@
         <!-- Keyboard -->
         <Grid RowDefinitions="Auto,Auto,Auto,*"
               IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Keyboard}">
-          <TextBlock Grid.Row="0" Text="{Binding Loc[SettingsKeyboard]}" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Grid.Row="1" Text="{Binding Loc[KeyboardDesc]}" FontSize="12" TextWrapping="Wrap"
-                     Foreground="{DynamicResource SETextSecondaryBrush}" Margin="0,4,0,10" />
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+            <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsKeyboard]}" />
+            <Border Classes="Help" ToolTip.Tip="{Binding Loc[KeyboardDesc]}"><TextBlock /></Border>
+          </StackPanel>
+          <StackPanel Grid.Row="1" Spacing="0" Margin="0,0,0,14">
+            <TextBlock Classes="PageSub" Text="{Binding Loc[KeyboardDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
 
           <!-- Conflict banner: only while two commands share a gesture (save is blocked meanwhile). -->
           <Border Grid.Row="2" IsVisible="{Binding HasShortcutConflicts}" Margin="0,0,0,10"
@@ -507,11 +649,18 @@
         <!-- MCP server (AI query access) -->
         <ScrollViewer IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Mcp}">
           <StackPanel Spacing="10" MaxWidth="560" HorizontalAlignment="Left">
-            <TextBlock Text="{Binding Loc[SettingsMcp]}" FontSize="14" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding Loc[McpDesc]}" FontSize="12" TextWrapping="Wrap"
-                       Foreground="{DynamicResource SETextSecondaryBrush}" />
+            <StackPanel Spacing="0">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsMcp]}" />
+                <Border Classes="Help" ToolTip.Tip="{Binding Loc[McpDesc]}"><TextBlock /></Border>
+              </StackPanel>
+              <TextBlock Classes="PageSub" Text="{Binding Loc[McpDesc]}" />
+              <Border Classes="PageRule" />
+            </StackPanel>
 
-            <ToggleSwitch IsChecked="{Binding McpEnabled}" Margin="0,6,0,0"
+            <TextBlock Classes="SectionHead"
+                       Text="{Binding Loc[SettingsSecServer], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
+            <ToggleSwitch IsChecked="{Binding McpEnabled}"
                           OnContent="{Binding Loc[McpEnabled]}" OffContent="{Binding Loc[McpEnabled]}" />
 
             <!-- Live status + Start/Stop, only while MCP is enabled (SE-147). The knob's master-switch stays
@@ -548,7 +697,9 @@
               </Grid>
             </StackPanel>
 
-            <ToggleSwitch IsChecked="{Binding McpRequireAuth}" Margin="0,6,0,0"
+            <TextBlock Classes="SectionHead"
+                       Text="{Binding Loc[SettingsSecAuthentication], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
+            <ToggleSwitch IsChecked="{Binding McpRequireAuth}"
                           OnContent="{Binding Loc[McpRequireAuth]}" OffContent="{Binding Loc[McpRequireAuth]}" />
 
             <!-- No-auth warning (plan §6): non-dismissible while auth is off. -->
@@ -571,7 +722,8 @@
               <TextBlock Text="{Binding Loc[McpTokenHint]}" FontSize="11" Foreground="{DynamicResource SETextFaintBrush}" TextWrapping="Wrap" />
             </StackPanel>
 
-            <TextBlock Text="{Binding Loc[McpCaps]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <TextBlock Classes="SectionHead"
+                       Text="{Binding Loc[McpCaps], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='3. {0}'}" />
             <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
               <TextBlock Grid.Column="0" Text="{Binding Loc[McpMaxRows]}" VerticalAlignment="Center" />
               <NumericUpDown Grid.Column="1" Width="150" Minimum="1" Maximum="100000" FormatString="0"
@@ -597,7 +749,8 @@
             </Border>
 
             <!-- ── Connection creation (SE-155) ── -->
-            <TextBlock Text="{Binding Loc[McpConnectionCreateTitle]}" FontWeight="SemiBold" Margin="0,12,0,0" />
+            <TextBlock Classes="SectionHead"
+                       Text="{Binding Loc[McpConnectionCreateTitle], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='4. {0}'}" />
             <ToggleSwitch IsChecked="{Binding McpAllowConnectionCreate}" Margin="0,2,0,0"
                           OnContent="{Binding Loc[McpAllowConnectionCreate]}"
                           OffContent="{Binding Loc[McpAllowConnectionCreate]}" />
@@ -648,21 +801,32 @@
         <!-- Plugins -->
         <Grid RowDefinitions="Auto,Auto,Auto,*"
               IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Plugins}">
-          <TextBlock Grid.Row="0" Text="{Binding Loc[SettingsPlugins]}" FontSize="14" FontWeight="SemiBold" />
-          <TextBlock Grid.Row="1" Text="{Binding Loc[PluginsDesc]}" FontSize="12" TextWrapping="Wrap"
-                     Foreground="{DynamicResource SETextSecondaryBrush}" Margin="0,4,0,12" />
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+            <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsPlugins]}" />
+            <Border Classes="Help" ToolTip.Tip="{Binding Loc[PluginsDesc]}"><TextBlock /></Border>
+          </StackPanel>
+          <StackPanel Grid.Row="1" Spacing="0">
+            <TextBlock Classes="PageSub" Text="{Binding Loc[PluginsDesc]}" />
+            <Border Classes="PageRule" />
+          </StackPanel>
 
           <!-- Proactive plugin-update policy (SE-138) -->
-          <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10" Margin="0,0,0,12">
-            <TextBlock Text="{Binding Loc[PluginUpdatePolicyLabel]}" VerticalAlignment="Center" />
-            <ComboBox MinWidth="200" ItemsSource="{Binding PluginUpdatePolicies}"
-                      SelectedItem="{Binding SelectedPluginUpdatePolicyOption}">
-              <ComboBox.ItemTemplate>
-                <DataTemplate>
-                  <TextBlock Text="{Binding Label}" />
-                </DataTemplate>
-              </ComboBox.ItemTemplate>
-            </ComboBox>
+          <StackPanel Grid.Row="2" Spacing="8" Margin="0,0,0,14">
+            <TextBlock Classes="SectionHead"
+                       Text="{Binding Loc[SettingsUpdates], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="{Binding Loc[PluginUpdatePolicyLabel]}" VerticalAlignment="Center" />
+              <ComboBox MinWidth="200" ItemsSource="{Binding PluginUpdatePolicies}"
+                        SelectedItem="{Binding SelectedPluginUpdatePolicyOption}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <TextBlock Classes="SectionHead"
+                       Text="{Binding Loc[SettingsSecInstalled], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
           </StackPanel>
 
           <!-- Empty state -->
@@ -719,10 +883,20 @@
 
         <!-- ===== Plugin Sources pane (SE-122, relocated from Plugin Store's Sources tab) ===== -->
         <ScrollViewer IsVisible="{Binding ActiveCategoryKey, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=PluginSources}">
-          <StackPanel Margin="24,20" Spacing="20">
+          <StackPanel Spacing="20">
+            <StackPanel Spacing="0">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Classes="PageTitle" Text="{Binding Loc[SettingsPluginSources]}" />
+                <Border Classes="Help" ToolTip.Tip="{Binding Loc[SettingsPluginSourcesDesc]}"><TextBlock /></Border>
+              </StackPanel>
+              <TextBlock Classes="PageSub" Text="{Binding Loc[SettingsPluginSourcesDesc]}" />
+              <Border Classes="PageRule" />
+            </StackPanel>
+
             <!-- Discovery (read-only) -->
             <StackPanel Spacing="6">
-              <TextBlock Text="{Binding Loc[StoreDiscoverySources]}" FontSize="13" FontWeight="SemiBold" />
+              <TextBlock Classes="SectionHead" Margin="0,0,0,0"
+                         Text="{Binding Loc[StoreDiscoverySources], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
               <TextBlock Text="{Binding Loc[StoreDiscoveryDesc]}" FontSize="11.5" TextWrapping="Wrap"
                          Foreground="{DynamicResource SETextSecondaryBrush}" />
               <ItemsControl ItemsSource="{Binding DiscoverySources}">
@@ -751,7 +925,8 @@
 
             <!-- Manual -->
             <StackPanel Spacing="6">
-              <TextBlock Text="{Binding Loc[StoreManualSources]}" FontSize="13" FontWeight="SemiBold" />
+              <TextBlock Classes="SectionHead" Margin="0,0,0,0"
+                         Text="{Binding Loc[StoreManualSources], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
               <TextBlock Text="{Binding Loc[StoreManualHint]}" FontSize="11.5" TextWrapping="Wrap"
                          Foreground="{DynamicResource SETextSecondaryBrush}" />
               <Grid ColumnDefinitions="*,Auto">

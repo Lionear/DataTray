@@ -70,18 +70,118 @@ public partial class MainViewModel : ViewModelBase
 
     // Selected tree node drives the active connection: any node knows its owning connection.
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CrumbDatabase))]
+    [NotifyPropertyChangedFor(nameof(CrumbObject))]
+    [NotifyPropertyChangedFor(nameof(HasTitleCrumb))]
+    [NotifyPropertyChangedFor(nameof(ShowDatabaseSeparator))]
+    [NotifyPropertyChangedFor(nameof(ShowObjectSeparator))]
     private TreeNodeViewModel? _selectedNode;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CrumbConnection))]
+    [NotifyPropertyChangedFor(nameof(HasTitleCrumb))]
+    [NotifyPropertyChangedFor(nameof(ShowDatabaseSeparator))]
+    [NotifyPropertyChangedFor(nameof(ShowObjectSeparator))]
     private SavedConnection? _selectedConnection;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CrumbDatabase))]
+    [NotifyPropertyChangedFor(nameof(CrumbObject))]
+    [NotifyPropertyChangedFor(nameof(HasTitleCrumb))]
+    [NotifyPropertyChangedFor(nameof(ShowDatabaseSeparator))]
+    [NotifyPropertyChangedFor(nameof(ShowObjectSeparator))]
     private DocumentViewModel? _selectedDocument;
+
+    // --- Title-bar crumb (SE-291) ------------------------------------------------------------------
+    // Where you are, in the one place the window can always show it: connection › database › object. The
+    // open document wins over the tree, because that is what is in front of you — the tree fills in what
+    // the document cannot say (a table you clicked but have not opened yet).
+
+    public string CrumbConnection => SelectedConnection?.Name ?? string.Empty;
+
+    public string CrumbDatabase =>
+        Coalesce(SelectedDocument?.SelectedDatabase, SelectedNode?.DatabaseName);
+
+    public string CrumbObject => SelectedDocument is { Title.Length: > 0 } document
+        ? document.Title
+        : ObjectCrumb(SelectedNode?.NodeKind, SelectedNode?.Name, CrumbDatabase);
+
+    /// <summary>Whether there is anything to show before the app name — and so whether the dash that
+    /// separates the two belongs on screen at all.</summary>
+    public bool HasTitleCrumb =>
+        CrumbConnection.Length > 0 || CrumbDatabase.Length > 0 || CrumbObject.Length > 0;
+
+    // A separator needs something on both sides of it. Tying one to the part that follows is the obvious
+    // way to get it wrong: the crumb then opens with a stray "›" whenever the part before it is missing.
+    public bool ShowDatabaseSeparator => CrumbConnection.Length > 0 && CrumbDatabase.Length > 0;
+
+    public bool ShowObjectSeparator =>
+        (CrumbConnection.Length > 0 || CrumbDatabase.Length > 0) && CrumbObject.Length > 0;
+
+    /// <summary>
+    /// The object part of the crumb: the node's own name, but only for nodes that <i>are</i> an object.
+    /// </summary>
+    /// <remarks>
+    /// Grouping nodes are skipped by name rather than by a list of kinds, so a provider adding one more
+    /// folder kind gets the same treatment without this having to be edited. A database node is skipped
+    /// too: it already sits in the crumb as the database, and "orders › Sales › Sales" says nothing twice.
+    /// </remarks>
+    internal static string ObjectCrumb(DbNodeKind? kind, string? name, string? database)
+    {
+        if (kind is null || string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        if (kind is DbNodeKind.Database or DbNodeKind.Schema or DbNodeKind.Group
+            || kind.ToString()!.EndsWith("Folder", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        return string.Equals(name, database, StringComparison.Ordinal) ? string.Empty : name;
+    }
+
+    private static string Coalesce(string? first, string? second) =>
+        !string.IsNullOrWhiteSpace(first) ? first
+        : !string.IsNullOrWhiteSpace(second) ? second
+        : string.Empty;
+
+    // A tab can change database (SE-267) or be renamed by a save, and the title bar has to follow. The
+    // document is not an observable property of this VM, so its own changes need forwarding.
+    private void TrackDocumentForCrumb(DocumentViewModel? previous, DocumentViewModel? current)
+    {
+        if (previous is not null)
+        {
+            previous.PropertyChanged -= OnDocumentCrumbPropertyChanged;
+        }
+
+        if (current is not null)
+        {
+            current.PropertyChanged += OnDocumentCrumbPropertyChanged;
+        }
+    }
+
+    private void OnDocumentCrumbPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(DocumentViewModel.Title) or nameof(DocumentViewModel.SelectedDatabase)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(CrumbDatabase));
+        OnPropertyChanged(nameof(CrumbObject));
+        OnPropertyChanged(nameof(HasTitleCrumb));
+        OnPropertyChanged(nameof(ShowDatabaseSeparator));
+        OnPropertyChanged(nameof(ShowObjectSeparator));
+    }
 
     // Only the tab you can actually see polls: a backgrounded Activity Monitor querying the server every
     // 5s is waste, and one less thing rebuilding a grid nobody is watching.
     partial void OnSelectedDocumentChanged(DocumentViewModel? oldValue, DocumentViewModel? newValue)
     {
+        TrackDocumentForCrumb(oldValue, newValue);
+
         if (oldValue is { IsMonitorMode: true } previous)
         {
             previous.PauseMonitor();

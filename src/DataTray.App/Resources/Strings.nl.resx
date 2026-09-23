@@ -2049,4 +2049,70 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="AddIndexColumn" xml:space="preserve">
     <value>+ Kolom toevoegen</value>
   </data>
+  <data name="SettingsGroupWorkspace" xml:space="preserve">
+    <value>Werkruimte</value>
+  </data>
+  <data name="SettingsGroupQuerying" xml:space="preserve">
+    <value>Query's</value>
+  </data>
+  <data name="SettingsGroupAccess" xml:space="preserve">
+    <value>Toegang</value>
+  </data>
+  <data name="SettingsGroupExtensions" xml:space="preserve">
+    <value>Uitbreidingen</value>
+  </data>
+  <data name="SettingsSecLanguageStartup" xml:space="preserve">
+    <value>Taal &amp; opstarten</value>
+  </data>
+  <data name="SettingsSecWindowInstances" xml:space="preserve">
+    <value>Venster &amp; instanties</value>
+  </data>
+  <data name="SettingsSecEditing" xml:space="preserve">
+    <value>Bewerken</value>
+  </data>
+  <data name="SettingsSecExecution" xml:space="preserve">
+    <value>Uitvoeren</value>
+  </data>
+  <data name="SettingsSecPaging" xml:space="preserve">
+    <value>Bladeren &amp; pagineren</value>
+  </data>
+  <data name="SettingsSecCopyExport" xml:space="preserve">
+    <value>Kopiëren &amp; exporteren</value>
+  </data>
+  <data name="SettingsSecLogging" xml:space="preserve">
+    <value>Logboek</value>
+  </data>
+  <data name="SettingsSecServer" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="SettingsSecAuthentication" xml:space="preserve">
+    <value>Authenticatie</value>
+  </data>
+  <data name="SettingsSecInstalled" xml:space="preserve">
+    <value>Geïnstalleerde plugins</value>
+  </data>
+  <data name="SettingsEditorDesc" xml:space="preserve">
+    <value>Hoe de SQL-editor zich gedraagt en hoe hij opmaakt wat je typt.</value>
+  </data>
+  <data name="SettingsQueryDesc" xml:space="preserve">
+    <value>Query's uitvoeren, door resultaten bladeren en ze kopiëren.</value>
+  </data>
+  <data name="SettingsPluginSourcesDesc" xml:space="preserve">
+    <value>Waar de Plugin Store naar plugins zoekt.</value>
+  </data>
+  <data name="SettingsHelpTip" xml:space="preserve">
+    <value>Waar deze pagina voor is</value>
+  </data>
+  <data name="WindowMinimise" xml:space="preserve">
+    <value>Minimaliseren</value>
+  </data>
+  <data name="WindowMaximise" xml:space="preserve">
+    <value>Maximaliseren</value>
+  </data>
+  <data name="WindowRestore" xml:space="preserve">
+    <value>Herstellen</value>
+  </data>
+  <data name="WindowClose" xml:space="preserve">
+    <value>Sluiten</value>
+  </data>
 </root>

@@ -2049,4 +2049,70 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="AddIndexColumn" xml:space="preserve">
     <value>+ Add column</value>
   </data>
+  <data name="SettingsGroupWorkspace" xml:space="preserve">
+    <value>Workspace</value>
+  </data>
+  <data name="SettingsGroupQuerying" xml:space="preserve">
+    <value>Querying</value>
+  </data>
+  <data name="SettingsGroupAccess" xml:space="preserve">
+    <value>Access</value>
+  </data>
+  <data name="SettingsGroupExtensions" xml:space="preserve">
+    <value>Extensions</value>
+  </data>
+  <data name="SettingsSecLanguageStartup" xml:space="preserve">
+    <value>Language &amp; startup</value>
+  </data>
+  <data name="SettingsSecWindowInstances" xml:space="preserve">
+    <value>Window &amp; instances</value>
+  </data>
+  <data name="SettingsSecEditing" xml:space="preserve">
+    <value>Editing</value>
+  </data>
+  <data name="SettingsSecExecution" xml:space="preserve">
+    <value>Execution</value>
+  </data>
+  <data name="SettingsSecPaging" xml:space="preserve">
+    <value>Browsing &amp; paging</value>
+  </data>
+  <data name="SettingsSecCopyExport" xml:space="preserve">
+    <value>Copy &amp; export</value>
+  </data>
+  <data name="SettingsSecLogging" xml:space="preserve">
+    <value>Logging</value>
+  </data>
+  <data name="SettingsSecServer" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="SettingsSecAuthentication" xml:space="preserve">
+    <value>Authentication</value>
+  </data>
+  <data name="SettingsSecInstalled" xml:space="preserve">
+    <value>Installed plugins</value>
+  </data>
+  <data name="SettingsEditorDesc" xml:space="preserve">
+    <value>How the SQL editor behaves, and how it formats what you write.</value>
+  </data>
+  <data name="SettingsQueryDesc" xml:space="preserve">
+    <value>Running queries, paging through results and copying them out.</value>
+  </data>
+  <data name="SettingsPluginSourcesDesc" xml:space="preserve">
+    <value>Where the Plugin Store looks for plugins.</value>
+  </data>
+  <data name="SettingsHelpTip" xml:space="preserve">
+    <value>What this page is for</value>
+  </data>
+  <data name="WindowMinimise" xml:space="preserve">
+    <value>Minimise</value>
+  </data>
+  <data name="WindowMaximise" xml:space="preserve">
+    <value>Maximise</value>
+  </data>
+  <data name="WindowRestore" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="WindowClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
 </root>
