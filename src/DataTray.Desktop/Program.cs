@@ -78,5 +78,16 @@ internal static class Program
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<DataTray.App.App>()
             .UsePlatformDetect()
+            // Without this, ExtendClientAreaToDecorationsHint is ignored on X11: the window manager keeps
+            // drawing its own title bar, _NET_FRAME_EXTENTS stays put, and ours ends up as a second bar
+            // underneath it (SE-291). Windows and macOS extend the client area server-side and need no
+            // equivalent.
+            //
+            // Avalonia marks the option experimental and reserves the right to remove it; the suppression is
+            // deliberate and scoped to this one line. If it disappears in a later Avalonia, this is the line
+            // that breaks, and the fallback is to stop extending on X11.
+#pragma warning disable AVALONIA_X11_CSD
+            .With(new X11PlatformOptions { EnableDrawnDecorations = true })
+#pragma warning restore AVALONIA_X11_CSD
             .LogToTrace();
 }

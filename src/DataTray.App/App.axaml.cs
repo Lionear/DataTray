@@ -352,6 +352,12 @@ public partial class App : Application
     {
         var viewModel = services.GetRequiredService<ViewModels.FirstRunViewModel>();
         viewModel.RestartRequested = AppRestart.Restart;
+        // SE-292: the Security step's choice has to take effect in this process — the very next step writes
+        // the first connection password, and a store swapped only on the next start would miss it.
+        viewModel.UseFileStoreRequested = () =>
+            services.GetRequiredService<Infrastructure.Secrets.SecretStoreSwitch>().Use(
+                Infrastructure.Secrets.SecretStores.CreateFile(
+                    services.GetRequiredService<Core.Security.IMasterKeyProvider>()));
 
         var window = new FirstRunWindow(viewModel);
         // Owned by the wizard, not the main window: a dialog parented behind an open modal is a window the

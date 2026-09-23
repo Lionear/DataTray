@@ -4,6 +4,7 @@ using DataTray.Core.Connections.Import;
 using DataTray.Core.Localization;
 using DataTray.Core.Plugins;
 using DataTray.Core.Providers;
+using DataTray.Core.Security;
 using DataTray.Core.Settings;
 using DataTray.Core.Store;
 using DataTray.Infrastructure.Secrets;
@@ -13,13 +14,16 @@ using CommunityToolkit.Mvvm.Input;
 namespace DataTray.App.ViewModels;
 
 /// <summary>Where the first-run wizard is. Persisted as an int in <see cref="AppSettings.OnboardingStep"/>,
-/// so the order of these members is a storage format — append, never reorder.</summary>
+/// so the order of these members is a storage format — append, never reorder. The order the user walks is
+/// <see cref="FirstRunViewModel.Order"/>, which is why <see cref="Security"/> can be last here and third on
+/// screen.</summary>
 public enum FirstRunStep
 {
     Welcome,
     Engine,
     Connection,
-    Done
+    Done,
+    Security
 }
 
 /// <summary>One engine tile on step 2. An engine is either <see cref="IsInstalled"/> — loadable now, so the
@@ -38,8 +42,8 @@ public sealed partial class FirstRunEngine(string id, string displayName, bool i
 }
 
 /// <summary>
-/// Backs the first-run wizard (SE-239): Welcome → Engine → Connection → Done, shown once on a fresh
-/// profile and never again.
+/// Backs the first-run wizard (SE-239): Welcome → Engine → Security → Connection → Done, shown once on a
+/// fresh profile and never again.
 /// </summary>
 /// <remarks>
 /// The wizard owns no connection logic of its own. Step 3 hosts a real
@@ -55,11 +59,27 @@ public sealed partial class FirstRunEngine(string id, string displayName, bool i
 /// </remarks>
 public partial class FirstRunViewModel : ViewModelBase
 {
+    /// <summary>The order the wizard is walked, which the <see cref="FirstRunStep"/> enum cannot be: its
+    /// values are a persisted storage format, so a step added later lands at the end of the enum and in the
+    /// middle of the wizard. Everything that means "next", "previous" or "already passed" reads this.</summary>
+    private static readonly FirstRunStep[] Order =
+    [
+        FirstRunStep.Welcome,
+        FirstRunStep.Engine,
+        FirstRunStep.Security,
+        FirstRunStep.Connection,
+        FirstRunStep.Done
+    ];
+
+    /// <summary>Minutes behind the lock-after-inactivity combo, same values and order as Preferences.</summary>
+    private static readonly int[] LockMinuteOptions = [0, 15, 30, 60];
+
     private readonly IAppSettingsStore _settingsStore;
     private readonly ConnectionService _connections;
     private readonly IDbProviderRegistry _providers;
     private readonly PluginCatalogService _plugins;
     private readonly IStoreCatalog _storeCatalog;
+    private readonly MasterPasswordService _masterPassword;
     private readonly Func<ConnectionDialogViewModel> _newConnectionDialog;
 
     // Set while the app is restarting to load a just-installed engine: the window closes, but onboarding is
@@ -67,9 +87,10 @@ public partial class FirstRunViewModel : ViewModelBase
     private bool _restarting;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsEngine), nameof(IsConnection), nameof(IsDone),
-        nameof(CanGoBack), nameof(CanGoNext), nameof(ShowSkip), nameof(ShowNext), nameof(IsImporting),
-        nameof(IsManualConnection), nameof(WelcomeDone), nameof(EngineDone), nameof(ConnectionDone))]
+    [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsEngine), nameof(IsSecurity), nameof(IsConnection),
+        nameof(IsDone), nameof(CanGoBack), nameof(CanGoNext), nameof(ShowSkip), nameof(ShowNext),
+        nameof(IsImporting), nameof(IsManualConnection), nameof(WelcomeDone), nameof(EngineDone),
+        nameof(SecurityDone), nameof(ConnectionDone))]
     private FirstRunStep _step;
 
     [ObservableProperty]
@@ -95,12 +116,49 @@ public partial class FirstRunViewModel : ViewModelBase
     [ObservableProperty]
     private string _installedNotice = string.Empty;
 
+    // ── Security step (SE-292) ──────────────────────────────────────────────────────────────────────
+
+    /// <summary>False = the OS vault (the default, and what every pre-SE-292 profile is on); true = the
+    /// encrypted file store, which is only reachable with a master password set in the same step.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UseVault), nameof(CanGoNext), nameof(SecurityBlocker),
+        nameof(ConnectionStoredHint))]
+    private bool _useFileStore;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoNext), nameof(SecurityBlocker), nameof(PasswordStrength),
+        nameof(PasswordStrengthLevel))]
+    private string _masterPasswordText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoNext), nameof(SecurityBlocker), nameof(PasswordsMismatch))]
+    private string _masterPasswordConfirm = string.Empty;
+
+    /// <summary>The one irreversible choice in the wizard, so it is ticked rather than implied.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoNext), nameof(SecurityBlocker))]
+    private bool _acknowledgedNoRecovery;
+
+    /// <summary>Index into <see cref="LockMinuteOptions"/>; defaults to 15 minutes.</summary>
+    [ObservableProperty]
+    private int _lockIndex = 1;
+
+    /// <summary>Whether this machine has an OS vault to offer at all — false disables that card and leaves
+    /// the file store as the only option. Settable so a test can pin the branch it means to exercise
+    /// instead of inheriting whatever the build agent happens to have installed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoNext), nameof(SecurityBlocker))]
+    private bool _vaultAvailable;
+
+    partial void OnVaultAvailableChanged(bool value) => UseFileStore = !value;
+
     public FirstRunViewModel(
         IAppSettingsStore settingsStore,
         ConnectionService connections,
         IDbProviderRegistry providers,
         PluginCatalogService plugins,
         IStoreCatalog storeCatalog,
+        MasterPasswordService masterPassword,
         ILocalizer localizer,
         Func<ConnectionDialogViewModel> newConnectionDialog)
     {
@@ -109,8 +167,13 @@ public partial class FirstRunViewModel : ViewModelBase
         _providers = providers;
         _plugins = plugins;
         _storeCatalog = storeCatalog;
+        _masterPassword = masterPassword;
         _newConnectionDialog = newConnectionDialog;
         Loc = localizer;
+
+        // A machine with no keychain (headless or locked-down Linux) has nothing to recommend: the vault card
+        // is disabled with its reason and the file store is pre-selected, because it is the only store there.
+        VaultAvailable = SecretStores.IsOsVaultAvailable();
         Import = new ImportConnectionsDialogViewModel(localizer)
         {
             // SE-238: onboarding gets the same opt-in password fetch the Connection Manager's picker has.
@@ -123,9 +186,11 @@ public partial class FirstRunViewModel : ViewModelBase
         // Resume where a restart-for-a-plugin left off, with the engine that was chosen — which is the whole
         // reason the position was written down. An unknown/uninstalled id falls back to the step's default.
         var settings = settingsStore.Load();
+        var saved = (FirstRunStep)settings.OnboardingStep;
         // Never resume onto Done: that step only reports what the previous run saved, which this run has no
-        // record of, so it would open on "You're set" with nothing to say.
-        if (settings.OnboardingStep is > 0 and < (int)FirstRunStep.Done)
+        // record of, so it would open on "You're set" with nothing to say. Compared by membership, not by
+        // "< Done": Security is appended after Done in the enum (SE-292) and would fail that test.
+        if (settings.OnboardingStep > 0 && saved != FirstRunStep.Done && Order.Contains(saved))
         {
             SelectedEngine = Engines.FirstOrDefault(e => e.Id == settings.OnboardingProviderId && e.IsInstalled);
             if (SelectedEngine is { } resumed)
@@ -136,7 +201,7 @@ public partial class FirstRunViewModel : ViewModelBase
                 InstalledNotice = Loc.Get("FirstRunInstalled", resumed.DisplayName);
             }
 
-            Step = SelectedEngine is null ? FirstRunStep.Engine : (FirstRunStep)settings.OnboardingStep;
+            Step = SelectedEngine is null ? FirstRunStep.Engine : saved;
             if (Step == FirstRunStep.Connection)
             {
                 StartConnectionStep();
@@ -156,6 +221,11 @@ public partial class FirstRunViewModel : ViewModelBase
 
     /// <summary>Closes the wizard window.</summary>
     public Action? CloseRequested { get; set; }
+
+    /// <summary>Points the app's live secret store at the encrypted file store, once the Security step has a
+    /// master password to key it with. Set by App; null in tests, where the choice is asserted on settings.
+    /// </summary>
+    public Action? UseFileStoreRequested { get; set; }
 
     public ObservableCollection<FirstRunEngine> Engines { get; } = [];
 
@@ -183,34 +253,98 @@ public partial class FirstRunViewModel : ViewModelBase
 
     public bool IsEngine => Step == FirstRunStep.Engine;
 
+    public bool IsSecurity => Step == FirstRunStep.Security;
+
     public bool IsConnection => Step == FirstRunStep.Connection;
 
     public bool IsDone => Step == FirstRunStep.Done;
 
-    // Stepper ticks: a step reads as done once the wizard is past it.
-    public bool WelcomeDone => Step > FirstRunStep.Welcome;
+    // Stepper ticks: a step reads as done once the wizard is past it. Via Order, not the enum's own values.
+    public bool WelcomeDone => IsPast(FirstRunStep.Welcome);
 
-    public bool EngineDone => Step > FirstRunStep.Engine;
+    public bool EngineDone => IsPast(FirstRunStep.Engine);
 
-    public bool ConnectionDone => Step > FirstRunStep.Connection;
+    public bool SecurityDone => IsPast(FirstRunStep.Security);
+
+    public bool ConnectionDone => IsPast(FirstRunStep.Connection);
 
     public bool IsImporting => IsConnection && ImportChosen;
 
     public bool IsManualConnection => IsConnection && !ImportChosen;
 
-    public bool CanGoBack => Step is FirstRunStep.Engine or FirstRunStep.Connection;
+    public bool CanGoBack => Step is not (FirstRunStep.Welcome or FirstRunStep.Done);
+
+    // ── Security step ───────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The inverse of <see cref="UseFileStore"/>, for the vault card's selected state.</summary>
+    public bool UseVault => !UseFileStore;
+
+    /// <summary>The vault named as the thing it actually is on this platform.</summary>
+    public string VaultSubtitle => Loc[
+        OperatingSystem.IsMacOS() ? "FirstRunVaultMac"
+        : OperatingSystem.IsWindows() ? "FirstRunVaultWindows"
+        : "FirstRunVaultLinux"];
+
+    public bool PasswordsMismatch =>
+        MasterPasswordConfirm.Length > 0 && MasterPasswordText != MasterPasswordConfirm;
+
+    /// <summary>Advisory only — nothing but "typed and confirmed" gates Next, the same bar the master-password
+    /// dialog in Preferences has always used.</summary>
+    public int PasswordStrengthLevel => MasterPasswordText.Length switch
+    {
+        0 => 0,
+        < 8 => 1,
+        < 14 => 2,
+        _ => 3
+    };
+
+    public string PasswordStrength => PasswordStrengthLevel switch
+    {
+        0 => string.Empty,
+        1 => Loc["FirstRunPwWeak"],
+        2 => Loc["FirstRunPwFair"],
+        _ => Loc["FirstRunPwStrong"]
+    };
+
+    /// <summary>What is still missing, said where the user is already looking at a greyed-out Next.</summary>
+    public string SecurityBlocker
+    {
+        get
+        {
+            if (!UseFileStore)
+            {
+                return Loc["FirstRunSecurityKeepVault"];
+            }
+
+            if (PasswordsMismatch)
+            {
+                return Loc["MasterPwMismatch"];
+            }
+
+            return CanGoNext ? string.Empty : Loc["FirstRunSecurityNeedsPw"];
+        }
+    }
+
+    /// <summary>The line under the connection form: where the password about to be typed will land.</summary>
+    public string ConnectionStoredHint =>
+        Loc[UseFileStore ? "FirstRunConnectionStoredFile" : "FirstRunConnectionStoredVault"];
 
     /// <summary>Skip is offered on every step but the last, where there is nothing left to skip.</summary>
     public bool ShowSkip => Step != FirstRunStep.Done;
 
     /// <summary>Welcome has its own brand-blue "Get started" and Done has "Open DataTray"; the middle steps
     /// get the accent Next.</summary>
-    public bool ShowNext => Step is FirstRunStep.Engine or FirstRunStep.Connection;
+    public bool ShowNext => Step is FirstRunStep.Engine or FirstRunStep.Security or FirstRunStep.Connection;
 
     public bool CanGoNext => Step switch
     {
         FirstRunStep.Welcome => true,
         FirstRunStep.Engine => SelectedEngine is { IsInstalled: true } && !RestartNeeded,
+        // The vault needs no input; the file store needs a password, typed twice, and the acknowledgement.
+        FirstRunStep.Security => !UseFileStore
+                                 || (MasterPasswordText.Length > 0
+                                     && MasterPasswordText == MasterPasswordConfirm
+                                     && AcknowledgedNoRecovery),
         FirstRunStep.Connection => ImportChosen
             ? Import.Selected.Count > 0
             : Connection is { CanSave: true },
@@ -245,7 +379,26 @@ public partial class FirstRunViewModel : ViewModelBase
                 Step = FirstRunStep.Engine;
                 break;
             case FirstRunStep.Engine:
-                StartConnectionStep();
+                Step = FirstRunStep.Security;
+                break;
+            case FirstRunStep.Security:
+                // Setting a master password cannot be undone, so it does not happen on a half-filled step —
+                // whatever the route in (a default button on Enter, a screenshot walker, a future caller).
+                if (!CanGoNext)
+                {
+                    return;
+                }
+
+                ApplySecurityChoice();
+                // The import route already knows what step 4 shows; the manual route has a form to build.
+                if (ImportChosen)
+                {
+                    Step = FirstRunStep.Connection;
+                }
+                else
+                {
+                    StartConnectionStep();
+                }
                 break;
             case FirstRunStep.Connection:
                 Commit();
@@ -259,8 +412,15 @@ public partial class FirstRunViewModel : ViewModelBase
     [RelayCommand]
     private void Back()
     {
-        Step = Step == FirstRunStep.Connection ? FirstRunStep.Engine : FirstRunStep.Welcome;
-        ImportChosen = false;
+        Step = Order[Math.Max(0, Array.IndexOf(Order, Step) - 1)];
+        // Only cleared on the way back to Engine, where the "import them" hand-off is on screen to be picked
+        // again. Clearing it on Connection → Security would silently turn the import route into the manual
+        // one on the way forward.
+        if (Step == FirstRunStep.Engine)
+        {
+            ImportChosen = false;
+        }
+
         Remember();
     }
 
@@ -324,14 +484,29 @@ public partial class FirstRunViewModel : ViewModelBase
         RestartRequested?.Invoke();
     }
 
-    /// <summary>Take the import route on step 3 instead of typing a connection by hand.</summary>
+    /// <summary>Take the import route instead of typing a connection by hand. Still goes through Security:
+    /// the import writes passwords into the secret store too, so skipping the choice would put them in a
+    /// store the user never picked.</summary>
     [RelayCommand]
     private void StartImport()
     {
         ImportChosen = true;
-        Step = FirstRunStep.Connection;
+        Step = FirstRunStep.Security;
         Remember();
     }
+
+    /// <summary>Pick the OS vault — the default, and already the store the app is running on.</summary>
+    [RelayCommand]
+    private void ChooseVault()
+    {
+        if (VaultAvailable)
+        {
+            UseFileStore = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ChooseFileStore() => UseFileStore = true;
 
     /// <summary>
     /// Mark onboarding done. Called by Skip, by the last step's button, and by the window closing — dismissing
@@ -362,6 +537,42 @@ public partial class FirstRunViewModel : ViewModelBase
     {
         Finish();
         CloseRequested?.Invoke();
+    }
+
+    private bool IsPast(FirstRunStep step) => Array.IndexOf(Order, Step) > Array.IndexOf(Order, step);
+
+    /// <summary>
+    /// Act on the Security step. The vault is what the app already runs on, so only the file store does
+    /// anything: set the master password (which is what makes the store readable at all), record the choice,
+    /// and point the live store at it — before the next step writes the first connection password.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is migrated out of the OS vault. Onboarding runs on a fresh profile with no secrets to move,
+    /// and switching an established install is SE-292 point 4 — a migration with its own failure modes that
+    /// deserves its own ticket rather than a silent half of this one.
+    /// </remarks>
+    private void ApplySecurityChoice()
+    {
+        if (!UseFileStore)
+        {
+            return;
+        }
+
+        // Enable() writes salt/verifier/flag and unlocks the session, so the store below has a key to
+        // encrypt with the moment it is switched in.
+        _masterPassword.Enable(MasterPasswordText);
+
+        var settings = _settingsStore.Load();
+        settings.UseFileSecretStore = true;
+        settings.MasterPasswordLockMinutes = LockMinuteOptions[Math.Clamp(LockIndex, 0, LockMinuteOptions.Length - 1)];
+        _settingsStore.Save(settings);
+        _masterPassword.ApplyIdleTimeout();
+
+        UseFileStoreRequested?.Invoke();
+
+        // Typed passwords have no reason to outlive the step that collected them.
+        MasterPasswordText = string.Empty;
+        MasterPasswordConfirm = string.Empty;
     }
 
     private void StartConnectionStep()

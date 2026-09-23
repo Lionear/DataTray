@@ -259,15 +259,20 @@ public static class AppServices
         var connectionStore = new JsonConnectionStore();
         connectionStore.MigrateLegacyProviderIds();
         services.AddSingleton<IConnectionStore>(connectionStore);
+        // UI preferences (window geometry, sidebar width) alongside connections.json.
+        var appSettingsStore = new JsonAppSettingsStore();
+        services.AddSingleton<IAppSettingsStore>(appSettingsStore);
+
         // Optional master-password layer: the OS vault is wrapped by an encrypting decorator keyed by the
         // in-memory master key. With no master password set the decorator is a transparent pass-through.
-        services.AddSingleton<IMasterKeyProvider>(new MasterKeyProvider());
-        var osSecretStore = SecretStores.CreateForCurrentOs();
-        services.AddSingleton<ISecretStore>(sp =>
-            new EncryptingSecretStore(osSecretStore, sp.GetRequiredService<IMasterKeyProvider>()));
-
-        // UI preferences (window geometry, sidebar width) alongside connections.json.
-        services.AddSingleton<IAppSettingsStore>(new JsonAppSettingsStore());
+        // Which store sits under it is the user's onboarding choice (SE-292), and the wizard can still change
+        // it in this process — hence the switch rather than the store itself.
+        var keys = new MasterKeyProvider();
+        services.AddSingleton<IMasterKeyProvider>(keys);
+        var secretStore = new SecretStoreSwitch(
+            SecretStores.Create(appSettingsStore.Load().UseFileSecretStore, keys));
+        services.AddSingleton(secretStore);
+        services.AddSingleton<ISecretStore>(secretStore);
 
         // Plugin-declared settings (keyed by plugin id) in their own file, so they never race the
         // app-settings save above.

@@ -11,12 +11,30 @@ namespace DataTray.Infrastructure.Secrets;
 /// mixed store (mid enable/disable migration, or a locked session) stays correct per value: plaintext is
 /// returned as-is, and an encrypted value can only be read while unlocked.
 /// </summary>
-public sealed class EncryptingSecretStore(ISecretStore inner, IMasterKeyProvider keys) : ISecretStore
+/// <param name="requireKey">
+/// Over the file store (SE-292) there is no OS vault underneath to make plaintext merely weaker rather than
+/// wrong, so writing without a key is refused instead of passing the secret through. The startup gate makes
+/// this unreachable in practice — a file store implies a master password, which implies an unlock before the
+/// main window is usable — which is why it throws rather than dropping the write on the floor.
+/// </param>
+public sealed class EncryptingSecretStore(ISecretStore inner, IMasterKeyProvider keys, bool requireKey = false)
+    : ISecretStore
 {
     public void Set(string key, string secret)
     {
-        var value = keys.Key is { } k ? MasterPasswordCrypto.EncryptSecret(k, secret) : secret;
-        inner.Set(key, value);
+        if (keys.Key is not { } k)
+        {
+            if (requireKey)
+            {
+                throw new InvalidOperationException(
+                    "The encrypted file store needs an unlocked master password before a secret can be saved.");
+            }
+
+            inner.Set(key, secret);
+            return;
+        }
+
+        inner.Set(key, MasterPasswordCrypto.EncryptSecret(k, secret));
     }
 
     public string? Get(string key)

@@ -6,6 +6,7 @@ using DataTray.Core.Connections.Import;
 using DataTray.Core.Localization;
 using DataTray.Core.Plugins;
 using DataTray.Core.Providers;
+using DataTray.Core.Security;
 using DataTray.Core.Settings;
 using DataTray.Core.Store;
 using DataTray.Sdk;
@@ -127,10 +128,13 @@ public class FirstRunViewModelTests
         var settings = new FakeSettingsStore();
         var connections = NewConnectionService();
         var vm = Build(settings, connections);
+        vm.VaultAvailable = true;                            // pin the branch: a build agent may have no vault
 
         vm.NextCommand.Execute(null);                        // -> Engine
         vm.SelectEngineCommand.Execute(vm.Engines.Single());
         Assert.True(vm.CanGoNext);
+        vm.NextCommand.Execute(null);                        // -> Security
+        Assert.True(vm.CanGoNext);                           // the system vault needs no input
         vm.NextCommand.Execute(null);                        // -> Connection
 
         vm.Connection!.Name = "Production EU";
@@ -177,6 +181,7 @@ public class FirstRunViewModelTests
         var settings = new FakeSettingsStore();
         var connections = NewConnectionService();
         var vm = Build(settings, connections);
+        vm.VaultAvailable = true;                            // pin the branch: a build agent may have no vault
 
         vm.Configure([
             Discovered("prod-eu-1", "db1.internal"),
@@ -189,6 +194,8 @@ public class FirstRunViewModelTests
         Assert.Equal(2, vm.DiscoveredCount);
 
         vm.StartImportCommand.Execute(null);
+        Assert.Equal(FirstRunStep.Security, vm.Step);
+        vm.NextCommand.Execute(null);
         Assert.Equal(FirstRunStep.Connection, vm.Step);
         Assert.True(vm.IsImporting);
 
@@ -210,6 +217,116 @@ public class FirstRunViewModelTests
         Assert.Equal(
             ["prod-eu-1", "prod-eu-1 (2)"],
             connections.List().Select(c => c.Name).Order().ToArray());
+    }
+
+    [Fact] // SE-292: the file store is unusable without a key, so Next stays grey until there is one — typed
+           // twice, and acknowledged, because it is the one choice in the wizard with no way back.
+    public void The_security_step_gates_next_on_the_file_store_having_a_master_password()
+    {
+        var vm = AtSecurityStep(new FakeSettingsStore());
+
+        Assert.True(vm.CanGoNext);                           // system vault: nothing to fill in
+
+        vm.ChooseFileStoreCommand.Execute(null);
+        Assert.False(vm.CanGoNext);
+
+        vm.MasterPasswordText = "correct horse battery";
+        Assert.False(vm.CanGoNext);                          // not confirmed
+
+        vm.MasterPasswordConfirm = "correct horse batteru";
+        Assert.True(vm.PasswordsMismatch);
+        Assert.False(vm.CanGoNext);
+
+        vm.MasterPasswordConfirm = "correct horse battery";
+        Assert.False(vm.CanGoNext);                          // not acknowledged
+
+        vm.AcknowledgedNoRecovery = true;
+        Assert.True(vm.CanGoNext);
+    }
+
+    [Fact] // The choice has to land before the next step writes the first password, so leaving the step is
+           // what sets the master password, records the store and swaps the live one.
+    public void Choosing_the_file_store_sets_the_master_password_and_switches_the_store()
+    {
+        var settings = new FakeSettingsStore();
+        var vm = AtSecurityStep(settings);
+        var switched = false;
+        vm.UseFileStoreRequested = () => switched = true;
+
+        vm.ChooseFileStoreCommand.Execute(null);
+        vm.MasterPasswordText = "correct horse battery";
+        vm.MasterPasswordConfirm = "correct horse battery";
+        vm.AcknowledgedNoRecovery = true;
+        vm.LockIndex = 2;                                    // 30 minutes
+        vm.NextCommand.Execute(null);
+
+        Assert.Equal(FirstRunStep.Connection, vm.Step);
+        Assert.True(switched);
+        Assert.True(settings.Current.UseFileSecretStore);
+        Assert.True(settings.Current.MasterPasswordEnabled);
+        Assert.NotNull(settings.Current.MasterPasswordSalt);
+        Assert.NotNull(settings.Current.MasterPasswordVerifier);
+        Assert.Equal(30, settings.Current.MasterPasswordLockMinutes);
+        Assert.Empty(vm.MasterPasswordText);                 // not kept around past the step that needed it
+    }
+
+    [Fact] // Keeping the vault is the default and must change nothing: no master password, no file store.
+    public void Keeping_the_system_vault_changes_nothing()
+    {
+        var settings = new FakeSettingsStore();
+        var vm = AtSecurityStep(settings);
+        vm.UseFileStoreRequested = () => Assert.Fail("the vault is already the live store");
+
+        vm.NextCommand.Execute(null);
+
+        Assert.False(settings.Current.UseFileSecretStore);
+        Assert.False(settings.Current.MasterPasswordEnabled);
+    }
+
+    [Fact] // FirstRunStep is an append-only persisted int, so Security sits after Done in the enum. Anything
+           // that read the enum as an order (the resume guard, Back) had to stop doing that.
+    public void A_saved_security_step_resumes_there_and_walks_back_through_the_order()
+    {
+        var settings = new FakeSettingsStore
+        {
+            Current =
+            {
+                OnboardingStep = (int)FirstRunStep.Security,
+                OnboardingProviderId = "fake"
+            }
+        };
+
+        var vm = Build(settings);
+
+        Assert.Equal(FirstRunStep.Security, vm.Step);        // not mistaken for "past Done"
+
+        vm.BackCommand.Execute(null);
+        Assert.Equal(FirstRunStep.Engine, vm.Step);
+    }
+
+    [Fact] // A machine with no Secret Service cannot offer the vault at all — today that is a startup crash.
+    public void Without_an_os_vault_the_file_store_is_preselected_and_the_vault_cannot_be_picked()
+    {
+        var vm = AtSecurityStep(new FakeSettingsStore());
+        vm.VaultAvailable = false;
+
+        Assert.True(vm.UseFileStore);
+
+        vm.ChooseVaultCommand.Execute(null);
+        Assert.True(vm.UseFileStore);
+    }
+
+    // At the Security step with an engine picked and the vault branch pinned, so a build agent without
+    // libsecret exercises the same path as a developer machine.
+    private static FirstRunViewModel AtSecurityStep(FakeSettingsStore settings)
+    {
+        var vm = Build(settings);
+        vm.VaultAvailable = true;
+        vm.NextCommand.Execute(null);                        // -> Engine
+        vm.SelectEngineCommand.Execute(vm.Engines.Single());
+        vm.NextCommand.Execute(null);                        // -> Security
+        Assert.Equal(FirstRunStep.Security, vm.Step);
+        return vm;
     }
 
     private static DiscoveredConnection Discovered(string name, string host) =>
@@ -234,6 +351,7 @@ public class FirstRunViewModelTests
             Providers,
             new PluginCatalogService(new FakePluginStateStore(), [], []),
             new FakeStoreCatalog(),
+            new MasterPasswordService(settings, new MasterKeyProvider(), connections),
             localizer,
             () => new ConnectionDialogViewModel(connections, Providers, localizer));
     }

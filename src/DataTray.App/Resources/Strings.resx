@@ -1948,7 +1948,7 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
     <value>Every database engine is a plugin.</value>
   </data>
   <data name="FirstRunIntro" xml:space="preserve">
-    <value>Two steps: pick an engine, add your first connection. Everything here can be changed later.</value>
+    <value>Three steps: pick an engine, choose where your passwords are kept, and add your first connection. Everything here can be changed later.</value>
   </data>
   <data name="FirstRunShownOnce" xml:space="preserve">
     <value>Shown once, on first launch.</value>
@@ -2022,6 +2022,117 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="FirstRunDoneStore" xml:space="preserve">
     <value>More engines and tools are under Tools › Plugin Store — diagrams, backups, schema compare.</value>
   </data>
+  <data name="FirstRunStepSecurity" xml:space="preserve">
+    <value>Security</value>
+  </data>
+  <data name="FirstRunSecurityTitle" xml:space="preserve">
+    <value>Where should DataTray keep your passwords?</value>
+  </data>
+  <data name="FirstRunSecurityIntro" xml:space="preserve">
+    <value>Connection passwords are always stored encrypted, never as plain text. Pick who holds the key. You can change this later under Preferences ▸ Security.</value>
+  </data>
+  <data name="FirstRunVaultOption" xml:space="preserve">
+    <value>System vault</value>
+  </data>
+  <data name="FirstRunVaultRecommended" xml:space="preserve">
+    <value>Recommended</value>
+  </data>
+  <data name="FirstRunVaultMac" xml:space="preserve">
+    <value>macOS Keychain · unlocked by your macOS login</value>
+  </data>
+  <data name="FirstRunVaultWindows" xml:space="preserve">
+    <value>Windows Credential Manager · unlocked by your Windows sign-in</value>
+  </data>
+  <data name="FirstRunVaultLinux" xml:space="preserve">
+    <value>Linux Secret Service · unlocked by GNOME Keyring or KWallet</value>
+  </data>
+  <data name="FirstRunVaultUnavailable" xml:space="preserve">
+    <value>No Secret Service is running on this machine. DataTray needs GNOME Keyring, KWallet or another org.freedesktop.secrets provider.</value>
+  </data>
+  <data name="FirstRunVaultPoint1" xml:space="preserve">
+    <value>The operating system holds your passwords and hands them back once you are logged in. Nothing extra to remember.</value>
+  </data>
+  <data name="FirstRunVaultPoint2" xml:space="preserve">
+    <value>Anything running as you can ask the OS for them — the same trust model as your browser's saved passwords.</value>
+  </data>
+  <data name="FirstRunVaultPoint3" xml:space="preserve">
+    <value>Tied to this machine and this OS account. Reset the keychain or lose the account and the saved passwords go with it; your connections stay, their passwords do not.</value>
+  </data>
+  <data name="FirstRunFileOption" xml:space="preserve">
+    <value>Encrypted file</value>
+  </data>
+  <data name="FirstRunFileRequiresPw" xml:space="preserve">
+    <value>Master password required</value>
+  </data>
+  <data name="FirstRunFileSub" xml:space="preserve">
+    <value>One AES-256-GCM file in your DataTray profile</value>
+  </data>
+  <data name="FirstRunFilePoint1" xml:space="preserve">
+    <value>DataTray does the encryption itself with a master password you choose. The operating system is never given your passwords.</value>
+  </data>
+  <data name="FirstRunFilePoint2" xml:space="preserve">
+    <value>Works where there is no keychain at all — a headless or locked-down Linux box, a shared build machine — and moves with your profile folder.</value>
+  </data>
+  <data name="FirstRunFilePoint3" xml:space="preserve">
+    <value>You are asked for the master password once per session, then again after the idle lock.</value>
+  </data>
+  <data name="FirstRunSecurityAcknowledge" xml:space="preserve">
+    <value>I understand that a forgotten master password cannot be recovered.</value>
+  </data>
+  <data name="FirstRunSecurityNeedsPw" xml:space="preserve">
+    <value>Set and confirm a master password to continue.</value>
+  </data>
+  <data name="FirstRunSecurityKeepVault" xml:space="preserve">
+    <value>Not sure? Keep the system vault — you can switch later without losing anything.</value>
+  </data>
+  <data name="FirstRunPwWeak" xml:space="preserve">
+    <value>Weak</value>
+  </data>
+  <data name="FirstRunPwFair" xml:space="preserve">
+    <value>Fair</value>
+  </data>
+  <data name="FirstRunPwStrong" xml:space="preserve">
+    <value>Strong</value>
+  </data>
+  <data name="FirstRunConnectionStoredVault" xml:space="preserve">
+    <value>Saved to your system vault.</value>
+  </data>
+  <data name="FirstRunConnectionStoredFile" xml:space="preserve">
+    <value>Saved to the encrypted file store.</value>
+  </data>
+  <data name="FirstRunDoneMasterPw" xml:space="preserve">
+    <value>Your passwords are in the encrypted file store. DataTray asks for your master password once each time it starts.</value>
+  </data>
+  <data name="SecurityStorageSection" xml:space="preserve">
+    <value>Password storage</value>
+  </data>
+  <data name="SecurityMasterPwSection" xml:space="preserve">
+    <value>Master password</value>
+  </data>
+  <data name="SecurityStorageVault" xml:space="preserve">
+    <value>System vault ({0})</value>
+  </data>
+  <data name="SecurityStorageFile" xml:space="preserve">
+    <value>Encrypted file (DataTray profile)</value>
+  </data>
+  <data name="SecurityStorageVaultDesc" xml:space="preserve">
+    <value>Your connection passwords are held by the operating system.</value>
+  </data>
+  <data name="SecurityStorageFileDesc" xml:space="preserve">
+    <value>DataTray encrypts your connection passwords itself, with your master password.</value>
+  </data>
+  <data name="SecurityVaultNameMac" xml:space="preserve">
+    <value>macOS Keychain</value>
+  </data>
+  <data name="SecurityVaultNameWindows" xml:space="preserve">
+    <value>Windows Credential Manager</value>
+  </data>
+  <data name="SecurityVaultNameLinux" xml:space="preserve">
+    <value>Linux Secret Service</value>
+  </data>
+  <data name="MasterPwLockedByFileStore" xml:space="preserve">
+    <value>The encrypted file store cannot work without a master password, so it can't be turned off here. Switch back to the system vault first.</value>
+  </data>
   <data name="ImportFetchPasswords" xml:space="preserve">
     <value>Also fetch {0} passwords from the system credential store…</value>
   </data>
@@ -2048,5 +2159,71 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   </data>
   <data name="AddIndexColumn" xml:space="preserve">
     <value>+ Add column</value>
+  </data>
+  <data name="SettingsGroupWorkspace" xml:space="preserve">
+    <value>Workspace</value>
+  </data>
+  <data name="SettingsGroupQuerying" xml:space="preserve">
+    <value>Querying</value>
+  </data>
+  <data name="SettingsGroupAccess" xml:space="preserve">
+    <value>Access</value>
+  </data>
+  <data name="SettingsGroupExtensions" xml:space="preserve">
+    <value>Extensions</value>
+  </data>
+  <data name="SettingsSecLanguageStartup" xml:space="preserve">
+    <value>Language &amp; startup</value>
+  </data>
+  <data name="SettingsSecWindowInstances" xml:space="preserve">
+    <value>Window &amp; instances</value>
+  </data>
+  <data name="SettingsSecEditing" xml:space="preserve">
+    <value>Editing</value>
+  </data>
+  <data name="SettingsSecExecution" xml:space="preserve">
+    <value>Execution</value>
+  </data>
+  <data name="SettingsSecPaging" xml:space="preserve">
+    <value>Browsing &amp; paging</value>
+  </data>
+  <data name="SettingsSecCopyExport" xml:space="preserve">
+    <value>Copy &amp; export</value>
+  </data>
+  <data name="SettingsSecLogging" xml:space="preserve">
+    <value>Logging</value>
+  </data>
+  <data name="SettingsSecServer" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="SettingsSecAuthentication" xml:space="preserve">
+    <value>Authentication</value>
+  </data>
+  <data name="SettingsSecInstalled" xml:space="preserve">
+    <value>Installed plugins</value>
+  </data>
+  <data name="SettingsEditorDesc" xml:space="preserve">
+    <value>How the SQL editor behaves, and how it formats what you write.</value>
+  </data>
+  <data name="SettingsQueryDesc" xml:space="preserve">
+    <value>Running queries, paging through results and copying them out.</value>
+  </data>
+  <data name="SettingsPluginSourcesDesc" xml:space="preserve">
+    <value>Where the Plugin Store looks for plugins.</value>
+  </data>
+  <data name="SettingsHelpTip" xml:space="preserve">
+    <value>What this page is for</value>
+  </data>
+  <data name="WindowMinimise" xml:space="preserve">
+    <value>Minimise</value>
+  </data>
+  <data name="WindowMaximise" xml:space="preserve">
+    <value>Maximise</value>
+  </data>
+  <data name="WindowRestore" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="WindowClose" xml:space="preserve">
+    <value>Close</value>
   </data>
 </root>

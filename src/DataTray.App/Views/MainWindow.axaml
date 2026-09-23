@@ -1,10 +1,14 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:DataTray.App.Views"
+        xmlns:chrome="using:Avalonia.Controls.Chrome"
         x:Class="DataTray.App.Views.MainWindow"
         Title="DataTray"
         Icon="/Assets/icon.png"
-        Width="1150" Height="740">
+        Width="1150" Height="740"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="38"
+        WindowDecorations="BorderOnly">
   <Window.Resources>
     <!-- File ▸ Recent items (SE-154): each RecentFileItem carries its own Open command + path, so the
          menu popup (a separate visual tree) needs no ancestor binding back to the window. -->
@@ -58,8 +62,70 @@
     </NativeMenu>
   </NativeMenu.Menu>
 
-  <DockPanel>
-    <Menu x:Name="AppMenu" DockPanel.Dock="Top">
+  <Window.Styles>
+    <!-- Caption buttons (SE-291). Full-height, no radius, no border: they are window chrome, not app
+         buttons, and every platform draws them that way. The close button is the only one that fills
+         with colour on hover — red is what "this one ends the session" looks like everywhere. -->
+    <Style Selector="Button.caption">
+      <Setter Property="Width" Value="42" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.caption:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+    </Style>
+    <Style Selector="Button.caption:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SESecondaryBgBrush}" />
+    </Style>
+    <Style Selector="Button.caption.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEStatusErrorBrush}" />
+    </Style>
+    <Style Selector="Button.caption.danger:pointerover Path">
+      <Setter Property="Stroke" Value="#FFFFFF" />
+    </Style>
+    <!-- The menu sits on the title bar now, so it may not bring its own surface with it. -->
+    <Style Selector="Menu#AppMenu">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+  </Window.Styles>
+
+  <!-- OffScreenMargin keeps the content inside the frame when the window is maximised on Windows, where a
+       maximised frame deliberately overhangs the work area. -->
+  <DockPanel Margin="{Binding $parent[Window].OffScreenMargin}">
+
+    <!-- ===== Our own title bar (SE-291) =====
+         `WindowDecorations="BorderOnly"` means nobody else draws one — Avalonia keeps the border, shadow
+         and resize grips and we supply the bar. `ElementRole="TitleBar"` hands dragging back to the
+         platform: it treats this strip as non-client area, so moving and snapping stay the window
+         manager's job rather than something this app reimplements with pointer events.
+
+         The caption buttons must say so themselves (`DecorationsElement`), or the drag area swallows
+         their clicks. Double-click is ours, though: with the client area extended, the window manager
+         never sees a click here, so the maximise-on-double-click it would normally do never happens.
+
+         macOS is the exception, handled in code-behind: the traffic lights stay (the platform's contract
+         — green means full screen, and Mission Control expects them), so there the decorations stay Full
+         and our three buttons are hidden. This bar is taller than macOS's own 28 pt, which would leave
+         those lights sitting high in it, so MacTitleBar gives the window an empty unified toolbar and
+         AppKit centres them. Its menu is already the system menu bar via NativeMenu.Menu, so nothing is
+         lost by hiding the in-window one there. -->
+    <Border x:Name="TitleBar" DockPanel.Dock="Top" Height="38"
+            Background="{DynamicResource SESecondaryBgBrush}"
+            BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,0,0,1"
+            DoubleTapped="OnTitleBarDoubleTapped"
+            chrome:WindowDecorationProperties.ElementRole="TitleBar">
+      <Panel x:Name="TitleBarContent">
+
+        <StackPanel x:Name="TitleBarLeft" Orientation="Horizontal" HorizontalAlignment="Left"
+                    VerticalAlignment="Stretch" Spacing="8" Margin="9,0,0,0">
+          <Menu x:Name="AppMenu" VerticalAlignment="Center"
+                chrome:WindowDecorationProperties.ElementRole="DecorationsElement">
       <MenuItem Header="{Binding Loc[MenuFile]}">
         <MenuItem Header="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
         <MenuItem Header="{Binding Loc[OpenFileMenu]}" Command="{Binding OpenQueryCommand}" />
@@ -91,7 +157,70 @@
       <MenuItem Header="{Binding Loc[MenuHelp]}">
         <MenuItem Header="{Binding Loc[About]}" Command="{Binding ShowAboutCommand}" />
       </MenuItem>
-    </Menu>
+          </Menu>
+        </StackPanel>
+
+        <!-- Where you are, in the one place the window can always show it: connection, database, object,
+             then the app name. The dash only exists to separate the two, so with nothing selected it has
+             nothing to separate and goes away with the rest. -->
+        <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                   Fill="{DynamicResource SEStatusConnectedBrush}"
+                   IsVisible="{Binding SelectedConnection, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Text="{Binding CrumbConnection}" FontSize="12.5" FontWeight="SemiBold"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220"
+                     Foreground="{DynamicResource SETextPrimaryBrush}"
+                     IsVisible="{Binding CrumbConnection, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+          <TextBlock Text="›" FontSize="12.5" VerticalAlignment="Center"
+                     Foreground="{DynamicResource SETextFaintBrush}"
+                     IsVisible="{Binding ShowDatabaseSeparator}" />
+          <TextBlock Text="{Binding CrumbDatabase}" FontSize="12.5" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" MaxWidth="200"
+                     Foreground="{DynamicResource SETextSecondaryBrush}"
+                     IsVisible="{Binding CrumbDatabase, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+          <TextBlock Text="›" FontSize="12.5" VerticalAlignment="Center"
+                     Foreground="{DynamicResource SETextFaintBrush}"
+                     IsVisible="{Binding ShowObjectSeparator}" />
+          <TextBlock Text="{Binding CrumbObject}" FontSize="12.5" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" MaxWidth="260"
+                     Foreground="{DynamicResource SETextSecondaryBrush}"
+                     IsVisible="{Binding CrumbObject, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+          <TextBlock Text="—" FontSize="12.5" VerticalAlignment="Center" Margin="3,0,0,0"
+                     Foreground="{DynamicResource SETextFaintBrush}"
+                     IsVisible="{Binding HasTitleCrumb}" />
+          <!-- Mark and wordmark together: one lockup in the middle of the bar, rather than a mark pinned
+               to a corner where macOS already keeps its own buttons. -->
+          <Image Source="/Assets/icon.png" Width="16" Height="16" VerticalAlignment="Center"
+                 Margin="0,0,-1,0" RenderOptions.BitmapInterpolationMode="HighQuality" />
+          <TextBlock Text="DataTray" FontSize="12.5" VerticalAlignment="Center"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+        </StackPanel>
+
+        <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" HorizontalAlignment="Right"
+                    VerticalAlignment="Stretch"
+                    chrome:WindowDecorationProperties.ElementRole="DecorationsElement">
+          <Button Classes="caption" Click="OnMinimiseClick" ToolTip.Tip="{Binding Loc[WindowMinimise]}">
+            <Path Width="11" Height="11" Stretch="None" Data="M0,5.5 H11"
+                  Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.3" StrokeLineCap="Round" />
+          </Button>
+          <!-- Glyph and tooltip follow WindowState from code-behind: it is the window's own state, and
+               routing it through the view model would be a longer way round to the same two values. -->
+          <Button x:Name="MaximiseButton" Classes="caption" Click="OnMaximiseClick">
+            <Path x:Name="MaximiseGlyph" Width="11" Height="11" Stretch="None"
+                  Data="M0.5,0.5 H10.5 V10.5 H0.5 Z"
+                  Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.3" StrokeJoin="Round" />
+          </Button>
+          <Button Classes="caption danger" Click="OnCloseClick" ToolTip.Tip="{Binding Loc[WindowClose]}">
+            <Path Width="11" Height="11" Stretch="None" Data="M0.5,0.5 L10.5,10.5 M10.5,0.5 L0.5,10.5"
+                  Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.3" StrokeLineCap="Round" />
+          </Button>
+        </StackPanel>
+      </Panel>
+    </Border>
+
     <views:MainView x:Name="Body" />
   </DockPanel>
 </Window>

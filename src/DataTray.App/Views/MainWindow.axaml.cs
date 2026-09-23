@@ -4,6 +4,10 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using DataTray.App.ViewModels;
 using DataTray.Core.Settings;
@@ -36,10 +40,38 @@ public partial class MainWindow : Window
 
         // macOS gets its menu bar from NativeMenu.Menu (set in XAML) — the in-window Menu would
         // otherwise render a second, redundant bar underneath the title bar there.
-        if (OperatingSystem.IsMacOS())
+        //
+        // And the traffic lights stay (SE-291). They are a platform contract: the green one is macOS's
+        // only route into full screen, Mission Control and Stage Manager expect them, and ⌃⌘F drives that
+        // button rather than the window. So there the decorations stay Full — the client area is still
+        // extended, we still draw the bar — and our own three buttons go away rather than sit beside a
+        // second set.
+        if (SystemCaptionButtons)
         {
             AppMenu.IsVisible = false;
+            WindowDecorations = WindowDecorations.Full;
+            CaptionButtons.IsVisible = false;
+
+            // Our bar is taller than macOS's own 28 pt, so the traffic lights would sit high in it. AppKit
+            // places them and Avalonia does not move them — an empty unified toolbar is what makes AppKit
+            // centre them in the taller bar. Once the window exists: it needs the NSWindow.
+            Opened += (_, _) => MacTitleBar.UseUnifiedTitleBar(this);
         }
+
+        // Only the focused window's title bar is at full strength — with a title bar the app draws itself,
+        // nothing else says which of two open windows is the one in front.
+        Activated += (_, _) => TitleBarContent.Opacity = 1;
+        Deactivated += (_, _) => TitleBarContent.Opacity = 0.55;
+
+        // Keeps the middle button saying what it will do rather than what the window is.
+        SyncMaximiseButton();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == WindowStateProperty)
+            {
+                SyncMaximiseButton();
+            }
+        };
 
         DataContextChanged += (_, _) =>
         {
@@ -80,6 +112,64 @@ public partial class MainWindow : Window
                 };
             }
         };
+    }
+
+    /// <summary>Whether the platform draws the caption buttons itself — true on macOS, where the traffic
+    /// lights stay. Settable so the screenshot harness can render the Windows/Linux bar from a Mac, which is
+    /// the only way to look at both bars without two machines (SE-291).</summary>
+    public static bool SystemCaptionButtons { get; set; } = OperatingSystem.IsMacOS();
+
+    // --- Window chrome (SE-291) --------------------------------------------------------------------
+    // Dragging is the platform's, through the title bar's ElementRole. These are ours, because handing
+    // them to the platform (the CloseButton/MinimizeButton roles) is what makes one window behave three
+    // different ways.
+
+    private void OnMinimiseClick(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximiseClick(object? sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+
+    // With the client area extended, the window manager never sees a click on the title bar, so the
+    // maximise-on-double-click it would normally do has to happen here. On macOS the decorations are still
+    // Full and the platform does do it — hence the check rather than an unconditional toggle, which would
+    // undo the platform's own and read as a double-click that does nothing.
+    private void OnTitleBarDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        // The caption buttons live inside the title bar: two quick clicks on Minimise would otherwise
+        // minimise and then maximise the window on the way out.
+        if (e.Source is Visual source
+            && (ReferenceEquals(source, CaptionButtons) || source.GetVisualAncestors().Contains(CaptionButtons)))
+        {
+            return;
+        }
+
+        var atTap = WindowState;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (TitleBarDoubleTap.Resolve(atTap, WindowState) is { } next)
+                {
+                    WindowState = next;
+                }
+            },
+            DispatcherPriority.Background);
+    }
+
+    private void SyncMaximiseButton()
+    {
+        var maximised = WindowState == WindowState.Maximized;
+        var loc = (DataContext as MainViewModel)?.Loc;
+
+        // Two overlapping rounded squares for "restore", one for "maximise".
+        MaximiseGlyph.Data = Geometry.Parse(maximised
+            ? "M0.5,3.5 H7.5 V10.5 H0.5 Z M3.5,3.5 V0.5 H10.5 V7.5 H7.5"
+            : "M0.5,0.5 H10.5 V10.5 H0.5 Z");
+
+        ToolTip.SetTip(MaximiseButton, maximised
+            ? loc?["WindowRestore"] ?? "Restore"
+            : loc?["WindowMaximise"] ?? "Maximise");
     }
 
     // Materialize the live keymap into Window.KeyBindings. Called once the VM is attached and again on

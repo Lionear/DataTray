@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Linq;
@@ -42,7 +43,9 @@ namespace DataTray.Screenshots;
 // Scenes: hero (main window browsing a synthetic demo DB), query (SQL editor with a query + results),
 // store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window),
 // importconnections (the DataGrip/DBeaver import picker), querysettings (the Query settings pane),
-// copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states).
+// copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states),
+// firstrun (the onboarding wizard; --state welcome|engine|security|securityfile|securitynovault|
+//   connection|import|done).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
 // without a display.
@@ -62,6 +65,10 @@ internal static class Program
         Directory.CreateDirectory(sandbox);
         Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", sandbox);
         Environment.SetEnvironmentVariable("APPDATA", sandbox);
+        // macOS resolves ApplicationData from the account's real home directory and ignores both variables
+        // above, so the two on their own left a capture reading and writing the live profile — which is how
+        // a walk through the onboarding wizard ended up leaving its position there.
+        Environment.SetEnvironmentVariable("DATATRAY_APPDATA", sandbox);
 
         HostApp.ScreenshotMode = true;
 
@@ -166,9 +173,23 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, aitree, copytable, erdiagram";
+    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, settings, aitree, copytable, erdiagram";
 
-    public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state) => scene switch
+    public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state)
+    {
+        // SE-291: the caption buttons are the platform's on macOS and ours everywhere else, so on any one
+        // machine only one of the two bars can be seen. --state windows|mac forces either.
+        DataTray.App.Views.MainWindow.SystemCaptionButtons = state switch
+        {
+            "windows" => false,
+            "mac" => true,
+            _ => OperatingSystem.IsMacOS(),
+        };
+
+        return Build(scene, services, sandbox, state);
+    }
+
+    private static Task<Window?> Build(string scene, IServiceProvider services, string sandbox, string state) => scene switch
     {
         "hero" => BuildHeroAsync(services, sandbox),
         "query" => BuildQueryAsync(services, sandbox, state),
@@ -179,6 +200,7 @@ internal static class SceneCatalog
         "main" => Task.FromResult<Window?>(BuildMain(services)),
         "mcpsettings" => Task.FromResult(BuildMcpSettings(services)),
         "querysettings" => Task.FromResult(BuildQuerySettings(services)),
+        "settings" => Task.FromResult(BuildSettings(services, state)),
         "aitree" => BuildAiTreeAsync(services, sandbox),
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
         "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
@@ -285,6 +307,16 @@ internal static class SceneCatalog
     {
         var viewModel = services.GetRequiredService<SettingsViewModel>();
         viewModel.SelectCategoryByKey("Query");
+        return new SettingsWindow { DataContext = viewModel };
+    }
+
+    /// <summary>Any Preferences page, named by its category key through <c>--state</c> (SE-290) — the rail's
+    /// grouping and a page's numbered sections are the kind of thing that has to be looked at, and there are
+    /// eleven of them.</summary>
+    private static Window? BuildSettings(IServiceProvider services, string state)
+    {
+        var viewModel = services.GetRequiredService<SettingsViewModel>();
+        viewModel.SelectCategoryByKey(string.IsNullOrWhiteSpace(state) ? "General" : state);
         return new SettingsWindow { DataContext = viewModel };
     }
 
@@ -649,22 +681,41 @@ internal static class SceneCatalog
                 new Dictionary<string, string?>(), "provider 'mongodb' is not installed")
         ]);
 
+        // The vault branch is pinned so a capture is the same everywhere; "securitynovault" is the machine
+        // that has no Secret Service, which is a state to shoot rather than a machine to find (SE-292).
+        viewModel.VaultAvailable = state != "securitynovault";
+
         // Walk the same commands a user would, so a capture can only show a state the wizard can reach.
-        if (state is "engine" or "connection" or "import" or "done")
+        if (state is "engine" or "security" or "securityfile" or "securitynovault" or "connection" or "import" or "done")
         {
             viewModel.NextCommand.Execute(null);
         }
 
-        if (state is "connection" or "done")
+        if (state is "security" or "securityfile" or "securitynovault" or "connection" or "import" or "done")
         {
             viewModel.SelectEngineCommand.Execute(viewModel.Engines.FirstOrDefault(e => e.Id == "postgres")
                                                   ?? viewModel.Engines.FirstOrDefault());
-            viewModel.NextCommand.Execute(null);
+            viewModel.NextCommand.Execute(null);             // -> Security
         }
 
+        if (state is "securityfile")
+        {
+            viewModel.ChooseFileStoreCommand.Execute(null);
+            viewModel.MasterPasswordText = "correct horse battery staple";
+            viewModel.MasterPasswordConfirm = "correct horse battery staple";
+            viewModel.AcknowledgedNoRecovery = true;
+        }
+
+        // Deliberately not walked past the Security step: Next there really does set a master password and
+        // move the store, which a screenshot has no business doing to the profile it runs against.
         if (state is "import")
         {
-            viewModel.StartImportCommand.Execute(null);
+            viewModel.StartImportCommand.Execute(null);      // picks the import face, still on Security
+        }
+
+        if (state is "connection" or "import" or "done")
+        {
+            viewModel.NextCommand.Execute(null);             // -> Connection, on the system vault
         }
 
         if (state is "done")
@@ -784,7 +835,8 @@ internal static class DemoData
                 var price = 19.95 + i * 12.5;
                 Execute(connection,
                     $"INSERT INTO products (id, sku, name, price, stock) VALUES " +
-                    $"({i + 1}, 'SKU-{1000 + i}', '{products[i]}', {price:0.00}, {20 + i * 5});");
+                    $"({i + 1}, 'SKU-{1000 + i}', '{products[i]}', " +
+                    $"{price.ToString("0.00", CultureInfo.InvariantCulture)}, {20 + i * 5});");
             }
 
             string[] statuses = ["paid", "shipped", "delivered", "refunded", "pending"];
@@ -796,7 +848,8 @@ internal static class DemoData
                 var total = (19.95 + (prod - 1) * 12.5) * qty;
                 Execute(connection,
                     $"INSERT INTO orders (id, customer_id, product_id, quantity, total, status, ordered_at) VALUES " +
-                    $"({i + 1}, {cust}, {prod}, {qty}, {total:0.00}, '{statuses[i % statuses.Length]}', " +
+                    $"({i + 1}, {cust}, {prod}, {qty}, " +
+                    $"{total.ToString("0.00", CultureInfo.InvariantCulture)}, '{statuses[i % statuses.Length]}', " +
                     $"'2024-06-{1 + i % 27:D2}');");
             }
 

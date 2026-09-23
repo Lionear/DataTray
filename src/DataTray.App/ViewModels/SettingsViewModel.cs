@@ -25,8 +25,26 @@ namespace DataTray.App.ViewModels;
 
 /// <summary>One entry in the Settings category rail: a stable key, a localized label, a vector icon, and
 /// optional space-separated search <paramref name="Keywords"/> (EN/NL terms for settings inside it) so the
-/// search box (SE-161) can surface a category by the setting you're looking for, not just its label.</summary>
-public sealed record SettingsCategory(string Key, string Label, Geometry Icon, string Keywords = "");
+/// search box (SE-161) can surface a category by the setting you're looking for, not just its label.
+/// <para>
+/// Since SE-290 a category also names the <paramref name="Group"/> it sits under, and the rail is a single
+/// list holding both kinds of row: the categories themselves and the small grey group headings between them
+/// (<see cref="Header"/>). One list keeps one <c>SelectedItem</c> — a ListBox per group would need selection
+/// wired across all four — and the headings stay out of the way by being neither focusable nor hit-testable.
+/// </para></summary>
+public sealed record SettingsCategory(
+    string Key,
+    string Label,
+    Geometry? Icon,
+    string Keywords = "",
+    string Group = "")
+{
+    /// <summary>A group heading row rather than a selectable category.</summary>
+    public static SettingsCategory Header(string label) => new(string.Empty, label, null);
+
+    /// <summary>True for the grey group headings in the rail; they carry no key and no icon.</summary>
+    public bool IsHeader => Icon is null;
+}
 
 /// <summary>
 /// Backs the Preferences window: General/Appearance/Editor/Query plus a Plugins category that lists
@@ -96,8 +114,18 @@ public partial class SettingsViewModel : ViewModelBase
 
         var previous = SelectedCategory;
         Categories.Clear();
+
+        // Headings are inserted around the surviving categories rather than filtered alongside them, so a
+        // group whose every category filtered out takes its heading with it (SE-290).
+        var group = string.Empty;
         foreach (var category in visible)
         {
+            if (category.Group != group)
+            {
+                group = category.Group;
+                Categories.Add(SettingsCategory.Header(group));
+            }
+
             Categories.Add(category);
         }
 
@@ -482,6 +510,27 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _queryLogMcp;
 
+    // ── Password storage (SE-292) ────────────────────────────────────────────────────────────────────
+
+    /// <summary>Which store secrets live in. Read-only here: changing it after the fact is a migration of
+    /// every saved secret (SE-292 point 4), so this page reports the choice rather than offering it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StorageStoreName), nameof(StorageStoreDescription))]
+    private bool _useFileSecretStore;
+
+    public string StorageStoreName =>
+        UseFileSecretStore
+            ? Loc["SecurityStorageFile"]
+            : Loc.Get("SecurityStorageVault", OsVaultName);
+
+    public string StorageStoreDescription =>
+        Loc[UseFileSecretStore ? "SecurityStorageFileDesc" : "SecurityStorageVaultDesc"];
+
+    private string OsVaultName => Loc[
+        OperatingSystem.IsMacOS() ? "SecurityVaultNameMac"
+        : OperatingSystem.IsWindows() ? "SecurityVaultNameWindows"
+        : "SecurityVaultNameLinux"];
+
     // ── Master password ──────────────────────────────────────────────────────────────────────────────
     [ObservableProperty]
     private bool _masterPasswordEnabled;
@@ -526,6 +575,14 @@ public partial class SettingsViewModel : ViewModelBase
     private async Task DisableMasterPasswordAsync()
     {
         MasterPasswordMessage = null;
+        // The file store has no plaintext mode to fall back to, so disabling would leave every saved secret
+        // unreadable. The button is hidden in that state; this is the guard for every other way in.
+        if (UseFileSecretStore)
+        {
+            MasterPasswordMessage = Loc["MasterPwLockedByFileStore"];
+            return;
+        }
+
         // Reuse the unlock dialog (single field) with no inline validator, so the service verifies it.
         if (PromptMasterPassword is null || await PromptMasterPassword(Views.MasterPasswordMode.Unlock) is not { Current: { } pw })
         {
@@ -779,33 +836,54 @@ public partial class SettingsViewModel : ViewModelBase
 
         // Keywords are EN/NL terms for the settings inside each category, so the search box (SE-161) can
         // surface a category by the setting you're after, not only its label. Kept language-agnostic here.
+        //
+        // The Group each one names is what the rail draws its headings from (SE-290): eleven flat entries is
+        // exactly the length where a list stops being scannable. Access holds Security and MCP server
+        // together because both answer "who may reach my data" — MCP is the AI's door into it.
+        var workspace = localizer["SettingsGroupWorkspace"];
+        var querying = localizer["SettingsGroupQuerying"];
+        var access = localizer["SettingsGroupAccess"];
+        var extensions = localizer["SettingsGroupExtensions"];
+
         _allCategories =
         [
             new SettingsCategory("General", localizer["SettingsGeneralCat"], NodeIcons.SettingsGeneral,
-                "language taal startup opstarten restore tabs herstel tray exit afsluiten system databases updates channel kanaal interval"),
+                "language taal startup opstarten restore tabs herstel tray exit afsluiten system databases updates channel kanaal interval",
+                workspace),
             new SettingsCategory("Appearance", localizer["SettingsAppearance"], NodeIcons.SettingsAppearance,
-                "theme thema dark donker light licht panel paneel bottom onder"),
-            new SettingsCategory("Editor", localizer["SettingsEditor"], NodeIcons.SettingsEditor,
-                "font lettergrootte size word wrap terugloop format opmaak keyword casing indent inspringen"),
-            new SettingsCategory("Query", localizer["SettingsQuery"], NodeIcons.SettingsQuery,
-                "timeout page pagina rows rijen results resultaten browse confirm bevestig paging pagineren next prev volgende vorige copy kopieer html tabel table opmaak style stijl kleur colour export"),
-            new SettingsCategory("QueryLog", localizer["SettingsQueryLog"], NodeIcons.SettingsQuery,
-                "query log audit logging"),
+                "theme thema dark donker light licht panel paneel bottom onder",
+                workspace),
             new SettingsCategory("Toolbar", localizer["SettingsToolbar"], NodeIcons.SettingsToolbar,
-                "toolbar werkbalk buttons knoppen order volgorde hide verberg overflow"),
+                "toolbar werkbalk buttons knoppen order volgorde hide verberg overflow",
+                workspace),
             new SettingsCategory("Keyboard", localizer["SettingsKeyboard"], NodeIcons.SettingsKeyboard,
-                "keyboard toetsenbord shortcuts sneltoetsen keybindings gestures"),
-            new SettingsCategory("Mcp", localizer["SettingsMcp"], NodeIcons.SettingsPlugins,
-                "mcp ai server token port poort auth connection connectie create aanmaken host scrub secrets redact rows"),
+                "keyboard toetsenbord shortcuts sneltoetsen keybindings gestures",
+                workspace),
+            new SettingsCategory("Editor", localizer["SettingsEditor"], NodeIcons.SettingsEditor,
+                "font lettergrootte size word wrap terugloop format opmaak keyword casing indent inspringen",
+                querying),
+            new SettingsCategory("Query", localizer["SettingsQuery"], NodeIcons.SettingsQuery,
+                "timeout page pagina rows rijen results resultaten browse confirm bevestig paging pagineren next prev volgende vorige copy kopieer html tabel table opmaak style stijl kleur colour export",
+                querying),
+            new SettingsCategory("QueryLog", localizer["SettingsQueryLog"], NodeIcons.SettingsQuery,
+                "query log audit logging",
+                querying),
             new SettingsCategory("Security", localizer["SettingsSecurity"], NodeIcons.SettingsGeneral,
-                "security beveiliging master password wachtwoord lock vergrendel idle"),
+                "security beveiliging master password wachtwoord lock vergrendel idle",
+                access),
+            new SettingsCategory("Mcp", localizer["SettingsMcp"], NodeIcons.SettingsPlugins,
+                "mcp ai server token port poort auth connection connectie create aanmaken host scrub secrets redact rows",
+                access),
             new SettingsCategory("Plugins", localizer["SettingsPlugins"], NodeIcons.SettingsPlugins,
-                "plugins update policy beleid auto notify"),
+                "plugins update policy beleid auto notify",
+                extensions),
             new SettingsCategory("PluginSources", localizer["SettingsPluginSources"], NodeIcons.SettingsPlugins,
-                "plugin sources bronnen bron source url discovery manual"),
+                "plugin sources bronnen bron source url discovery manual",
+                extensions),
         ];
-        Categories = [.._allCategories];
+        Categories = [];
         _selectedCategory = _allCategories[0];
+        ApplyCategoryFilter();
 
         LoadFromStore();
         BuildPluginCatalog();
@@ -996,6 +1074,7 @@ public partial class SettingsViewModel : ViewModelBase
         QueryLogEnabled = settings.QueryLogEnabled;
         QueryLogApp = settings.QueryLogApp;
         QueryLogMcp = settings.QueryLogMcp;
+        UseFileSecretStore = settings.UseFileSecretStore;
         MasterPasswordEnabled = settings.MasterPasswordEnabled;
         MasterPasswordLockIndex = Math.Max(0, Array.IndexOf(LockMinuteOptions, settings.MasterPasswordLockMinutes));
         MasterPasswordMessage = null;
