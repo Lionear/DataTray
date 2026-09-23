@@ -489,8 +489,16 @@
             <Border Classes="PageRule" />
           </StackPanel>
 
-          <!-- One concern, one section: the page is the master password and what it locks. Numbering a
-               single section would be a number that never counts to two (SE-290). -->
+          <!-- Two sections since SE-292: where the passwords are kept, and the master password over them.
+               Numbered like every other page now that the number counts to two. -->
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[SecurityStorageSection], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='1. {0}'}" />
+          <TextBlock Text="{Binding StorageStoreName}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding StorageStoreDescription}" FontSize="11.5" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+
+          <TextBlock Classes="SectionHead" Margin="0,10,0,0"
+                     Text="{Binding Loc[SecurityMasterPwSection], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
 
           <!-- Not set -->
           <StackPanel Spacing="8" IsVisible="{Binding !MasterPasswordEnabled}">
@@ -504,8 +512,16 @@
             <TextBlock Text="{Binding Loc[MasterPwIsSet]}" FontSize="12" Foreground="{DynamicResource SEStatusConnectedBrush}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Button Content="{Binding Loc[MasterPwChangeButton]}" Command="{Binding ChangeMasterPasswordCommand}" />
-              <Button Content="{Binding Loc[MasterPwDisableButton]}" Command="{Binding DisableMasterPasswordCommand}" />
+              <!-- SE-292: the file store cannot work without a key, so Disable is gone. A button that just
+                   vanishes reads as a bug, so the sentence below takes its place. -->
+              <Button Content="{Binding Loc[MasterPwDisableButton]}" Command="{Binding DisableMasterPasswordCommand}"
+                      IsVisible="{Binding !UseFileSecretStore}" />
             </StackPanel>
+            <Border IsVisible="{Binding UseFileSecretStore}" CornerRadius="5" Padding="10,8"
+                    Background="{DynamicResource SEPanelBgBrush}"
+                    BorderBrush="{DynamicResource SEStatusWaitingBrush}" BorderThickness="1">
+              <TextBlock Text="{Binding Loc[MasterPwLockedByFileStore]}" FontSize="11.5" TextWrapping="Wrap" />
+            </Border>
             <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0" MaxWidth="360" HorizontalAlignment="Left">
               <TextBlock Grid.Column="0" Text="{Binding Loc[MasterPwLockAfter]}" VerticalAlignment="Center" />
               <ComboBox Grid.Column="1" Width="150" SelectedIndex="{Binding MasterPasswordLockIndex, Mode=TwoWay}">

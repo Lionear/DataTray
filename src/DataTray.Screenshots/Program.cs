@@ -43,7 +43,9 @@ namespace DataTray.Screenshots;
 // Scenes: hero (main window browsing a synthetic demo DB), query (SQL editor with a query + results),
 // store (Plugin Store, installed engines), export (the CSV/JSON/SQL export dialog), main (empty window),
 // importconnections (the DataGrip/DBeaver import picker), querysettings (the Query settings pane),
-// copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states).
+// copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states),
+// firstrun (the onboarding wizard; --state welcome|engine|security|securityfile|securitynovault|
+//   connection|import|done).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
 // without a display.
@@ -63,6 +65,10 @@ internal static class Program
         Directory.CreateDirectory(sandbox);
         Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", sandbox);
         Environment.SetEnvironmentVariable("APPDATA", sandbox);
+        // macOS resolves ApplicationData from the account's real home directory and ignores both variables
+        // above, so the two on their own left a capture reading and writing the live profile — which is how
+        // a walk through the onboarding wizard ended up leaving its position there.
+        Environment.SetEnvironmentVariable("DATATRAY_APPDATA", sandbox);
 
         HostApp.ScreenshotMode = true;
 
@@ -675,22 +681,41 @@ internal static class SceneCatalog
                 new Dictionary<string, string?>(), "provider 'mongodb' is not installed")
         ]);
 
+        // The vault branch is pinned so a capture is the same everywhere; "securitynovault" is the machine
+        // that has no Secret Service, which is a state to shoot rather than a machine to find (SE-292).
+        viewModel.VaultAvailable = state != "securitynovault";
+
         // Walk the same commands a user would, so a capture can only show a state the wizard can reach.
-        if (state is "engine" or "connection" or "import" or "done")
+        if (state is "engine" or "security" or "securityfile" or "securitynovault" or "connection" or "import" or "done")
         {
             viewModel.NextCommand.Execute(null);
         }
 
-        if (state is "connection" or "done")
+        if (state is "security" or "securityfile" or "securitynovault" or "connection" or "import" or "done")
         {
             viewModel.SelectEngineCommand.Execute(viewModel.Engines.FirstOrDefault(e => e.Id == "postgres")
                                                   ?? viewModel.Engines.FirstOrDefault());
-            viewModel.NextCommand.Execute(null);
+            viewModel.NextCommand.Execute(null);             // -> Security
         }
 
+        if (state is "securityfile")
+        {
+            viewModel.ChooseFileStoreCommand.Execute(null);
+            viewModel.MasterPasswordText = "correct horse battery staple";
+            viewModel.MasterPasswordConfirm = "correct horse battery staple";
+            viewModel.AcknowledgedNoRecovery = true;
+        }
+
+        // Deliberately not walked past the Security step: Next there really does set a master password and
+        // move the store, which a screenshot has no business doing to the profile it runs against.
         if (state is "import")
         {
-            viewModel.StartImportCommand.Execute(null);
+            viewModel.StartImportCommand.Execute(null);      // picks the import face, still on Security
+        }
+
+        if (state is "connection" or "import" or "done")
+        {
+            viewModel.NextCommand.Execute(null);             // -> Connection, on the system vault
         }
 
         if (state is "done")

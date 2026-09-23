@@ -151,6 +151,11 @@ public sealed class AppSettings
     /// arrive with its grid; <see cref="Export.HtmlTableStyle.Plain"/> is the unstyled table it used to be.</summary>
     public HtmlTableStyle HtmlTableStyle { get; set; } = HtmlTableStyle.HeaderFill;
 
+    /// <summary>Where connection secrets are kept (SE-292): false = the OS-native vault, true = DataTray's
+    /// own AES-GCM file in the profile folder, which only works with a master password. False for every
+    /// profile that predates the onboarding step, which is the store they have always been on.</summary>
+    public bool UseFileSecretStore { get; set; }
+
     // ── Master password (optional app-level encryption of connection secrets) ────────────────────────
     // All three below are NON-secret: they enable the feature and let the app verify a typed password.
     // The derived AES key itself is never stored — only held in memory while the session is unlocked.

@@ -71,6 +71,31 @@
       <Setter Property="BorderBrush" Value="{DynamicResource SEExtensibilityTextBrush}" />
     </Style>
 
+    <!-- A choice card on the Security step. Same edge language as the engine tiles, full width: the two
+         options are read top to bottom, and the chosen one grows a block the other does not have. -->
+    <Style Selector="Border.Card">
+      <Setter Property="Background" Value="{DynamicResource SEWindowBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="12,10" />
+    </Style>
+    <Style Selector="Border.Card.Chosen">
+      <Setter Property="BorderBrush" Value="{DynamicResource SEAccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
+    </Style>
+
+    <!-- "Recommended" / "Master password required": a chip says which kind of option this is without
+         spending a sentence on it. -->
+    <Style Selector="Border.Chip">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="6,1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource SEPanelBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
     <Style Selector="TextBlock.GroupLabel">
       <Setter Property="FontSize" Value="10.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -95,6 +120,13 @@
         <Ellipse Width="8" Height="8" VerticalAlignment="Center"
                  Fill="{DynamicResource SEHairlineBrush}" IsVisible="{Binding !IsEngine}" />
         <TextBlock Text="{Binding Loc[FirstRunStepEngine]}" FontSize="11.5" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="7">
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEAccentBrush}" IsVisible="{Binding IsSecurity}" />
+        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                 Fill="{DynamicResource SEHairlineBrush}" IsVisible="{Binding !IsSecurity}" />
+        <TextBlock Text="{Binding Loc[FirstRunStepSecurity]}" FontSize="11.5" VerticalAlignment="Center" />
       </StackPanel>
       <StackPanel Orientation="Horizontal" Spacing="7">
         <Ellipse Width="8" Height="8" VerticalAlignment="Center"
@@ -221,6 +253,118 @@
         </StackPanel>
       </ScrollViewer>
 
+      <!-- ===== Step 3: Security — where the passwords are kept (SE-292) =====
+           Both cards answer the same three questions in the same order (who holds the key, who else can
+           reach it, what is lost when it goes wrong). Only the selected card shows them: two cards arguing
+           along different axes at once is not a comparison, and 620px does not hold both open. -->
+      <ScrollViewer IsVisible="{Binding IsSecurity}" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="10" Margin="0,0,10,0">
+          <TextBlock Text="{Binding Loc[FirstRunSecurityTitle]}" FontSize="15" FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Loc[FirstRunSecurityIntro]}" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+
+          <!-- System vault -->
+          <Border Classes="Card" Classes.Chosen="{Binding UseVault}">
+            <StackPanel Spacing="7">
+              <RadioButton GroupName="SecretStore" IsChecked="{Binding UseVault, Mode=OneWay}"
+                           IsEnabled="{Binding VaultAvailable}" Command="{Binding ChooseVaultCommand}">
+                <StackPanel Spacing="2">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Loc[FirstRunVaultOption]}" FontSize="13" FontWeight="SemiBold" />
+                    <Border Classes="Chip" IsVisible="{Binding VaultAvailable}">
+                      <TextBlock Text="{Binding Loc[FirstRunVaultRecommended]}" FontSize="10.5"
+                                 Foreground="{DynamicResource SETextSecondaryBrush}" />
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Text="{Binding VaultSubtitle}" FontSize="11.5" TextWrapping="Wrap"
+                             Foreground="{DynamicResource SETextSecondaryBrush}" />
+                </StackPanel>
+              </RadioButton>
+
+              <!-- No Secret Service on this machine: say why the card is dead rather than leave it greyed. -->
+              <TextBlock Text="{Binding Loc[FirstRunVaultUnavailable]}" FontSize="11.5" TextWrapping="Wrap"
+                         Margin="24,0,0,0" IsVisible="{Binding !VaultAvailable}"
+                         Foreground="{DynamicResource SEStatusErrorBrush}" />
+
+              <StackPanel Spacing="5" Margin="24,0,0,0" IsVisible="{Binding UseVault}">
+                <TextBlock Text="{Binding Loc[FirstRunVaultPoint1]}" FontSize="11.5" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Loc[FirstRunVaultPoint2]}" FontSize="11.5" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Loc[FirstRunVaultPoint3]}" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SETextSecondaryBrush}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Encrypted file -->
+          <Border Classes="Card" Classes.Chosen="{Binding UseFileStore}">
+            <StackPanel Spacing="7">
+              <RadioButton GroupName="SecretStore" IsChecked="{Binding UseFileStore, Mode=OneWay}"
+                           Command="{Binding ChooseFileStoreCommand}">
+                <StackPanel Spacing="2">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Loc[FirstRunFileOption]}" FontSize="13" FontWeight="SemiBold" />
+                    <Border Classes="Chip">
+                      <TextBlock Text="{Binding Loc[FirstRunFileRequiresPw]}" FontSize="10.5"
+                                 Foreground="{DynamicResource SETextSecondaryBrush}" />
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Loc[FirstRunFileSub]}" FontSize="11.5" TextWrapping="Wrap"
+                             Foreground="{DynamicResource SETextSecondaryBrush}" />
+                </StackPanel>
+              </RadioButton>
+
+              <StackPanel Spacing="5" Margin="24,0,0,0" IsVisible="{Binding UseFileStore}">
+                <TextBlock Text="{Binding Loc[FirstRunFilePoint1]}" FontSize="11.5" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Loc[FirstRunFilePoint2]}" FontSize="11.5" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Loc[FirstRunFilePoint3]}" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SETextSecondaryBrush}" />
+
+                <!-- The master password belongs to this option, so it is set inside the card and not in a
+                     block underneath that would read as belonging to the whole step. -->
+                <StackPanel Spacing="6" Margin="0,7,0,0">
+                  <TextBlock Text="{Binding Loc[MasterPwNew]}" FontSize="11.5" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0" PasswordChar="•" Text="{Binding MasterPasswordText}" />
+                    <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"
+                               Text="{Binding PasswordStrength}"
+                               Foreground="{DynamicResource SETextFaintBrush}" />
+                  </Grid>
+                  <TextBlock Text="{Binding Loc[MasterPwConfirm]}" FontSize="11.5" />
+                  <TextBox PasswordChar="•" Text="{Binding MasterPasswordConfirm}" />
+                  <TextBlock Text="{Binding Loc[MasterPwMismatch]}" FontSize="11" TextWrapping="Wrap"
+                             IsVisible="{Binding PasswordsMismatch}"
+                             Foreground="{DynamicResource SEStatusErrorBrush}" />
+
+                  <!-- Amber, from the existing status palette: this is the only warning in the wizard and
+                       does not need a theme token of its own. -->
+                  <Border CornerRadius="5" Padding="10,8" Margin="0,2,0,0"
+                          Background="{DynamicResource SEPanelBgBrush}"
+                          BorderBrush="{DynamicResource SEStatusWaitingBrush}" BorderThickness="1">
+                    <TextBlock Text="{Binding Loc[MasterPwNoRecovery]}" FontSize="11.5" TextWrapping="Wrap" />
+                  </Border>
+                  <CheckBox IsChecked="{Binding AcknowledgedNoRecovery}">
+                    <TextBlock Text="{Binding Loc[FirstRunSecurityAcknowledge]}" FontSize="11.5"
+                               TextWrapping="Wrap" />
+                  </CheckBox>
+
+                  <Grid ColumnDefinitions="*,Auto" MaxWidth="330" HorizontalAlignment="Left" Margin="0,2,0,0">
+                    <TextBlock Grid.Column="0" Text="{Binding Loc[MasterPwLockAfter]}" FontSize="11.5"
+                               VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" Width="140" SelectedIndex="{Binding LockIndex, Mode=TwoWay}">
+                      <ComboBoxItem Content="{Binding Loc[MasterPwLockNever]}" />
+                      <ComboBoxItem Content="{Binding Loc[MasterPwLock15]}" />
+                      <ComboBoxItem Content="{Binding Loc[MasterPwLock30]}" />
+                      <ComboBoxItem Content="{Binding Loc[MasterPwLock60]}" />
+                    </ComboBox>
+                  </Grid>
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
       <!-- ===== Step 3a: the connection form (basic fields only) ===== -->
       <Grid IsVisible="{Binding IsManualConnection}" RowDefinitions="Auto,*,Auto">
         <TextBlock Grid.Row="0" Text="{Binding ConnectionIntro}" Margin="0,0,0,12" FontSize="12.5"
@@ -234,6 +378,11 @@
             <!-- BasicFields only: colour, folder, read-only and MCP access are all real settings and all
                  noise on a first screen. They live in the Connection Manager. -->
             <ItemsControl ItemsSource="{Binding BasicFields}" ItemTemplate="{StaticResource FieldTemplate}" />
+            <!-- Closes the loop on the Security step at the moment the choice first has an effect. Under the
+                 whole field list rather than under the password field itself: the fields are one templated
+                 ItemsControl, and singling one row out would mean a second template for one sentence. -->
+            <TextBlock Text="{Binding $parent[Window].DataContext.ConnectionStoredHint}" FontSize="11"
+                       TextWrapping="Wrap" Foreground="{DynamicResource SETextFaintBrush}" />
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
               <Button Content="{Binding Loc[Test]}" Command="{Binding TestCommand}" />
               <TextBlock Text="{Binding TestResult}" VerticalAlignment="Center" TextWrapping="Wrap"
@@ -333,6 +482,13 @@
                      VerticalAlignment="Top" Margin="0,6,9,0" />
             <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneStore]}" FontSize="12.5" TextWrapping="Wrap" />
           </Grid>
+          <!-- Only for the file store: being surprised by a password prompt on day two is how someone
+               decides the app is broken. The vault needs no fourth bullet — nothing changes for them. -->
+          <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding UseFileStore}">
+            <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{DynamicResource SEStatusWaitingBrush}"
+                     VerticalAlignment="Top" Margin="0,6,9,0" />
+            <TextBlock Grid.Column="1" Text="{Binding Loc[FirstRunDoneMasterPw]}" FontSize="12.5" TextWrapping="Wrap" />
+          </Grid>
         </StackPanel>
       </StackPanel>
     </Panel>
@@ -343,6 +499,10 @@
       <TextBlock Grid.Column="0" Text="{Binding Loc[FirstRunShownOnce]}" VerticalAlignment="Center"
                  FontSize="11" IsVisible="{Binding IsWelcome}"
                  Foreground="{DynamicResource SETextFaintBrush}" />
+      <!-- Why Next is grey, said where the user is already looking (SE-292). -->
+      <TextBlock Grid.Column="1" Text="{Binding SecurityBlocker}" VerticalAlignment="Center"
+                 FontSize="11" IsVisible="{Binding IsSecurity}" TextTrimming="CharacterEllipsis"
+                 Margin="0,0,10,0" Foreground="{DynamicResource SETextFaintBrush}" />
       <Button Grid.Column="2" Classes="Subtle" Content="{Binding Loc[FirstRunBack]}"
               Command="{Binding BackCommand}" IsVisible="{Binding CanGoBack}" Margin="0,0,8,0" />
       <Button Grid.Column="3" Classes="Subtle" Content="{Binding Loc[FirstRunSkip]}"

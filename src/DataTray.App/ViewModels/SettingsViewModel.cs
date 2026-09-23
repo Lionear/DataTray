@@ -510,6 +510,27 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _queryLogMcp;
 
+    // ── Password storage (SE-292) ────────────────────────────────────────────────────────────────────
+
+    /// <summary>Which store secrets live in. Read-only here: changing it after the fact is a migration of
+    /// every saved secret (SE-292 point 4), so this page reports the choice rather than offering it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StorageStoreName), nameof(StorageStoreDescription))]
+    private bool _useFileSecretStore;
+
+    public string StorageStoreName =>
+        UseFileSecretStore
+            ? Loc["SecurityStorageFile"]
+            : Loc.Get("SecurityStorageVault", OsVaultName);
+
+    public string StorageStoreDescription =>
+        Loc[UseFileSecretStore ? "SecurityStorageFileDesc" : "SecurityStorageVaultDesc"];
+
+    private string OsVaultName => Loc[
+        OperatingSystem.IsMacOS() ? "SecurityVaultNameMac"
+        : OperatingSystem.IsWindows() ? "SecurityVaultNameWindows"
+        : "SecurityVaultNameLinux"];
+
     // ── Master password ──────────────────────────────────────────────────────────────────────────────
     [ObservableProperty]
     private bool _masterPasswordEnabled;
@@ -554,6 +575,14 @@ public partial class SettingsViewModel : ViewModelBase
     private async Task DisableMasterPasswordAsync()
     {
         MasterPasswordMessage = null;
+        // The file store has no plaintext mode to fall back to, so disabling would leave every saved secret
+        // unreadable. The button is hidden in that state; this is the guard for every other way in.
+        if (UseFileSecretStore)
+        {
+            MasterPasswordMessage = Loc["MasterPwLockedByFileStore"];
+            return;
+        }
+
         // Reuse the unlock dialog (single field) with no inline validator, so the service verifies it.
         if (PromptMasterPassword is null || await PromptMasterPassword(Views.MasterPasswordMode.Unlock) is not { Current: { } pw })
         {
@@ -1045,6 +1074,7 @@ public partial class SettingsViewModel : ViewModelBase
         QueryLogEnabled = settings.QueryLogEnabled;
         QueryLogApp = settings.QueryLogApp;
         QueryLogMcp = settings.QueryLogMcp;
+        UseFileSecretStore = settings.UseFileSecretStore;
         MasterPasswordEnabled = settings.MasterPasswordEnabled;
         MasterPasswordLockIndex = Math.Max(0, Array.IndexOf(LockMinuteOptions, settings.MasterPasswordLockMinutes));
         MasterPasswordMessage = null;

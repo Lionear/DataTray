@@ -17,8 +17,16 @@ public static class AppPaths
     /// <summary>The folder used before the DataTray rename (SE-202). Read only by the migration.</summary>
     private const string LegacyProduct = "SqlExplorer";
 
+    /// <summary>Overrides the data root for a process that must not touch the user's profile — the
+    /// screenshot renderer, which claims to sandbox its stores and on macOS could not: ApplicationData is
+    /// resolved there from the account's real home directory, so neither XDG_CONFIG_HOME nor HOME moves it
+    /// and a capture walked the onboarding wizard straight into the live settings.json.</summary>
+    private const string OverrideVariable = "DATATRAY_APPDATA";
+
     private static string AppData =>
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        Environment.GetEnvironmentVariable(OverrideVariable) is { Length: > 0 } root
+            ? root
+            : Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
     /// <summary>Writable per-user root: settings, connections, history, plugins and plugin data.</summary>
     public static string Root => Path.Combine(AppData, Vendor, Product);

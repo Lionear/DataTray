@@ -1948,7 +1948,7 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
     <value>Elke database-engine is een plug-in.</value>
   </data>
   <data name="FirstRunIntro" xml:space="preserve">
-    <value>Twee stappen: kies een engine, voeg je eerste connectie toe. Alles hier kun je later aanpassen.</value>
+    <value>Drie stappen: kies een engine, kies waar je wachtwoorden bewaard worden, en voeg je eerste connectie toe. Alles hier kun je later aanpassen.</value>
   </data>
   <data name="FirstRunShownOnce" xml:space="preserve">
     <value>Wordt één keer getoond, bij de eerste start.</value>
@@ -2021,6 +2021,117 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   </data>
   <data name="FirstRunDoneStore" xml:space="preserve">
     <value>Meer engines en gereedschap vind je onder Extra › Plug-instore — diagrammen, back-ups, schemavergelijking.</value>
+  </data>
+  <data name="FirstRunStepSecurity" xml:space="preserve">
+    <value>Beveiliging</value>
+  </data>
+  <data name="FirstRunSecurityTitle" xml:space="preserve">
+    <value>Waar moet DataTray je wachtwoorden bewaren?</value>
+  </data>
+  <data name="FirstRunSecurityIntro" xml:space="preserve">
+    <value>Connectiewachtwoorden worden altijd versleuteld opgeslagen, nooit als platte tekst. Kies wie de sleutel houdt. Je kunt dit later aanpassen onder Voorkeuren ▸ Beveiliging.</value>
+  </data>
+  <data name="FirstRunVaultOption" xml:space="preserve">
+    <value>Systeemkluis</value>
+  </data>
+  <data name="FirstRunVaultRecommended" xml:space="preserve">
+    <value>Aanbevolen</value>
+  </data>
+  <data name="FirstRunVaultMac" xml:space="preserve">
+    <value>macOS Keychain · ontgrendeld door je macOS-login</value>
+  </data>
+  <data name="FirstRunVaultWindows" xml:space="preserve">
+    <value>Windows Credential Manager · ontgrendeld door je Windows-aanmelding</value>
+  </data>
+  <data name="FirstRunVaultLinux" xml:space="preserve">
+    <value>Linux Secret Service · ontgrendeld door GNOME Keyring of KWallet</value>
+  </data>
+  <data name="FirstRunVaultUnavailable" xml:space="preserve">
+    <value>Op deze machine draait geen Secret Service. DataTray heeft GNOME Keyring, KWallet of een andere org.freedesktop.secrets-provider nodig.</value>
+  </data>
+  <data name="FirstRunVaultPoint1" xml:space="preserve">
+    <value>Het besturingssysteem bewaart je wachtwoorden en geeft ze terug zodra je ingelogd bent. Niets extra's om te onthouden.</value>
+  </data>
+  <data name="FirstRunVaultPoint2" xml:space="preserve">
+    <value>Alles wat onder jouw account draait kan ze bij het OS opvragen — hetzelfde vertrouwensmodel als de opgeslagen wachtwoorden van je browser.</value>
+  </data>
+  <data name="FirstRunVaultPoint3" xml:space="preserve">
+    <value>Gebonden aan deze machine en dit OS-account. Reset je de keychain of raak je het account kwijt, dan gaan de opgeslagen wachtwoorden mee; je connecties blijven, hun wachtwoorden niet.</value>
+  </data>
+  <data name="FirstRunFileOption" xml:space="preserve">
+    <value>Versleuteld bestand</value>
+  </data>
+  <data name="FirstRunFileRequiresPw" xml:space="preserve">
+    <value>Master password verplicht</value>
+  </data>
+  <data name="FirstRunFileSub" xml:space="preserve">
+    <value>Één AES-256-GCM-bestand in je DataTray-profiel</value>
+  </data>
+  <data name="FirstRunFilePoint1" xml:space="preserve">
+    <value>DataTray versleutelt zelf, met een master password dat jij kiest. Het besturingssysteem krijgt je wachtwoorden nooit te zien.</value>
+  </data>
+  <data name="FirstRunFilePoint2" xml:space="preserve">
+    <value>Werkt ook waar helemaal geen keychain is — een headless of dichtgetimmerde Linux-bak, een gedeelde buildmachine — en verhuist mee met je profielmap.</value>
+  </data>
+  <data name="FirstRunFilePoint3" xml:space="preserve">
+    <value>Je wordt één keer per sessie om het master password gevraagd, en opnieuw na de inactiviteitsvergrendeling.</value>
+  </data>
+  <data name="FirstRunSecurityAcknowledge" xml:space="preserve">
+    <value>Ik begrijp dat een vergeten master password niet te herstellen is.</value>
+  </data>
+  <data name="FirstRunSecurityNeedsPw" xml:space="preserve">
+    <value>Stel een master password in en bevestig het om verder te gaan.</value>
+  </data>
+  <data name="FirstRunSecurityKeepVault" xml:space="preserve">
+    <value>Twijfel je? Houd de systeemkluis aan — je kunt later wisselen zonder iets te verliezen.</value>
+  </data>
+  <data name="FirstRunPwWeak" xml:space="preserve">
+    <value>Zwak</value>
+  </data>
+  <data name="FirstRunPwFair" xml:space="preserve">
+    <value>Redelijk</value>
+  </data>
+  <data name="FirstRunPwStrong" xml:space="preserve">
+    <value>Sterk</value>
+  </data>
+  <data name="FirstRunConnectionStoredVault" xml:space="preserve">
+    <value>Wordt opgeslagen in je systeemkluis.</value>
+  </data>
+  <data name="FirstRunConnectionStoredFile" xml:space="preserve">
+    <value>Wordt opgeslagen in het versleutelde bestand.</value>
+  </data>
+  <data name="FirstRunDoneMasterPw" xml:space="preserve">
+    <value>Je wachtwoorden staan in het versleutelde bestand. DataTray vraagt bij elke start één keer om je master password.</value>
+  </data>
+  <data name="SecurityStorageSection" xml:space="preserve">
+    <value>Wachtwoordopslag</value>
+  </data>
+  <data name="SecurityMasterPwSection" xml:space="preserve">
+    <value>Master password</value>
+  </data>
+  <data name="SecurityStorageVault" xml:space="preserve">
+    <value>Systeemkluis ({0})</value>
+  </data>
+  <data name="SecurityStorageFile" xml:space="preserve">
+    <value>Versleuteld bestand (DataTray-profiel)</value>
+  </data>
+  <data name="SecurityStorageVaultDesc" xml:space="preserve">
+    <value>Je connectiewachtwoorden worden door het besturingssysteem bewaard.</value>
+  </data>
+  <data name="SecurityStorageFileDesc" xml:space="preserve">
+    <value>DataTray versleutelt je connectiewachtwoorden zelf, met jouw master password.</value>
+  </data>
+  <data name="SecurityVaultNameMac" xml:space="preserve">
+    <value>macOS Keychain</value>
+  </data>
+  <data name="SecurityVaultNameWindows" xml:space="preserve">
+    <value>Windows Credential Manager</value>
+  </data>
+  <data name="SecurityVaultNameLinux" xml:space="preserve">
+    <value>Linux Secret Service</value>
+  </data>
+  <data name="MasterPwLockedByFileStore" xml:space="preserve">
+    <value>Het versleutelde bestand kan niet zonder master password, dus het kan hier niet uitgezet worden. Wissel eerst terug naar de systeemkluis.</value>
   </data>
   <data name="ImportFetchPasswords" xml:space="preserve">
     <value>Ook {0} wachtwoorden uit de systeemsleutelhanger halen…</value>
