@@ -125,6 +125,7 @@
         <StackPanel x:Name="TitleBarLeft" Orientation="Horizontal" HorizontalAlignment="Left"
                     VerticalAlignment="Stretch" Spacing="8" Margin="9,0,0,0">
           <Menu x:Name="AppMenu" VerticalAlignment="Center"
+                DoubleTapped="OnDecorationsElementDoubleTapped"
                 chrome:WindowDecorationProperties.ElementRole="DecorationsElement">
       <MenuItem Header="{Binding Loc[MenuFile]}">
         <MenuItem Header="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
@@ -201,6 +202,7 @@
 
         <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" HorizontalAlignment="Right"
                     VerticalAlignment="Stretch"
+                    DoubleTapped="OnDecorationsElementDoubleTapped"
                     chrome:WindowDecorationProperties.ElementRole="DecorationsElement">
           <Button Classes="caption" Click="OnMinimiseClick" ToolTip.Tip="{Binding Loc[WindowMinimise]}">
             <Path Width="11" Height="11" Stretch="None" Data="M0,5.5 H11"

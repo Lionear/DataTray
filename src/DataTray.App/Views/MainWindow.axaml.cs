@@ -3,11 +3,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Chrome;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using DataTray.App.ViewModels;
 using DataTray.Core.Settings;
@@ -56,6 +56,16 @@ public partial class MainWindow : Window
             // places them and Avalonia does not move them — an empty unified toolbar is what makes AppKit
             // centre them in the taller bar. Once the window exists: it needs the NSWindow.
             Opened += (_, _) => MacTitleBar.UseUnifiedTitleBar(this);
+        }
+
+        // On Linux a press on the TitleBar role never reaches the app: Avalonia's X11 backend hands it straight
+        // to the window manager as a move, so the second click of a double-click is never seen and
+        // OnTitleBarDoubleTapped cannot run (SE-295). There the bar starts the move itself on the first click,
+        // with the same window-manager request, and lets the second one through as a double-tap.
+        if (OperatingSystem.IsLinux())
+        {
+            WindowDecorationProperties.SetElementRole(TitleBar, WindowDecorationsElementRole.None);
+            TitleBar.PointerPressed += OnTitleBarPointerPressed;
         }
 
         // Only the focused window's title bar is at full strength — with a title bar the app draws itself,
@@ -124,6 +134,16 @@ public partial class MainWindow : Window
     // them to the platform (the CloseButton/MinimizeButton roles) is what makes one window behave three
     // different ways.
 
+    // Linux only, see the constructor. The menu and caption buttons handle their own presses, so this never
+    // fires for them and a click there does not start a drag.
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.ClickCount == 1 && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            BeginMoveDrag(e);
+        }
+    }
+
     private void OnMinimiseClick(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void OnMaximiseClick(object? sender, RoutedEventArgs e) =>
@@ -137,14 +157,6 @@ public partial class MainWindow : Window
     // undo the platform's own and read as a double-click that does nothing.
     private void OnTitleBarDoubleTapped(object? sender, TappedEventArgs e)
     {
-        // The caption buttons live inside the title bar: two quick clicks on Minimise would otherwise
-        // minimise and then maximise the window on the way out.
-        if (e.Source is Visual source
-            && (ReferenceEquals(source, CaptionButtons) || source.GetVisualAncestors().Contains(CaptionButtons)))
-        {
-            return;
-        }
-
         var atTap = WindowState;
         Dispatcher.UIThread.Post(
             () =>
@@ -156,6 +168,12 @@ public partial class MainWindow : Window
             },
             DispatcherPriority.Background);
     }
+
+    // The menu and the caption buttons live inside the title bar, so their double-clicks bubble up to it:
+    // opening and closing File quickly, or two quick clicks on Minimise, would toggle maximise on the way.
+    // Stopping it at the element rather than checking the source in the title bar's handler also covers
+    // submenu items — a popup is its own visual tree and only reaches the bar through its logical owner.
+    private void OnDecorationsElementDoubleTapped(object? sender, TappedEventArgs e) => e.Handled = true;
 
     private void SyncMaximiseButton()
     {
