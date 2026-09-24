@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Chrome;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -55,6 +56,16 @@ public partial class MainWindow : Window
             // places them and Avalonia does not move them — an empty unified toolbar is what makes AppKit
             // centre them in the taller bar. Once the window exists: it needs the NSWindow.
             Opened += (_, _) => MacTitleBar.UseUnifiedTitleBar(this);
+        }
+
+        // On Linux a press on the TitleBar role never reaches the app: Avalonia's X11 backend hands it straight
+        // to the window manager as a move, so the second click of a double-click is never seen and
+        // OnTitleBarDoubleTapped cannot run (SE-295). There the bar starts the move itself on the first click,
+        // with the same window-manager request, and lets the second one through as a double-tap.
+        if (OperatingSystem.IsLinux())
+        {
+            WindowDecorationProperties.SetElementRole(TitleBar, WindowDecorationsElementRole.None);
+            TitleBar.PointerPressed += OnTitleBarPointerPressed;
         }
 
         // Only the focused window's title bar is at full strength — with a title bar the app draws itself,
@@ -122,6 +133,16 @@ public partial class MainWindow : Window
     // Dragging is the platform's, through the title bar's ElementRole. These are ours, because handing
     // them to the platform (the CloseButton/MinimizeButton roles) is what makes one window behave three
     // different ways.
+
+    // Linux only, see the constructor. The menu and caption buttons handle their own presses, so this never
+    // fires for them and a click there does not start a drag.
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.ClickCount == 1 && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            BeginMoveDrag(e);
+        }
+    }
 
     private void OnMinimiseClick(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
