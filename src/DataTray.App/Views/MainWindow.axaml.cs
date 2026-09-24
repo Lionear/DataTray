@@ -7,7 +7,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using DataTray.App.ViewModels;
 using DataTray.Core.Settings;
@@ -137,14 +136,6 @@ public partial class MainWindow : Window
     // undo the platform's own and read as a double-click that does nothing.
     private void OnTitleBarDoubleTapped(object? sender, TappedEventArgs e)
     {
-        // The caption buttons live inside the title bar: two quick clicks on Minimise would otherwise
-        // minimise and then maximise the window on the way out.
-        if (e.Source is Visual source
-            && (ReferenceEquals(source, CaptionButtons) || source.GetVisualAncestors().Contains(CaptionButtons)))
-        {
-            return;
-        }
-
         var atTap = WindowState;
         Dispatcher.UIThread.Post(
             () =>
@@ -156,6 +147,12 @@ public partial class MainWindow : Window
             },
             DispatcherPriority.Background);
     }
+
+    // The menu and the caption buttons live inside the title bar, so their double-clicks bubble up to it:
+    // opening and closing File quickly, or two quick clicks on Minimise, would toggle maximise on the way.
+    // Stopping it at the element rather than checking the source in the title bar's handler also covers
+    // submenu items — a popup is its own visual tree and only reaches the bar through its logical owner.
+    private void OnDecorationsElementDoubleTapped(object? sender, TappedEventArgs e) => e.Handled = true;
 
     private void SyncMaximiseButton()
     {
