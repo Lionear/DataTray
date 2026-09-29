@@ -347,6 +347,13 @@
                         OnContent="{Binding Loc[SingleBottomPanel]}" OffContent="{Binding Loc[SingleBottomPanel]}" />
           <TextBlock Text="{Binding Loc[SingleBottomPanelHint]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" Margin="24,0,0,0" />
+
+          <TextBlock Classes="SectionHead"
+                     Text="{Binding Loc[ScrollbarsSectionTitle], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='3. {0}'}" />
+          <ToggleSwitch IsChecked="{Binding OverlayScrollbars}"
+                        OnContent="{Binding Loc[OverlayScrollbars]}" OffContent="{Binding Loc[OverlayScrollbars]}" />
+          <TextBlock Text="{Binding Loc[OverlayScrollbarsHint]}" FontSize="11" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextFaintBrush}" Margin="24,0,0,0" />
         </StackPanel>
 
         <!-- Editor -->

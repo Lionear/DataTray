@@ -85,6 +85,7 @@ public partial class App : Application
         var settingsStore = services.GetRequiredService<IAppSettingsStore>();
         var settings = settingsStore.Load();
         ThemeApplier.Apply(settings.Theme);
+        ThemeApplier.ApplyScrollbars(settings.OverlayScrollbars);
         if (settings.Language is { Length: > 0 } language)
         {
             services.GetRequiredService<ILocalizer>().SetCulture(CultureInfo.GetCultureInfo(language));

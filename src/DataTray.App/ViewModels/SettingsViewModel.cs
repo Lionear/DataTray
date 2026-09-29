@@ -500,6 +500,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _singleBottomPanel;
 
+    /// <summary>Auto-hiding overlay scrollbars instead of always-visible ones (SE-296).</summary>
+    [ObservableProperty]
+    private bool _overlayScrollbars;
+
     // ── Query log ────────────────────────────────────────────────────────────────────────────────────
     [ObservableProperty]
     private bool _queryLogEnabled;
@@ -851,7 +855,7 @@ public partial class SettingsViewModel : ViewModelBase
                 "language taal startup opstarten restore tabs herstel tray exit afsluiten system databases updates channel kanaal interval",
                 workspace),
             new SettingsCategory("Appearance", localizer["SettingsAppearance"], NodeIcons.SettingsAppearance,
-                "theme thema dark donker light licht panel paneel bottom onder",
+                "theme thema dark donker light licht panel paneel bottom onder scrollbar scrollbalk overlay",
                 workspace),
             new SettingsCategory("Toolbar", localizer["SettingsToolbar"], NodeIcons.SettingsToolbar,
                 "toolbar werkbalk buttons knoppen order volgorde hide verberg overflow",
@@ -1068,6 +1072,7 @@ public partial class SettingsViewModel : ViewModelBase
         ShowSystemDatabases = settings.ShowSystemDatabases;
         KeepFavoritesInTheirFolder = settings.KeepFavoritesInTheirFolder;
         SingleBottomPanel = settings.SingleBottomPanel;
+        OverlayScrollbars = settings.OverlayScrollbars;
         ConfirmOnExit = settings.ConfirmOnExit;
         CloseToTray = settings.CloseToTray;
         AllowMultipleInstances = settings.AllowMultipleInstances;
@@ -1274,6 +1279,7 @@ public partial class SettingsViewModel : ViewModelBase
         ShowSystemDatabases = defaults.ShowSystemDatabases;
         KeepFavoritesInTheirFolder = defaults.KeepFavoritesInTheirFolder;
         SingleBottomPanel = defaults.SingleBottomPanel;
+        OverlayScrollbars = defaults.OverlayScrollbars;
         ConfirmOnExit = defaults.ConfirmOnExit;
         CloseToTray = defaults.CloseToTray;
         AllowMultipleInstances = defaults.AllowMultipleInstances;
@@ -1351,6 +1357,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.ShowSystemDatabases = ShowSystemDatabases;
         settings.KeepFavoritesInTheirFolder = KeepFavoritesInTheirFolder;
         settings.SingleBottomPanel = SingleBottomPanel;
+        settings.OverlayScrollbars = OverlayScrollbars;
         settings.ConfirmOnExit = ConfirmOnExit;
         settings.CloseToTray = CloseToTray;
         settings.AllowMultipleInstances = AllowMultipleInstances;
@@ -1387,6 +1394,7 @@ public partial class SettingsViewModel : ViewModelBase
         _toolbarLayout.Apply([.. ToolbarItems.Select(i => new ToolbarLayoutItem(i.Id, i.IsShown))]);
 
         ThemeApplier.Apply(Theme);
+        ThemeApplier.ApplyScrollbars(OverlayScrollbars);
         if (Language is { Length: > 0 } language)
         {
             Loc.SetCulture(CultureInfo.GetCultureInfo(language));

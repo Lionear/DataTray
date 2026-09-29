@@ -26,6 +26,20 @@ public static class ThemeApplier
     }
 
     /// <summary>
+    /// Overlay (auto-hiding) or always-visible scrollbars (SE-296); live, like the theme. Overrides the
+    /// <c>SEScrollBarAutoHide</c> default from Theme.axaml, which every scrollbar style reads as a
+    /// DynamicResource. Adding/removing a Style instead doesn't work: a removed style leaves the
+    /// ScrollViewers it touched on its value.
+    /// </summary>
+    public static void ApplyScrollbars(bool overlay)
+    {
+        if (Application.Current is { } app)
+        {
+            app.Resources["SEScrollBarAutoHide"] = overlay;
+        }
+    }
+
+    /// <summary>
     /// Forces every already-realized control in the app to re-evaluate its bindings. A plain
     /// <c>INotifyPropertyChanged.PropertyChanged(this, new(null))</c> (what <c>ILocalizer.SetCulture</c>
     /// raises) is the correct "everything on this object changed" signal, but empirically it does not,
