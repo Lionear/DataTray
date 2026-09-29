@@ -63,6 +63,10 @@ public sealed class AppSettings
     /// Right-edge windows (History) are never affected.</summary>
     public bool SingleBottomPanel { get; set; } = true;
 
+    /// <summary>Fluent's overlay scrollbars: a thin line that expands on hover (SE-296). Off by default, so
+    /// every scrollbar is drawn in full and can be grabbed without hovering it first.</summary>
+    public bool OverlayScrollbars { get; set; }
+
     /// <summary>Two-letter culture code (e.g. "nl", "en"); null = follow the OS/thread default.</summary>
     public string? Language { get; set; }
 

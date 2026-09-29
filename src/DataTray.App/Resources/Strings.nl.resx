@@ -693,6 +693,15 @@
   <data name="SingleBottomPanelHint" xml:space="preserve">
     <value>Een onderpaneel openen (Output, Containers…) sluit de andere. Zet uit om er meerdere tegelijk open te houden.</value>
   </data>
+  <data name="ScrollbarsSectionTitle" xml:space="preserve">
+    <value>Scrollbalken</value>
+  </data>
+  <data name="OverlayScrollbars" xml:space="preserve">
+    <value>Overlay-scrollbalken</value>
+  </data>
+  <data name="OverlayScrollbarsHint" xml:space="preserve">
+    <value>Scrollbalken verschijnen als een dun lijntje dat breder wordt als je eroverheen beweegt. Uit: elke scrollbalk is volledig zichtbaar en direct te slepen.</value>
+  </data>
   <data name="EditorFontSize" xml:space="preserve">
     <value>Lettergrootte</value>
   </data>

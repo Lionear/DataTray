@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
   <!-- Lionear theme: flat, dense, IDE-grade (DataGrip-ish). Tokens live in per-variant
        ThemeDictionaries and are consumed via DynamicResource, so the app follows the OS
@@ -97,6 +98,9 @@
       <CornerRadius x:Key="SEPanelRadius">10</CornerRadius>
       <Thickness x:Key="SEHairlineThickness">1</Thickness>
       <FontFamily x:Key="SEMonoFont">Cascadia Code, Consolas, Menlo, monospace</FontFamily>
+      <!-- Scrollbars always fully shown (SE-296); ThemeApplier.ApplyScrollbars overrides this app-wide when
+           the "Overlay scrollbars" preference is on. -->
+      <sys:Boolean x:Key="SEScrollBarAutoHide">False</sys:Boolean>
     </ResourceDictionary>
   </Styles.Resources>
 
@@ -302,10 +306,15 @@
     <Setter Property="IsVisible" Value="False" />
   </Style>
 
-  <!-- Scrollbars always fully shown (SE-296): Fluent's auto-hide keeps them a thin overlay until hovered,
-       so a drag first needs a hover to expand the bar. -->
+  <!-- Scrollbars always fully shown by default (SE-296): Fluent's auto-hide keeps them a thin overlay until
+       hovered, so a drag first needs a hover to expand the bar. Driven by SEScrollBarAutoHide. -->
   <Style Selector="ScrollViewer">
-    <Setter Property="AllowAutoHide" Value="False" />
+    <Setter Property="AllowAutoHide" Value="{DynamicResource SEScrollBarAutoHide}" />
+  </Style>
+  <!-- These pass the attached value on to the scrollbars in their own template (DataGrid draws its own, the
+       rest template-bind their inner ScrollViewer), and a template binding beats the style above. -->
+  <Style Selector=":is(ItemsControl), TextBox, DataGrid">
+    <Setter Property="ScrollViewer.AllowAutoHide" Value="{DynamicResource SEScrollBarAutoHide}" />
   </Style>
 
   <!-- DataGrid: horizontal-only rules, compact rows, themed header with a bottom hairline -->
@@ -316,8 +325,6 @@
     <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource SEHairlineBrush}" />
     <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource SEHairlineBrush}" />
     <Setter Property="RowHeight" Value="26" />
-    <!-- The grid draws its own scrollbars, not through a ScrollViewer: they read this attached value (SE-296). -->
-    <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
   </Style>
   <Style Selector="DataGridColumnHeader">
     <Setter Property="Background" Value="{DynamicResource SEToolbarBgBrush}" />
