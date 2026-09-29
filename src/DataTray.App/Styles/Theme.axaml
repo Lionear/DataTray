@@ -302,6 +302,12 @@
     <Setter Property="IsVisible" Value="False" />
   </Style>
 
+  <!-- Scrollbars always fully shown (SE-296): Fluent's auto-hide keeps them a thin overlay until hovered,
+       so a drag first needs a hover to expand the bar. -->
+  <Style Selector="ScrollViewer">
+    <Setter Property="AllowAutoHide" Value="False" />
+  </Style>
+
   <!-- DataGrid: horizontal-only rules, compact rows, themed header with a bottom hairline -->
   <Style Selector="DataGrid">
     <Setter Property="Background" Value="{DynamicResource SEWindowBgBrush}" />
@@ -310,6 +316,8 @@
     <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource SEHairlineBrush}" />
     <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource SEHairlineBrush}" />
     <Setter Property="RowHeight" Value="26" />
+    <!-- The grid draws its own scrollbars, not through a ScrollViewer: they read this attached value (SE-296). -->
+    <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
   </Style>
   <Style Selector="DataGridColumnHeader">
     <Setter Property="Background" Value="{DynamicResource SEToolbarBgBrush}" />
