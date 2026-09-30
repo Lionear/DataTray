@@ -91,5 +91,8 @@
   "index.progress.complete": "Done: {0}.",
   "index.error.noTable": "This action needs the table the index belongs to, and the host did not supply it. A host older than tool API 7 cannot.",
   "index.error.noIndex": "Select an index first.",
-  "index.error.constraint": "{0} backs a primary key or unique constraint and cannot be dropped as an index. Drop the constraint instead (ALTER TABLE … DROP CONSTRAINT), which drops this index with it."
+  "index.error.constraint": "{0} backs a primary key or unique constraint and cannot be dropped as an index. Drop the constraint instead (ALTER TABLE … DROP CONSTRAINT), which drops this index with it.",
+
+  "agfailover.title": "Fail Over…",
+  "agfailover.dialogTitle": "Fail Over Availability Group"
 }

@@ -46,6 +46,16 @@ public class McpSqlClassifierTests
     [InlineData("PRAGMA main.user_version = 999")]
     [InlineData("PRAGMA writable_schema = ON")]
     [InlineData("PRAGMA table_info = 1")]                        // allow-listed name, but an assignment
+    // SE-247: every statement the availability group failover tool can generate. The tool itself is not on the
+    // MCP surface; this pins that the raw SQL cannot reach a real server over run_query either.
+    [InlineData("ALTER AVAILABILITY GROUP [ag1] FAILOVER;")]
+    [InlineData("ALTER AVAILABILITY GROUP [ag1] FORCE_FAILOVER_ALLOW_DATA_LOSS;")]
+    [InlineData("ALTER AVAILABILITY GROUP [ag1] OFFLINE;")]
+    [InlineData("ALTER AVAILABILITY GROUP [ag1] SET (ROLE = SECONDARY);")]
+    [InlineData("ALTER AVAILABILITY GROUP [ag1] SET (REQUIRED_SYNCHRONIZED_SECONDARIES_TO_COMMIT = 1);")]
+    [InlineData("ALTER AVAILABILITY GROUP [ag1] MODIFY REPLICA ON N'n2' WITH (AVAILABILITY_MODE = SYNCHRONOUS_COMMIT);")]
+    [InlineData("ALTER AVAILABILITY GROUP [ag1] REMOVE LISTENER N'l1';")]
+    [InlineData("ALTER DATABASE [AgDemo] SET HADR RESUME;")]
     public void Ddl_is_allowed_only_in_Sandbox(string sql)
     {
         Assert.False(McpSqlClassifier.IsAllowed(sql, AiAccessMode.ReadOnly));
