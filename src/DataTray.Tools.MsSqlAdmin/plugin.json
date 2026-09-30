@@ -4,7 +4,7 @@
   "type": "tool",
   "name": "SQL Server Admin Dialogs",
   "version": "0.3.0",
-  "hostApiVersion": 7,
+  "hostApiVersion": 8,
   "entryAssembly": "DataTray.Tools.MsSqlAdmin.dll",
   "localization": "Lang/strings"
 }

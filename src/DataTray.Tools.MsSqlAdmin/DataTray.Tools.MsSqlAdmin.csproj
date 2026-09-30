@@ -21,6 +21,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- SE-284's Always On derivations (behind-by), source-linked rather than referenced: the MSSQL provider
+         loads in its own ALC and this plugin reaches SQL Server only through the host's IDbProvider, so a
+         project reference would drag SqlClient in. Same approach as plugins/Shared.Schema. -->
+    <Compile Include="..\DataTray.Providers.MsSql\AvailabilityGroupStatus.cs" Link="Shared\AvailabilityGroupStatus.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- Localization embedded into the main DLL. WithCulture=false stops MSBuild routing the ".nl." file
          to a satellite assembly; LogicalName fixes the resource name the host's PluginLocalizer expects. -->

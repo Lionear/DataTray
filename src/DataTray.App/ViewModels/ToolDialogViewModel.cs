@@ -503,6 +503,9 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     // DatabasePicker fields do.
     IReadOnlyList<ToolConnectionInfo> IToolUiContext.ListConnections() => ((IToolHost)this).ListConnections();
 
+    ToolConnection? IToolUiContext.OpenConnection(string connectionId, string? database) =>
+        ((IToolHost)this).OpenConnection(connectionId, database);
+
     Task<IReadOnlyList<string>> IToolUiContext.ListDatabasesAsync(string connectionId, CancellationToken ct) =>
         ((IToolHost)this).ListDatabasesAsync(connectionId, ct);
 

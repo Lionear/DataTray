@@ -118,6 +118,10 @@ public static class ToolHostApi
     //                  default interface members — an older host simply returns empty and a view that reads
     //                  it says what is missing — so this is a fold-in by the SE-253 test ("does it add
     //                  types?"), not a v9.
+    //   also in v8 (2026-09-30): IToolUiContext.OpenConnection(id, database), mirroring IToolHost's (SE-247).
+    //                  The availability group failover view reads the group's state from its primary before
+    //                  the run, and the primary is often not the connection the tool was launched on. A
+    //                  default interface member returning null — no new types — so a fold-in by the same test.
     public const int Version = 8;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3

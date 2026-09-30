@@ -91,5 +91,8 @@
   "index.progress.complete": "Klaar: {0}.",
   "index.error.noTable": "Deze actie heeft de tabel van de index nodig en de host gaf die niet mee. Een host ouder dan tool-API 7 kan dat niet.",
   "index.error.noIndex": "Selecteer eerst een index.",
-  "index.error.constraint": "{0} hoort bij een primaire sleutel of een unique-constraint en kan niet als index verwijderd worden. Verwijder de constraint (ALTER TABLE … DROP CONSTRAINT); die neemt deze index mee."
+  "index.error.constraint": "{0} hoort bij een primaire sleutel of een unique-constraint en kan niet als index verwijderd worden. Verwijder de constraint (ALTER TABLE … DROP CONSTRAINT); die neemt deze index mee.",
+
+  "agfailover.title": "Failover…",
+  "agfailover.dialogTitle": "Availability group failoveren"
 }

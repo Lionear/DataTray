@@ -64,6 +64,11 @@ public interface IToolUiContext
     Task<IReadOnlyList<string>> ListDatabasesAsync(string connectionId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<string>>([]);
 
+    /// <summary>Open one of those connections, the same way <see cref="IToolHost.OpenConnection"/> does for the
+    /// running tool, so a view can show live data from a second instance before the run — the availability
+    /// group failover reads the group's state from its primary. Null default for an older host.</summary>
+    ToolConnection? OpenConnection(string connectionId, string? database = null) => null;
+
     // ── Lifecycle-owning views (IToolDialogLifecycle) ─────────────────────────────────────────────────
 
     /// <summary>The plugin's own localizer, so a custom view can translate its labels the same way the
