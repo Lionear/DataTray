@@ -58,6 +58,56 @@ internal static class AvailabilityGroupQueries
         WHERE ag.name = {Lit(group)}
         """;
 
+    /// <summary>One row per instance (the LEFT JOINs keep it at one when there is no endpoint): identity,
+    /// version, edition, whether Always On is on, the login's rights, the WSFC it is a node of, and its
+    /// database mirroring endpoint — the facts the new-group pre-flight decides on.</summary>
+    public const string Instance =
+        """
+        SELECT CAST(SERVERPROPERTY('ServerName') AS nvarchar(256)),
+               CAST(SERVERPROPERTY('ProductMajorVersion') AS int),
+               CAST(SERVERPROPERTY('Collation') AS nvarchar(128)),
+               CAST(SERVERPROPERTY('EngineEdition') AS int),
+               CAST(ISNULL(SERVERPROPERTY('IsHadrEnabled'), 0) AS int),
+               HAS_PERMS_BY_NAME(NULL, NULL, 'CONTROL SERVER'),
+               (SELECT TOP 1 NULLIF(cluster_name, '') FROM sys.dm_hadr_cluster),
+               e.name, t.port, e.state_desc, e.connection_auth_desc
+        FROM (SELECT 1 AS one) x
+        LEFT JOIN sys.database_mirroring_endpoints e ON 1 = 1
+        LEFT JOIN sys.tcp_endpoints t ON t.endpoint_id = e.endpoint_id
+        """;
+
+    public const string DatabaseNames = "SELECT name FROM sys.databases";
+
+    /// <summary>The primary's user databases with every property that decides whether one can join.</summary>
+    public const string CandidateDatabases =
+        """
+        SELECT d.name, d.state_desc, d.recovery_model_desc,
+               CASE WHEN d.group_database_id IS NULL THEN 0 ELSE 1 END,
+               d.is_auto_close_on, d.user_access_desc, d.is_read_only,
+               CASE WHEN EXISTS (SELECT 1 FROM msdb.dbo.backupset b WHERE b.database_name = d.name AND b.type = 'D') THEN 1 ELSE 0 END,
+               CASE WHEN m.mirroring_guid IS NULL THEN 0 ELSE 1 END
+        FROM sys.databases d
+        LEFT JOIN sys.database_mirroring m ON m.database_id = d.database_id
+        WHERE d.database_id > 4
+        ORDER BY d.name
+        """;
+
+    public static InstanceFacts ParseInstance(object?[] row, IReadOnlyList<object?[]> databaseNames) => new(
+        Req(row[0]),
+        Convert.ToInt32(row[1]),
+        Req(row[2]),
+        Convert.ToInt32(row[3]),
+        Convert.ToInt32(row[4]) == 1,
+        Convert.ToInt32(row[5] ?? 0) == 1,
+        Str(row[6]),
+        Str(row[7]) is { } endpoint
+            ? new MirroringEndpoint(endpoint, row[8] is null or DBNull ? 0 : Convert.ToInt32(row[8]), Str(row[9])?.ToUpperInvariant() ?? "", Str(row[10]) ?? "")
+            : null,
+        databaseNames.Select(r => Req(r[0])).ToList());
+
+    public static DatabaseFacts ParseDatabase(object?[] r) => new(
+        Req(r[0]), Req(r[1]), Req(r[2]), Convert.ToInt32(r[3]) == 1, Bool(r[4]) == true, Req(r[5]), Bool(r[6]) == true, Convert.ToInt32(r[7]) == 1, Convert.ToInt32(r[8]) == 1);
+
     /// <summary>The instance's own name as a replica name has to match it — the check that a saved
     /// connection really points at the replica it was picked for.</summary>
     public const string ServerName = "SELECT CAST(SERVERPROPERTY('ServerName') AS nvarchar(256))";

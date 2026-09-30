@@ -1,4 +1,3 @@
-using System.Text;
 using DataTray.Providers.MsSql;
 
 namespace DataTray.Tools.MsSqlAdmin;
@@ -45,8 +44,10 @@ internal sealed record AgTopology(
 /// <summary>One statement in a plan, and the replica whose instance runs it. A wait step
 /// (<see cref="IsWait"/>) is a query polled until it returns 0, and aborts the plan if it never does. A
 /// <see cref="Retries"/> step is re-run for a short while when it fails, for a statement the instance only
-/// accepts once it has caught up with the step before it.</summary>
-internal sealed record AgStep(string Replica, string Sql, string Purpose, bool IsWait = false, bool Retries = false);
+/// accepts once it has caught up with the step before it. A <see cref="CaptureAs"/> step is a query whose first
+/// value later steps use: its value replaces <c>$(name)</c> in their SQL at run time — a certificate read from
+/// one instance and created on another.</summary>
+internal sealed record AgStep(string Replica, string Sql, string Purpose, bool IsWait = false, bool Retries = false, string? CaptureAs = null);
 
 internal sealed record FailoverPlan(
     FailoverKind Kind,
@@ -66,19 +67,7 @@ internal sealed record FailoverPlan(
 
     /// <summary>The plan as the script the user reviews — also what <c>ExecuteAsync</c> compares against the
     /// plan it rebuilds from fresh state, so a plan that changed since review is refused, not run.</summary>
-    public string Script()
-    {
-        var sb = new StringBuilder();
-        for (var i = 0; i < Steps.Count; i++)
-        {
-            var step = Steps[i];
-            sb.Append("-- ").Append(i + 1).Append(". on ").Append(step.Replica).Append(": ").AppendLine(step.Purpose);
-            sb.AppendLine(step.Sql.TrimEnd());
-            sb.AppendLine();
-        }
-
-        return sb.ToString().TrimEnd();
-    }
+    public string Script() => AgStepRunner.Script(Steps);
 }
 
 /// <summary>
