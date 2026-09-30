@@ -94,5 +94,8 @@
   "index.error.constraint": "{0} backs a primary key or unique constraint and cannot be dropped as an index. Drop the constraint instead (ALTER TABLE … DROP CONSTRAINT), which drops this index with it.",
 
   "agfailover.title": "Fail Over…",
-  "agfailover.dialogTitle": "Fail Over Availability Group"
+  "agfailover.dialogTitle": "Fail Over Availability Group",
+
+  "agnew.title": "New Availability Group…",
+  "agnew.dialogTitle": "New Availability Group"
 }

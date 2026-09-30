@@ -94,5 +94,8 @@
   "index.error.constraint": "{0} hoort bij een primaire sleutel of een unique-constraint en kan niet als index verwijderd worden. Verwijder de constraint (ALTER TABLE … DROP CONSTRAINT); die neemt deze index mee.",
 
   "agfailover.title": "Failover…",
-  "agfailover.dialogTitle": "Availability group failoveren"
+  "agfailover.dialogTitle": "Availability group failoveren",
+
+  "agnew.title": "Nieuwe availability group…",
+  "agnew.dialogTitle": "Nieuwe availability group"
 }

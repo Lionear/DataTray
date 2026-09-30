@@ -23,13 +23,6 @@ public sealed class FailoverAvailabilityGroupTool : IToolPlugin, ICustomToolUi
     public const string ConfirmKey = "confirm";
     public const string ReviewedKey = "reviewed";
 
-    /// <summary>How long the read-scale plan waits for the target to report SYNCHRONIZED before giving up —
-    /// before anything irreversible has run.</summary>
-    internal static readonly TimeSpan SyncWait = TimeSpan.FromMinutes(2);
-
-    /// <summary>How long a <see cref="AgStep.Retries"/> step keeps being retried.</summary>
-    internal static readonly TimeSpan RetryWindow = TimeSpan.FromSeconds(30);
-
     public string Id => "mssql-ag-failover";
 
     public string Title => "Fail Over…";
@@ -84,82 +77,9 @@ public sealed class FailoverAvailabilityGroupTool : IToolPlugin, ICustomToolUi
 
         // Every connection must be in hand before the first statement: a read-scale plan that stops after
         // OFFLINE because the target was never mapped leaves the group down.
-        var runners = plan.Steps.Select(s => s.Replica).Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(r => r, r => session.ConnectionFor(r)
-                ?? throw new InvalidOperationException($"No verified connection to {r}. Nothing was run."), StringComparer.OrdinalIgnoreCase);
-
-        for (var i = 0; i < plan.Steps.Count; i++)
-        {
-            var step = plan.Steps[i];
-            var key = $"step{i}";
-            var label = $"{i + 1}. {step.Replica}: {step.Purpose}";
-            progress.Report(new ToolProgress(label, (double)i / plan.Steps.Count, key, ToolItemStatus.Running));
-
-            var runner = runners[step.Replica];
-            try
-            {
-                if (step.IsWait)
-                {
-                    await WaitForZeroAsync(runner, step.Sql, ct);
-                }
-                else if (step.Retries)
-                {
-                    await RetryAsync(() => runner.Provider.ExecuteDdlAsync(runner.Profile, step.Sql, ct), ct);
-                }
-                else
-                {
-                    await runner.Provider.ExecuteDdlAsync(runner.Profile, step.Sql, ct);
-                }
-            }
-            catch
-            {
-                // The checklist is the record of how far a multi-step plan got; leave the failing step marked.
-                progress.Report(new ToolProgress(label, null, key, ToolItemStatus.Error));
-                throw;
-            }
-
-            progress.Report(new ToolProgress(label, (double)(i + 1) / plan.Steps.Count, key, ToolItemStatus.Done));
-        }
+        await AgStepRunner.RunAsync(plan.Steps, session.ConnectionFor, progress, ct);
 
         progress.Report(new ToolProgress($"{target} is now the primary replica of {group}.", 1.0));
-    }
-
-    private static async Task RetryAsync(Func<Task> run, CancellationToken ct)
-    {
-        var deadline = DateTime.UtcNow + RetryWindow;
-        while (true)
-        {
-            try
-            {
-                await run();
-                return;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException && DateTime.UtcNow < deadline)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(2), ct);
-            }
-        }
-    }
-
-    private static async Task WaitForZeroAsync(ReplicaConnection runner, string sql, CancellationToken ct)
-    {
-        var deadline = DateTime.UtcNow + SyncWait;
-        while (true)
-        {
-            var result = await runner.Provider.ExecuteQueryAsync(runner.Profile, sql, ct);
-            var remaining = result.Rows.Count == 0 ? -1 : Convert.ToInt32(result.Rows[0][0]);
-            if (remaining == 0)
-            {
-                return;
-            }
-
-            if (DateTime.UtcNow > deadline)
-            {
-                throw new TimeoutException($"{remaining} database(s) did not reach SYNCHRONIZED within {SyncWait.TotalMinutes:0} minutes. Stopped before taking the group offline; the replicas may have been switched to synchronous commit, nothing else changed.");
-            }
-
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
-        }
     }
 
     private static ReplicaConnection? Open(IToolHost host, string connectionId) =>
