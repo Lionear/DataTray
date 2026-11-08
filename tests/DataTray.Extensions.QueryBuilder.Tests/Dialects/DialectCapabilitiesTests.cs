@@ -1,0 +1,86 @@
+using DataTray.Extensions.QueryBuilder.Dialects;
+
+namespace DataTray.Extensions.QueryBuilder.Tests.Dialects;
+
+public class DialectCapabilitiesTests
+{
+    public static TheoryData<string, string?, Func<DialectCapabilities, object>, object> Matrix => new()
+    {
+        { "sqlite", "3.24.0", c => c.WindowFunctions, false },
+        { "sqlite", "3.25.0", c => c.WindowFunctions, true },
+        { "sqlite", "3.25.0", c => c.NamedWindow, true },
+        { "sqlite", "3.24.0", c => c.NamedWindow, false },
+        { "sqlite", "3.25.0", c => c.GroupsFrame, false },
+        { "sqlite", "3.28.0", c => c.GroupsFrame, true },
+        { "sqlite", "3.28.0", c => c.FrameExclude, true },
+        { "sqlite", "3.25.0", c => c.RangeWithOffset, false },
+        { "sqlite", "3.28.0", c => c.RangeWithOffset, true },
+        { "sqlite", "3.23.0", c => c.Upsert, UpsertStyle.None },
+        { "sqlite", "3.24.0", c => c.Upsert, UpsertStyle.OnConflict },
+        { "sqlite", "3.32.0", c => c.UpdateFrom, UpdateFromStyle.None },
+        { "sqlite", "3.33.0", c => c.UpdateFrom, UpdateFromStyle.From },
+        { "sqlite", "3.34.0", c => c.Returning, ReturningStyle.None },
+        { "sqlite", "3.35.0", c => c.Returning, ReturningStyle.Returning },
+        { "sqlite", "3.38.0", c => c.RightJoin, false },
+        { "sqlite", "3.39.0", c => c.RightJoin, true },
+        { "sqlite", "3.38.0", c => c.FullJoin, false },
+        { "sqlite", "3.39.0", c => c.FullJoin, true },
+        { "sqlite", "3.45.1", c => c.IntersectExceptAll, false },
+        { "sqlite", "3.45.1", c => c.DeleteJoin, DeleteJoinStyle.None },
+        { "mysql", "8.0.13", c => c.Lateral, false },
+        { "mysql", "8.0.14", c => c.Lateral, true },
+        { "mysql", "8.0.30", c => c.IntersectExcept, false },
+        { "mysql", "8.0.31", c => c.IntersectExcept, true },
+        { "mysql", "8.0.30", c => c.IntersectExceptAll, false },
+        { "mysql", "8.0.31", c => c.IntersectExceptAll, true },
+        { "mysql", "8.4.0", c => c.FullJoin, false },
+        { "mysql", "8.4.0", c => c.RightJoin, true },
+        { "mysql", "8.4.0", c => c.LimitInInSubquery, false },
+        { "mysql", "8.4.0", c => c.Merge, false },
+        { "postgres", "14.10", c => c.Merge, false },
+        { "postgres", "15.0", c => c.Merge, true },
+        { "postgres", "16.4", c => c.MergeNotMatchedBySource, false },
+        { "postgres", "17.0", c => c.MergeNotMatchedBySource, true },
+        { "postgres", "16.4", c => c.Lateral, true },
+        { "postgres", "16.4", c => c.Apply, false },
+        { "postgres", "16.4", c => c.RecursiveKeyword, true },
+        { "postgres", "16.4", c => c.GroupsFrame, true },
+        { "postgres", "16.4", c => c.OrderByInSubqueryNeedsLimit, false },
+        { "postgres", "16.4", c => c.Upsert, UpsertStyle.OnConflict },
+        { "postgres", "16.4", c => c.DeleteJoin, DeleteJoinStyle.Using },
+        { "sqlserver", "15.0.2000", c => c.NamedWindow, false },
+        { "sqlserver", "16.0.1000", c => c.NamedWindow, true },
+        { "sqlserver", "16.0.1000", c => c.Apply, true },
+        { "sqlserver", "16.0.1000", c => c.Lateral, false },
+        { "sqlserver", "16.0.1000", c => c.RecursiveKeyword, false },
+        { "sqlserver", "16.0.1000", c => c.BooleanLiterals, false },
+        { "sqlserver", "16.0.1000", c => c.OrderByInSubqueryNeedsLimit, true },
+        { "sqlserver", "16.0.1000", c => c.IntersectExceptAll, false },
+        { "sqlserver", "16.0.1000", c => c.LimitStyle, LimitStyle.Top },
+        { "sqlserver", "16.0.1000", c => c.Returning, ReturningStyle.Output },
+        { "sqlserver", "16.0.1000", c => c.UpdateFrom, UpdateFromStyle.FromJoin },
+        { "sqlserver", "16.0.1000", c => c.Merge, true },
+        { "sqlserver", "16.0.1000", c => c.ConcatStyle, ConcatStyle.ConcatFunction },
+        { "sqlite", "not-a-version", c => c.RightJoin, false },
+        { "sqlite", "not-a-version", c => c.WindowFunctions, false },
+        { "sqlite", "not-a-version", c => c.Upsert, UpsertStyle.None },
+        { "sqlite", "not-a-version", c => c.Returning, ReturningStyle.None },
+        { "sqlite", "not-a-version", c => c.BooleanLiterals, false },
+        { "mysql", null, c => c.Lateral, false },
+        { "mysql", null, c => c.IntersectExcept, false },
+        { "postgres", null, c => c.Merge, false },
+        { "postgres", null, c => c.MergeNotMatchedBySource, false },
+        { "sqlserver", null, c => c.NamedWindow, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(Matrix))]
+    public void Capabilities_FollowTheMatrix(
+        string provider,
+        string? version,
+        Func<DialectCapabilities, object> capability,
+        object expected)
+    {
+        Assert.Equal(expected, capability(SqlDialects.For(provider, version).Capabilities));
+    }
+}
