@@ -4,11 +4,12 @@ name: Build
 #   schedule    -> builds `develop`, publishes the `nightly` release  (what we are working on)
 #   push main   -> builds `main`,    publishes the `preview` release  (what has been merged)
 #
-# GitHub only fires `schedule` from the default branch, so the nightly cannot live on develop: this
-# file has to sit on main and check develop out explicitly. Consequence worth remembering — the nightly
-# always runs the workflow *as committed on main*, so workflow edits made on develop only take effect
-# once merged. Cron is a hint, not a promise: GitHub delays scheduled runs under load, routinely by
-# hours (02:00 UTC has been landing near 05:00).
+# GitHub fires `schedule` from the default branch only, and runs the workflow as committed there. The
+# default branch is `develop` (the scheduled runs report head_branch develop), so the nightly runs
+# develop's copy of this file, while a push to main runs main's copy. Consequence worth remembering — a
+# workflow edit has to reach both branches before both channels have it (SE-298). The setup job checks
+# the target ref out explicitly either way. Cron is a hint, not a promise: GitHub delays scheduled runs
+# under load, routinely by hours (02:00 UTC has been landing near 05:00).
 #
 # To pause the nightly, comment out the `schedule` block; `workflow_dispatch` keeps manual runs.
 on:
@@ -216,7 +217,9 @@ jobs:
             mainExe: DataTray.Desktop
             icon: src/DataTray.App/Assets/icon.png
           - name: macOS Apple Silicon
-            os: macos-14
+            # Pinned rather than macos-latest so an image move is a visible edit, not a silent change.
+            # macos-14 stopped being offered in November 2026 (SE-298); macos-15 is arm64 as well.
+            os: macos-15
             rid: osx-arm64
             platform: osx
             mainExe: DataTray.Desktop
