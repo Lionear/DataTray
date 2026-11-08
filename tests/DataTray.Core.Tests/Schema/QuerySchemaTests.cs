@@ -1,16 +1,18 @@
 using DataTray.Core.Connections;
 using DataTray.Core.Schema;
-using DataTray.Sdk.Schema;
 using DataTray.Sdk.Extensibility;
+using DataTray.Sdk.Schema;
 
 namespace DataTray.Core.Tests.Schema;
 
 public class QuerySchemaTests
 {
-    private static readonly SavedConnection Conn = new()
+    private static readonly SavedConnection Conn = Connection("c1");
+
+    private static SavedConnection Connection(string id) => new()
     {
-        Id = "c1",
-        Name = "c1",
+        Id = id,
+        Name = id,
         ProviderId = "postgres",
         Values = new Dictionary<string, string?>(),
     };
@@ -63,6 +65,46 @@ public class QuerySchemaTests
     }
 
     [Fact]
+    public async Task GetTables_ConnectionChanges_BuildsTheNewConnection()
+    {
+        var cache = new FakeCache { BuiltSnapshot = new([Obj(null, "A")]) };
+        var current = Connection("a");
+        var schema = new QuerySchema(cache, () => current, () => null);
+
+        await schema.GetTablesAsync();
+        current = Connection("b");
+        await schema.GetTablesAsync();
+
+        Assert.Equal(2, cache.BuildCount);
+    }
+
+    [Fact]
+    public async Task GetTables_AfterInvalidate_BuildsAgain()
+    {
+        var cache = new FakeCache { BuiltSnapshot = new([Obj(null, "A")]) };
+        var schema = Create(cache, null);
+
+        await schema.GetTablesAsync();
+        cache.Invalidate("c1");
+        await schema.GetTablesAsync();
+
+        Assert.Equal(2, cache.BuildCount);
+    }
+
+    [Fact]
+    public async Task GetTables_AfterFailedBuild_RetriesAndSucceeds()
+    {
+        var cache = new FakeCache { BuiltSnapshot = new([Obj(null, "A")]), FailBuild = true };
+        var schema = Create(cache, null);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => schema.GetTablesAsync());
+        cache.FailBuild = false;
+        var tables = await schema.GetTablesAsync();
+
+        Assert.Single(tables);
+    }
+
+    [Fact]
     public async Task GetTable_ReturnsColumnsAndForeignKeys()
     {
         var orders = Obj("Sales", "Orders") with
@@ -106,19 +148,27 @@ public class QuerySchemaTests
         public SchemaSnapshot? Snapshot { get; set; }
         public SchemaSnapshot? BuiltSnapshot { get; set; }
         public int BuildCount { get; private set; }
+        public bool FailBuild { get; set; }
+
+        private readonly HashSet<string> _built = [];
 
         public event Action? Changed;
 
-        public SchemaSnapshot? Get(string connectionId) => Snapshot;
+        public SchemaSnapshot? Get(string connectionId) => Snapshot ?? (_built.Contains(connectionId) ? BuiltSnapshot : null);
 
         public Task BuildAsync(SavedConnection connection, CancellationToken ct = default)
         {
             BuildCount++;
-            Snapshot = BuiltSnapshot;
+            if (FailBuild)
+            {
+                return Task.FromException(new InvalidOperationException("build failed"));
+            }
+
+            _built.Add(connection.Id);
             return Task.CompletedTask;
         }
 
-        public void Invalidate(string connectionId) { }
+        public void Invalidate(string connectionId) => _built.Remove(connectionId);
 
         public void Raise() => Changed?.Invoke();
     }

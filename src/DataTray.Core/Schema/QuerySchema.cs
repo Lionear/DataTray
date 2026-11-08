@@ -10,7 +10,7 @@ public sealed class QuerySchema : IQuerySchema, IDisposable
     private readonly ISchemaCache _cache;
     private readonly Func<SavedConnection?> _connection;
     private readonly Func<string?> _database;
-    private Task? _build;
+    private (string Id, Task Task)? _build;
 
     public QuerySchema(ISchemaCache cache, Func<SavedConnection?> connection, Func<string?> database)
     {
@@ -24,8 +24,9 @@ public sealed class QuerySchema : IQuerySchema, IDisposable
 
     public async Task<IReadOnlyList<QueryTableRef>> GetTablesAsync(CancellationToken ct = default)
     {
+        var connection = _connection();
         var database = _database();
-        var objects = await LoadObjectsAsync(ct);
+        var objects = await LoadObjectsAsync(connection, ct);
         return objects
             .Where(o => database is null || o.Database == database)
             .Select(ToRef)
@@ -34,7 +35,7 @@ public sealed class QuerySchema : IQuerySchema, IDisposable
 
     public async Task<QueryTable?> GetTableAsync(QueryTableRef table, CancellationToken ct = default)
     {
-        var objects = await LoadObjectsAsync(ct);
+        var objects = await LoadObjectsAsync(_connection(), ct);
         var found = objects.FirstOrDefault(o =>
             o.Database == table.Database && o.Schema == table.Schema && o.Name == table.Name);
         if (found is null)
@@ -61,9 +62,8 @@ public sealed class QuerySchema : IQuerySchema, IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task<IReadOnlyList<SchemaObject>> LoadObjectsAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<SchemaObject>> LoadObjectsAsync(SavedConnection? connection, CancellationToken ct)
     {
-        var connection = _connection();
         if (connection is null)
         {
             return [];
@@ -71,9 +71,14 @@ public sealed class QuerySchema : IQuerySchema, IDisposable
 
         if (_cache.Get(connection.Id) is null)
         {
-            // One build per instance, shared by racing callers. Not cancelled per caller: another may await it.
-            _build ??= _cache.BuildAsync(connection, CancellationToken.None);
-            await _build.WaitAsync(ct);
+            // Share only an in-flight build for this connection; finished (even failed) builds are redone.
+            // Not cancelled per caller: another caller may await the same build.
+            if (_build is not { } b || b.Id != connection.Id || b.Task.IsCompleted)
+            {
+                _build = (connection.Id, _cache.BuildAsync(connection, CancellationToken.None));
+            }
+
+            await _build.Value.Task.WaitAsync(ct);
         }
 
         return _cache.Get(connection.Id)?.Objects ?? [];
