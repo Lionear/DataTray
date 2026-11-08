@@ -4,5 +4,6 @@ namespace DataTray.Core.Session;
 /// tab was backed by a file (SE-154) — the <c>.sql</c> file path so the association returns on the next
 /// launch. <see cref="IsActive"/> marks the tab that was selected at close, so it is reselected on restore
 /// (SE-179). Browse tabs aren't persisted — they reopen from the tree. <see cref="FilePath"/>/<see cref="IsActive"/>
-/// are optional and default to null/false, so an open-tabs.json written before those fields still loads.</summary>
-public sealed record OpenTabState(string ConnectionId, string? Database, string Sql, string? FilePath = null, bool IsActive = false);
+/// <see cref="PaneStates"/> holds opaque per-plugin query-pane state (SE-299). They are optional and default to null/false, so an open-tabs.json written before those fields still loads.</summary>
+public sealed record OpenTabState(string ConnectionId, string? Database, string Sql, string? FilePath = null, bool IsActive = false,
+    IReadOnlyDictionary<string, string>? PaneStates = null);

@@ -35,4 +35,26 @@ public class OpenTabStateTests
         Assert.Equal(original, restored);
         Assert.Equal("/home/rick/queries/report.sql", restored!.FilePath);
     }
+
+    [Fact]
+    public void RoundTrip_WithPaneStates_PreservesStates()
+    {
+        var original = new OpenTabState("c1", "db", "select 1", PaneStates: new Dictionary<string, string> { ["acme.designer"] = "{\"x\":1}" });
+
+        var restored = JsonSerializer.Deserialize<OpenTabState>(
+            JsonSerializer.Serialize(original, Options), Options);
+
+        Assert.Equal("{\"x\":1}", restored!.PaneStates!["acme.designer"]);
+    }
+
+    [Fact]
+    public void Load_OldFileWithoutPaneStates_Loads()
+    {
+        const string legacy = """{ "ConnectionId": "c1", "Database": "db", "Sql": "select 1", "IsActive": true }""";
+
+        var state = JsonSerializer.Deserialize<OpenTabState>(legacy, Options);
+
+        Assert.Null(state!.PaneStates);
+        Assert.True(state.IsActive);
+    }
 }

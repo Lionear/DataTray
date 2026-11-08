@@ -361,6 +361,25 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private IReadOnlyList<Core.Plugins.SubsystemQueryPane> _queryPanes = [];
+
+    /// <summary>Offer the registered query panes in every document, now and in future (like the toolbar).</summary>
+    public void MountQueryPanes(IReadOnlyList<Core.Plugins.SubsystemQueryPane> panes, IHostUi hostUi)
+    {
+        _queryPanes = panes;
+        _pluginHostUi = hostUi;
+        foreach (var document in Documents)
+        {
+            MountPanes(document, hostUi);
+        }
+    }
+
+    // A schema is built per pane open, only for panes that asked for the capability; the pane disposes it on close.
+    private void MountPanes(DocumentViewModel document, IHostUi hostUi) =>
+        document.MountQueryPanes(_queryPanes, hostUi, pane => pane.Capabilities.Contains(PluginCapabilities.Schema)
+            ? new QuerySchema(_schemaCache, () => document.Connection, () => ((IQueryDocument)document).Database)
+            : null);
+
 
     // Reopen the query tabs from the previous session (skipping any whose connection no longer exists).
     private void RestoreOpenTabs()
@@ -383,6 +402,7 @@ public partial class MainViewModel : ViewModelBase
             // the tab was file-backed. Otherwise a restart would mark every scratch tab dirty and nag to
             // save it on exit. Genuine edits after restore re-dirty the tab as usual.
             document.LoadContent(tab.Sql, tab.FilePath);
+            document.RestorePaneStates(tab.PaneStates);
             AddDocument(document);
             if (tab.IsActive)
             {
@@ -402,7 +422,7 @@ public partial class MainViewModel : ViewModelBase
     public void PersistOpenTabs() =>
         _openTabsStore.Save(Documents
             .Where(d => d is { IsQueryMode: true, Connection: not null })
-            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument)))
+            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument), d.PaneStates.Count == 0 ? null : d.PaneStates))
             .ToList());
 
     /// <summary>True when the Plugin Store has staged changes that need a restart — shows a main-window banner.</summary>
@@ -3006,6 +3026,7 @@ public partial class MainViewModel : ViewModelBase
 
         // A plugin tab's content outlives the tab unless it is told not to (SE-216).
         document.DisposePluginView();
+        document.DisposePanes();
 
         var index = Documents.IndexOf(document);
         Documents.Remove(document);
@@ -3306,6 +3327,7 @@ public partial class MainViewModel : ViewModelBase
         if (_pluginHostUi is { } hostUi)
         {
             document.MountQueryToolbar(_queryToolbarContributions, hostUi);
+            MountPanes(document, hostUi);
         }
 
         return document;
