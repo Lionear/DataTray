@@ -565,6 +565,9 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     public ObservableCollection<QueryPaneSlot> QueryPanes { get; } = [];
 
+    /// <summary>The pane shown in the pane column; at most one is open at a time.</summary>
+    public QueryPaneSlot? OpenPane => QueryPanes.FirstOrDefault(s => s.IsOpen);
+
     /// <summary>Opaque per-plugin pane state, persisted with the open tab.</summary>
     public IReadOnlyDictionary<string, string> PaneStates => _paneStates;
 
@@ -605,6 +608,12 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
             return;
         }
 
+        // The pane column shows one pane at a time.
+        foreach (var open in QueryPanes.Where(s => s.IsOpen).ToList())
+        {
+            ClosePane(open);
+        }
+
         var context = new QueryPaneContext(this, slot.Pane, hostUi, _paneSchemaFor(slot.Pane));
         slot.Context = context;
         slot.IsOpen = true;
@@ -619,6 +628,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
             slot.Error = ex.Message;
             Reported?.Invoke(OutputLevel.Error, $"{slot.Pane.PluginName}: {ex.Message}");
         }
+
+        OnPropertyChanged(nameof(OpenPane));
     }
 
     /// <summary>Takes the SQL back from the pane that owns it.</summary>
@@ -676,7 +687,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     private void ClosePane(QueryPaneSlot slot)
     {
         // Closing the pane keeps its SQL in the editor but hands it back to the user.
-        if (slot.IsOpen)
+        var wasOpen = slot.IsOpen;
+        if (wasOpen)
         {
             EditAsSql();
         }
@@ -687,6 +699,11 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         slot.IsOpen = false;
         slot.Context?.Dispose();
         slot.Context = null;
+        if (wasOpen)
+        {
+            OnPropertyChanged(nameof(OpenPane));
+        }
+
         try
         {
             (control as IDisposable)?.Dispose();

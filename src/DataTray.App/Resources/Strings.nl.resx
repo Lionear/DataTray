@@ -2352,4 +2352,10 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="SplashA11yReady" xml:space="preserve">
     <value>DataTray is klaar</value>
   </data>
+  <data name="QueryPaneLinked" xml:space="preserve">
+    <value>Geschreven door {0} · alleen-lezen zolang gekoppeld</value>
+  </data>
+  <data name="QueryPaneEditAsSql" xml:space="preserve">
+    <value>Bewerken als SQL</value>
+  </data>
 </root>

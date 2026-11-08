@@ -2352,4 +2352,10 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="SplashA11yReady" xml:space="preserve">
     <value>DataTray is ready</value>
   </data>
+  <data name="QueryPaneLinked" xml:space="preserve">
+    <value>Written by {0} · read-only while linked</value>
+  </data>
+  <data name="QueryPaneEditAsSql" xml:space="preserve">
+    <value>Edit as SQL</value>
+  </data>
 </root>

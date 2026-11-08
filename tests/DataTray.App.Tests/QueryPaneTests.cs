@@ -23,6 +23,39 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         Assert.Null(slot.Control);
     }
 
+    [Fact] // The pane column shows one pane at a time.
+    public void TogglePane_OpeningSecond_ClosesFirst()
+    {
+        var document = QueryDocument();
+        var first = new FakePanePlugin(() => new PaneControl());
+        var second = new FakePanePlugin(() => new PaneControl());
+        document.MountQueryPanes([Pane(first), Pane(second)], new FakeHostUi(), _ => null);
+        var (firstSlot, secondSlot) = (document.QueryPanes[0], document.QueryPanes[1]);
+
+        document.TogglePaneCommand.Execute(firstSlot);
+        var firstControl = Assert.IsType<PaneControl>(firstSlot.Control);
+        document.TogglePaneCommand.Execute(secondSlot);
+
+        Assert.Equal((false, true), (firstSlot.IsOpen, secondSlot.IsOpen));
+        Assert.True(firstControl.Disposed);
+    }
+
+    [Fact] // The view hosts OpenPane, so it must announce every open and close.
+    public void OpenPane_FollowsToggle_AndRaisesPropertyChanged()
+    {
+        var (document, slot, _) = OpenablePane();
+        var raised = 0;
+        document.PropertyChanged += (_, e) => raised += e.PropertyName == nameof(DocumentViewModel.OpenPane) ? 1 : 0;
+
+        document.TogglePaneCommand.Execute(slot);
+        var whileOpen = document.OpenPane;
+        document.TogglePaneCommand.Execute(slot);
+
+        Assert.Same(slot, whileOpen);
+        Assert.Null(document.OpenPane);
+        Assert.Equal(2, raised);
+    }
+
     [Fact]
     public void TogglePane_CreatePaneThrows_SlotShowsError_TabStillRuns()
     {
@@ -280,10 +313,12 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
 
     private static QueryPaneSlot Mount(DocumentViewModel document, FakePanePlugin plugin)
     {
-        var pane = new SubsystemQueryPane("builder", "Builder", new HashSet<string>(), new FakePluginLocalizer(), plugin);
-        document.MountQueryPanes([pane], new FakeHostUi(), _ => null);
+        document.MountQueryPanes([Pane(plugin)], new FakeHostUi(), _ => null);
         return document.QueryPanes[0];
     }
+
+    private static SubsystemQueryPane Pane(FakePanePlugin plugin) =>
+        new("builder", "Builder", new HashSet<string>(), new FakePluginLocalizer(), plugin);
 
     private sealed class FakePanePlugin(Func<Control> create) : IQueryPanePlugin
     {
