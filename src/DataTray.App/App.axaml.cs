@@ -363,6 +363,8 @@ public partial class App : Application
         // their own AppliesTo predicate per tab.
         viewModel.MountQueryToolbarContributions(
             [.. subsystems.QueryToolbars.SelectMany(p => p.QueryToolbarItems)], hostUi);
+        viewModel.MountQueryPanes(subsystems.QueryPanes, hostUi);
+        viewModel.MountNodeMenus([.. subsystems.NodeMenus.SelectMany(p => p.NodeMenuItems)], hostUi);
 
         // Start any background loops (SE-164) under the shutdown token — fire-and-forget, like the update
         // checks; they stop cleanly when _shutdownCts cancels at exit (desktop.Exit, below).

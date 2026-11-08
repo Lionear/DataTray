@@ -217,6 +217,7 @@ public static class AppServices
         // host list (secrets to the keychain), tagged with the plugin id as origin. Storage is plugin-scoped
         // JSON; Log routes to stderr for now (Output-panel wiring is a later seam). hostServices (the built
         // provider) + the per-plugin allow-list back each "services"-capable plugin's scoped resolver.
+        services.AddSingleton<IReadOnlyList<SubsystemActivation>>(subsystemActivations);
         services.AddSingleton(sp => new SubsystemActivator(
             subsystemActivations,
             id => new JsonPluginStorage(id),
@@ -296,7 +297,7 @@ public static class AppServices
         // (IShortcutContributor on any provider/tool) are merged in here so they share rebinding,
         // conflict detection and persistence with the built-ins.
         services.AddSingleton<IKeymapStore>(new JsonKeymapStore());
-        var pluginShortcuts = CollectPluginShortcuts(registrations, tools);
+        var pluginShortcuts = CollectPluginShortcuts(registrations, tools, subsystemActivations);
         services.AddSingleton(sp => new KeymapService(sp.GetRequiredService<IKeymapStore>(), pluginShortcuts));
 
         // The user's toolbar arrangement (toolbar.json), beside the keymap and modelled on it: a catalog
@@ -482,9 +483,10 @@ public static class AppServices
 
     // Flatten IShortcutContributor across providers and tools into namespaced host shortcuts. The id is
     // prefixed with the plugin id so two plugins can use the same local id without clashing.
-    private static List<PluginShortcut> CollectPluginShortcuts(
+    internal static List<PluginShortcut> CollectPluginShortcuts(
         IReadOnlyList<ProviderRegistration> providers,
-        IReadOnlyList<IToolPlugin> tools)
+        IReadOnlyList<IToolPlugin> tools,
+        IReadOnlyList<SubsystemActivation> extensions)
     {
         var result = new List<PluginShortcut>();
 
@@ -515,6 +517,11 @@ public static class AppServices
         foreach (var tool in tools)
         {
             Add(tool.Id, tool.Title, tool);
+        }
+
+        foreach (var extension in extensions)
+        {
+            Add(extension.Id, extension.Name ?? extension.Id, extension.Plugin);
         }
 
         return result;

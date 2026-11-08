@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
@@ -51,6 +52,13 @@ public partial class DocumentView : UserControl
     private double _editorDragStartY;
     private double _editorDragStartHeight;
 
+    // Plugin pane column (SE-299). The width lives on the slot, so each pane keeps its own size.
+    private bool _paneDragging;
+    private double _paneDragStartX;
+    private double _paneDragStartWidth;
+    private DateTimeOffset? _lastLinkedWrite;
+    private readonly List<KeyBinding> _paneKeyBindings = [];
+
     public DocumentView()
     {
         InitializeComponent();
@@ -72,6 +80,8 @@ public partial class DocumentView : UserControl
             _sqlEditor.TextChanged += OnEditorTextChanged;
             _sqlEditor.TextArea.TextEntered += OnSqlTextEntered;
             _sqlEditor.KeyDown += OnSqlEditorKeyDown;
+            // Tunnel: AvaloniaEdit's own undo/redo runs in a TextArea KeyDown handler and ignores IsReadOnly.
+            _sqlEditor.AddHandler(KeyDownEvent, OnSqlEditorPreviewKeyDown, RoutingStrategies.Tunnel);
             _sqlEditor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
             _sqlEditor.TextArea.SelectionChanged += OnEditorSelectionChanged;
         }
@@ -177,15 +187,19 @@ public partial class DocumentView : UserControl
         if (_viewModel is not null)
         {
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.QueryPanes.CollectionChanged -= OnQueryPanesChanged;
         }
 
         _viewModel = DataContext as DocumentViewModel;
+        _lastLinkedWrite = null;
+        RebuildPaneKeyBindings();
         if (_viewModel is null)
         {
             return;
         }
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.QueryPanes.CollectionChanged += OnQueryPanesChanged;
         _viewModel.SaveReviewRequested = ShowSaveReviewAsync;
         _viewModel.ConfirmRequested = ShowConfirmAsync;
         _viewModel.CellActionRequested = ShowCellActionDialogAsync;
@@ -215,7 +229,7 @@ public partial class DocumentView : UserControl
             _sqlEditor.FontSize = fontSize;
         }
 
-        PushSqlToEditor();
+        PushSqlToEditor(tabSwitched: true);
         RebuildResultColumns();
         RebuildViewerControl();
     }
@@ -275,6 +289,91 @@ public partial class DocumentView : UserControl
                      + grid.RowDefinitions[6].ActualHeight
                      + ResultMinBody;
         return Math.Max(EditorMinHeight, grid.Bounds.Height - reserved);
+    }
+
+    // --- Plugin pane column (SE-299) ----------------------------------------------------------------------
+
+    private void OnPaneSplitterPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_viewModel?.OpenPane is not { } pane || this.FindControl<Grid>("PaneRow") is not { } row)
+        {
+            return;
+        }
+
+        _paneDragging = true;
+        _paneDragStartX = e.GetPosition(row).X;
+        _paneDragStartWidth = pane.Width;
+        e.Pointer.Capture(sender as IInputElement);
+        e.Handled = true;
+    }
+
+    private void OnPaneSplitterMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_paneDragging || _viewModel?.OpenPane is not { } pane || this.FindControl<Grid>("PaneRow") is not { } row)
+        {
+            return;
+        }
+
+        // The splitter sits right of the pane, so dragging right grows it; the editor keeps a minimum.
+        pane.Width = PaneColumnWidth.Clamp(_paneDragStartWidth + e.GetPosition(row).X - _paneDragStartX, row.Bounds.Width);
+    }
+
+    // A narrower window must not squeeze the editor below its minimum, so the open pane gives way.
+    private void OnPaneRowSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (_viewModel?.OpenPane is { } pane)
+        {
+            pane.Width = PaneColumnWidth.Clamp(pane.Width, e.NewSize.Width);
+        }
+    }
+
+    private void OnPaneSplitterReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_paneDragging)
+        {
+            return;
+        }
+
+        _paneDragging = false;
+        e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    private void OnQueryPanesChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildPaneKeyBindings();
+
+    // Each pane's own shortcut toggles it, in query tabs only (the VM already dropped malformed ones).
+    private void RebuildPaneKeyBindings()
+    {
+        foreach (var binding in _paneKeyBindings)
+        {
+            KeyBindings.Remove(binding);
+        }
+
+        _paneKeyBindings.Clear();
+        if (_viewModel is not { IsQueryMode: true } vm)
+        {
+            return;
+        }
+
+        foreach (var slot in vm.QueryPanes)
+        {
+            if (slot.Gesture is not { } gesture)
+            {
+                continue;
+            }
+
+            var binding = new KeyBinding { Gesture = gesture, Command = vm.TogglePaneCommand, CommandParameter = slot };
+            _paneKeyBindings.Add(binding);
+            KeyBindings.Add(binding);
+        }
+    }
+
+    private void OnLinkCopyClick(object? sender, RoutedEventArgs e)
+    {
+        if (_sqlEditor is not null && _viewModel is not null)
+        {
+            _ = CopyFeedback.CopyAsync(this, _sqlEditor.Text, _viewModel.Loc["CopiedToClipboard"]);
+        }
     }
 
     private async Task<bool> ShowSaveReviewAsync(string sql)
@@ -501,7 +600,7 @@ public partial class DocumentView : UserControl
 
     private void InsertGuid(Guid guid)
     {
-        if (_sqlEditor is null)
+        if (_sqlEditor is null or { IsReadOnly: true })
         {
             return;
         }
@@ -588,7 +687,7 @@ public partial class DocumentView : UserControl
         }
         else if (e.PropertyName == nameof(DocumentViewModel.Sql))
         {
-            PushSqlToEditor();
+            PushSqlToEditor(tabSwitched: false);
         }
         else if (e.PropertyName == nameof(DocumentViewModel.ViewerContext))
         {
@@ -633,7 +732,8 @@ public partial class DocumentView : UserControl
         }
     }
 
-    private void PushSqlToEditor()
+    // A tab switch loads a different document, so it resets the undo stack (Text =) even while linked.
+    private void PushSqlToEditor(bool tabSwitched)
     {
         if (_syncingSql || _sqlEditor is null || _viewModel is null || _sqlEditor.Text == _viewModel.Sql)
         {
@@ -641,8 +741,35 @@ public partial class DocumentView : UserControl
         }
 
         _syncingSql = true;
-        _sqlEditor.Text = _viewModel.Sql;
+        if (_viewModel.IsSqlLinked && !tabSwitched)
+        {
+            ApplyLinkedSql(_sqlEditor.Document, _viewModel.Sql);
+        }
+        else
+        {
+            _sqlEditor.Text = _viewModel.Sql;
+        }
+
         _syncingSql = false;
+    }
+
+    // A pane's write is a Replace, not Text = (which clears the undo stack), and a quick burst of writes
+    // shares one undo step so a single Ctrl+Z takes it back.
+    private void ApplyLinkedSql(AvaloniaEdit.Document.TextDocument document, string sql)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var continues = LinkedSqlUndoMerge.ContinuesGroup(_lastLinkedWrite, now);
+        _lastLinkedWrite = now;
+        if (continues)
+        {
+            document.UndoStack.StartContinuedUndoGroup();
+        }
+
+        document.Replace(0, document.TextLength, sql);
+        if (continues)
+        {
+            document.UndoStack.EndUndoGroup();
+        }
     }
 
     private void OnEditorTextChanged(object? sender, EventArgs e)
@@ -694,6 +821,17 @@ public partial class DocumentView : UserControl
 
     // Ctrl+Space explicitly requests completion anywhere in the query; the line-comment toggle is
     // resolved live from the user's keymap (default Ctrl+/) so it honours a rebind from Settings.
+    // While a pane owns the SQL, undo/redo would rewrite it as if the user typed; after Edit as SQL they work.
+    private void OnSqlEditorPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_viewModel is { IsSqlLinked: true }
+            && (AvaloniaEdit.ApplicationCommands.Undo.Gesture?.Matches(e) == true
+                || AvaloniaEdit.ApplicationCommands.Redo.Gesture?.Matches(e) == true))
+        {
+            e.Handled = true;
+        }
+    }
+
     private void OnSqlEditorKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.Control)
@@ -746,7 +884,7 @@ public partial class DocumentView : UserControl
     // If every non-blank line in range is already commented, it uncomments; otherwise it comments all.
     private void ToggleLineComment()
     {
-        if (_sqlEditor is null)
+        if (_sqlEditor is null or { IsReadOnly: true })
         {
             return;
         }
@@ -812,7 +950,7 @@ public partial class DocumentView : UserControl
     // built-in popup and lets it handle the replacement on accept.
     private void OpenCompletion()
     {
-        if (_viewModel is not { IsQueryMode: true } || _sqlEditor is null)
+        if (_viewModel is not { IsQueryMode: true } || _sqlEditor is null or { IsReadOnly: true })
         {
             return;
         }

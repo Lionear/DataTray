@@ -48,6 +48,8 @@ the only assembly a plugin references from this repository.
 | [`plugins/tool.md`](plugins/tool.md) | `IToolPlugin` contract, `ToolTarget`, `ToolExecutionContext`, the Route A `ToolField` form, Route B `ICustomToolUi`, the tool manifest. |
 | [`plugins/discovery-and-loading.md`](plugins/discovery-and-loading.md) | How the host finds, validates and loads plugins into isolated `AssemblyLoadContext`s at startup, for both plugin types. |
 | [`plugins/capabilities.md`](plugins/capabilities.md) | Optional cross-cutting capabilities: settings UI (Route A/B), keyboard shortcuts, referencing Avalonia, authoring a Route B view in XAML, and the theming contract for matching host chrome. |
+| [`plugins/query-panes.md`](plugins/query-panes.md) | Query panes (host API 9): `IQueryPanePlugin`, `IQueryPaneContext`, `IQuerySchema`, the `query-pane` and `schema` capabilities, lifecycle and editor linking. |
+| [`plugins/node-menu-and-drag.md`](plugins/node-menu-and-drag.md) | Table/view context-menu items (`INodeMenuPlugin`, `NodeMenuTarget`) and the `DraggedNode` drag payload (host API 9). |
 
 ## Reference implementations
 

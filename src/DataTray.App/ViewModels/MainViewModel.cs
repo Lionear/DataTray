@@ -361,6 +361,28 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private IReadOnlyList<Core.Plugins.SubsystemQueryPane> _queryPanes = [];
+
+    /// <summary>Offer the registered query panes in every document, now and in future (like the toolbar).</summary>
+    public void MountQueryPanes(IReadOnlyList<Core.Plugins.SubsystemQueryPane> panes, IHostUi hostUi)
+    {
+        _queryPanes = panes;
+        _pluginHostUi = hostUi;
+        foreach (var document in Documents)
+        {
+            MountPanes(document, hostUi);
+        }
+    }
+
+    private void MountPanes(DocumentViewModel document, IHostUi hostUi) =>
+        document.MountQueryPanes(_queryPanes, hostUi, pane => SchemaFor(pane, _schemaCache, document));
+
+    // A schema is built per pane open, only for panes that asked for the capability; the pane disposes it on close.
+    internal static IQuerySchema? SchemaFor(Core.Plugins.SubsystemQueryPane pane, ISchemaCache cache, DocumentViewModel document) =>
+        pane.Capabilities.Contains(PluginCapabilities.Schema)
+            ? new QuerySchema(cache, () => document.Connection, () => ((IQueryDocument)document).Database)
+            : null;
+
 
     // Reopen the query tabs from the previous session (skipping any whose connection no longer exists).
     private void RestoreOpenTabs()
@@ -383,6 +405,7 @@ public partial class MainViewModel : ViewModelBase
             // the tab was file-backed. Otherwise a restart would mark every scratch tab dirty and nag to
             // save it on exit. Genuine edits after restore re-dirty the tab as usual.
             document.LoadContent(tab.Sql, tab.FilePath);
+            document.RestorePaneStates(tab.PaneStates);
             AddDocument(document);
             if (tab.IsActive)
             {
@@ -402,7 +425,7 @@ public partial class MainViewModel : ViewModelBase
     public void PersistOpenTabs() =>
         _openTabsStore.Save(Documents
             .Where(d => d is { IsQueryMode: true, Connection: not null })
-            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument)))
+            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument), d.PaneStates.Count == 0 ? null : d.PaneStates))
             .ToList());
 
     /// <summary>True when the Plugin Store has staged changes that need a restart — shows a main-window banner.</summary>
@@ -494,6 +517,42 @@ public partial class MainViewModel : ViewModelBase
         Func<Sdk.Extensibility.ManagedConnectionInfo, bool> appliesTo,
         Func<Sdk.Extensibility.ManagedConnectionInfo, Task> invoke) =>
         SubsystemConnectionMenuItems.Add(new SubsystemConnectionMenuItem(title, appliesTo, invoke));
+
+    private IReadOnlyList<NodeMenuContribution> _nodeMenus = [];
+
+    /// <summary>Plugin items for table/view nodes (SE-299 H5), filtered per node when the tree menu opens.</summary>
+    public void MountNodeMenus(IReadOnlyList<NodeMenuContribution> contributions, IHostUi hostUi)
+    {
+        _nodeMenus = contributions;
+        _pluginHostUi = hostUi;
+    }
+
+    public (NodeMenuTarget Target, IReadOnlyList<NodeMenuContribution> Items)? NodeMenuForSelection() =>
+        SelectedNode is { } node && _nodeMenus.Count > 0
+            ? NodeMenu.For(node, SelectedDocument, _nodeMenus, message => ReportError(node.Connection.Name, message))
+            : null;
+
+    public Task InvokeNodeMenuAsync(NodeMenuContribution item, NodeMenuTarget target) =>
+        _pluginHostUi is null
+            ? Task.CompletedTask
+            : NodeMenu.InvokeAsync(item, target, _pluginHostUi, message => ReportError(target.Connection.Name, message));
+
+    /// <summary>Drag a table/view out of the tree; <paramref name="doDrag"/> is the platform drag. Called from an
+    /// async-void pointer handler, so a failure is reported, never rethrown.</summary>
+    public async Task DragNodeAsync(TreeNodeViewModel node, Func<Avalonia.Input.IDataTransfer, Task> doDrag)
+    {
+        try
+        {
+            if (NodeDragPayload.For(node, _providers.Get(node.Connection.ProviderId).Dialect) is { } payload)
+            {
+                await doDrag(payload.ToDataTransfer());
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportError(node.Connection.Name, ex.Message);
+        }
+    }
 
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
     public ObservableCollection<HistoryRow> HistoryEntries { get; } = [];
@@ -2923,16 +2982,17 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private Task CloseAllTabs() => CloseManyAsync(Documents.ToList());
 
-    // Duplicate a query tab: a fresh tab on the same connection with the same SQL. (Browse tabs reopen
-    // from the tree, so there's nothing to duplicate.)
+    // Duplicate a query tab: a fresh tab on the same connection with the same SQL and pane states.
+    // (Browse tabs reopen from the tree, so there's nothing to duplicate.)
     [RelayCommand]
     private void DuplicateTab(DocumentViewModel? document)
     {
         if (document is { IsQueryMode: true, Connection: { } connection })
         {
             // The duplicate keeps the source tab's database, not the tree's — the two can differ.
-            var copy = NewQueryDocument(connection, document.SelectedDatabase);
-            copy.Sql = document.Sql;
+            var tab = document.CaptureTab();
+            var copy = NewQueryDocument(connection, tab.Database);
+            copy.ApplyTab(tab);
             AddDocument(copy);
         }
     }
@@ -2997,15 +3057,16 @@ public partial class MainViewModel : ViewModelBase
         // Remember closed query tabs so Ctrl+Shift+T can bring them back (browse tabs reopen from the tree).
         if (document.IsQueryMode && document.Connection is { } connection)
         {
-            _closedTabs.Push((connection, document.SelectedDatabase, document.Sql));
+            _closedTabs.Push((connection, document.CaptureTab()));
             if (_closedTabs.Count > ClosedTabHistory)
             {
-                _closedTabs = new Stack<(SavedConnection, string?, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
+                _closedTabs = new Stack<(SavedConnection, OpenTabState)>(_closedTabs.Take(ClosedTabHistory).Reverse());
             }
         }
 
         // A plugin tab's content outlives the tab unless it is told not to (SE-216).
         document.DisposePluginView();
+        document.DisposePanes();
 
         var index = Documents.IndexOf(document);
         Documents.Remove(document);
@@ -3019,9 +3080,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private const int ClosedTabHistory = 15;
-    private Stack<(SavedConnection Connection, string? Database, string Sql)> _closedTabs = new();
+    private Stack<(SavedConnection Connection, OpenTabState Tab)> _closedTabs = new();
 
-    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL, connection and database restored.
+    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL, connection, database and pane states.
     [RelayCommand]
     private void ReopenClosedTab()
     {
@@ -3030,9 +3091,9 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var (connection, database, sql) = _closedTabs.Pop();
-        var document = NewQueryDocument(connection, database);
-        document.Sql = sql;
+        var (connection, tab) = _closedTabs.Pop();
+        var document = NewQueryDocument(connection, tab.Database);
+        document.ApplyTab(tab);
         AddDocument(document);
     }
 
@@ -3306,6 +3367,7 @@ public partial class MainViewModel : ViewModelBase
         if (_pluginHostUi is { } hostUi)
         {
             document.MountQueryToolbar(_queryToolbarContributions, hostUi);
+            MountPanes(document, hostUi);
         }
 
         return document;

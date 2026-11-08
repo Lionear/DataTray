@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Avalonia.Input;
 using Avalonia.Threading;
 using DataTray.Core.Completion;
 using DataTray.Core.Connections;
@@ -14,6 +15,7 @@ using DataTray.Sdk.Formatting;
 using DataTray.Core.History;
 using DataTray.Core.Localization;
 using DataTray.Core.Logging;
+using DataTray.Core.Plugins;
 using DataTray.Core.Providers;
 using DataTray.Core.Schema;
 using DataTray.Core.Settings;
@@ -156,6 +158,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         {
             IsDirty = true;
         }
+
+        RaiseToPlugins(_sqlChanged);
     }
 
     /// <summary>Load query text without dirtying the tab, optionally associating a <c>.sql</c> file (open
@@ -511,6 +515,296 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     void IQueryDocument.SetSql(string sql) => Sql = sql;
 
     Task IQueryDocument.RunAsync(CancellationToken ct) => RunAsync(ct);
+
+    // Informs only: a pane may warn on a read-only connection, nothing is blocked (SE-299).
+    bool IQueryDocument.IsReadOnly => Connection is { ReadOnly: true };
+
+    bool IQueryDocument.IsLinked => IsSqlLinked;
+
+    void IQueryDocument.Link(string ownerTitle)
+    {
+        LinkOwner = ownerTitle;
+        IsSqlLinked = true;
+    }
+
+    void IQueryDocument.Unlink() => EditAsSql();
+
+    private EventHandler? _contextChanged;
+    private EventHandler? _sqlChanged;
+    private EventHandler? _unlinked;
+
+    event EventHandler? IQueryDocument.ContextChanged
+    {
+        add => _contextChanged += value;
+        remove => _contextChanged -= value;
+    }
+
+    event EventHandler? IQueryDocument.SqlChanged
+    {
+        add => _sqlChanged += value;
+        remove => _sqlChanged -= value;
+    }
+
+    event EventHandler? IQueryDocument.Unlinked
+    {
+        add => _unlinked += value;
+        remove => _unlinked -= value;
+    }
+
+    // --- Plugin panes in the query tab (SE-299) ----------------------------------------------------
+
+    private readonly Dictionary<string, string> _paneStates = [];
+    private IHostUi? _paneHostUi;
+    private Func<SubsystemQueryPane, IQuerySchema?> _paneSchemaFor = _ => null;
+
+    /// <summary>True while a pane owns the SQL; the editor is read-only and shows <see cref="LinkOwner"/>.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(FormatCommand))]
+    private bool _isSqlLinked;
+
+    [ObservableProperty]
+    private string? _linkOwner;
+
+    public ObservableCollection<QueryPaneSlot> QueryPanes { get; } = [];
+
+    /// <summary>The pane shown in the pane column; at most one is open at a time.</summary>
+    public QueryPaneSlot? OpenPane => QueryPanes.FirstOrDefault(s => s.IsOpen);
+
+    /// <summary>True when at least one pane applies to this tab; hides the toggle group otherwise.</summary>
+    public bool HasAvailablePanes => QueryPanes.Any(s => s.IsAvailable);
+
+    /// <summary>Opaque per-plugin pane state, persisted with the open tab.</summary>
+    public IReadOnlyDictionary<string, string> PaneStates => _paneStates;
+
+    internal string? ServerVersion => _serverVersions.Get(Connection.Id);
+
+    internal ISqlDialect Dialect => _providers.Get(Connection.ProviderId).Dialect;
+
+    /// <summary>Offer the registered query panes in this tab (MainViewModel does it for every document).</summary>
+    public void MountQueryPanes(IReadOnlyList<SubsystemQueryPane> panes, IHostUi hostUi, Func<SubsystemQueryPane, IQuerySchema?> schemaFor)
+    {
+        foreach (var slot in QueryPanes)
+        {
+            ClosePane(slot);
+        }
+
+        QueryPanes.Clear();
+        _paneHostUi = hostUi;
+        _paneSchemaFor = schemaFor;
+        foreach (var pane in panes)
+        {
+            QueryPanes.Add(new QueryPaneSlot(pane) { Gesture = ParseShortcut(pane) });
+        }
+
+        RefreshPaneAvailability();
+    }
+
+    // A malformed plugin shortcut is reported to Output and left unbound; the pane itself still works.
+    private KeyGesture? ParseShortcut(SubsystemQueryPane pane)
+    {
+        if (pane.Plugin.Shortcut is not { Length: > 0 } shortcut)
+        {
+            return null;
+        }
+
+        try
+        {
+            return KeyGesture.Parse(shortcut);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
+        {
+            Reported?.Invoke(OutputLevel.Error, $"{pane.PluginName}: invalid shortcut '{shortcut}'");
+            return null;
+        }
+    }
+
+    [RelayCommand]
+    private void TogglePane(QueryPaneSlot slot)
+    {
+        if (slot.IsOpen)
+        {
+            ClosePane(slot);
+            return;
+        }
+
+        if (!slot.IsAvailable || _paneHostUi is not { } hostUi)
+        {
+            return;
+        }
+
+        // The pane column shows one pane at a time.
+        foreach (var open in QueryPanes.Where(s => s.IsOpen).ToList())
+        {
+            ClosePane(open);
+        }
+
+        var context = new QueryPaneContext(this, slot.Pane, hostUi, _paneSchemaFor(slot.Pane));
+        slot.Context = context;
+        slot.IsOpen = true;
+        // Plugin code: a pane that fails to build costs its own slot an error line, never the tab.
+        try
+        {
+            slot.Control = slot.Pane.Plugin.CreatePane(context);
+            slot.Error = null;
+        }
+        catch (Exception ex)
+        {
+            slot.Error = ex.Message;
+            Reported?.Invoke(OutputLevel.Error, $"{slot.Pane.PluginName}: {ex.Message}");
+        }
+
+        OnPropertyChanged(nameof(OpenPane));
+    }
+
+    /// <summary>Takes the SQL back from the pane that owns it.</summary>
+    [RelayCommand]
+    private void EditAsSql()
+    {
+        if (!IsSqlLinked)
+        {
+            return;
+        }
+
+        IsSqlLinked = false;
+        LinkOwner = null;
+        RaiseToPlugins(_unlinked);
+    }
+
+    public void RestorePaneStates(IReadOnlyDictionary<string, string>? states)
+    {
+        _paneStates.Clear();
+        foreach (var (pluginId, state) in states ?? new Dictionary<string, string>())
+        {
+            _paneStates[pluginId] = state;
+        }
+    }
+
+    // What Duplicate and Reopen closed tab carry over. The live state map, so a pane that saves on dispose is kept.
+    internal Core.Session.OpenTabState CaptureTab() => new(Connection.Id, SelectedDatabase, Sql, PaneStates: _paneStates);
+
+    internal void ApplyTab(Core.Session.OpenTabState tab)
+    {
+        Sql = tab.Sql;
+        RestorePaneStates(tab.PaneStates);
+    }
+
+    internal string? GetPaneState(string pluginId) => _paneStates.GetValueOrDefault(pluginId);
+
+    internal void SetPaneState(string pluginId, string? state)
+    {
+        if (state is null)
+        {
+            _paneStates.Remove(pluginId);
+            return;
+        }
+
+        _paneStates[pluginId] = state;
+    }
+
+    /// <summary>The tab is closing: dispose every open pane and stop raising events to anyone.</summary>
+    public void DisposePanes()
+    {
+        foreach (var slot in QueryPanes)
+        {
+            ClosePane(slot);
+        }
+
+        // Nothing may re-open or re-evaluate a pane on a closed tab, e.g. a database refresh landing late.
+        QueryPanes.Clear();
+        OnPropertyChanged(nameof(HasAvailablePanes));
+        _paneHostUi = null;
+        _contextChanged = null;
+        _sqlChanged = null;
+        _unlinked = null;
+    }
+
+    private void ClosePane(QueryPaneSlot slot)
+    {
+        // Closing the pane keeps its SQL in the editor but hands it back to the user.
+        var wasOpen = slot.IsOpen;
+        if (wasOpen)
+        {
+            EditAsSql();
+        }
+
+        var control = slot.Control;
+        slot.Control = null;
+        slot.Error = null;
+        slot.IsOpen = false;
+        slot.Context?.Dispose();
+        slot.Context = null;
+        if (wasOpen)
+        {
+            OnPropertyChanged(nameof(OpenPane));
+        }
+
+        try
+        {
+            (control as IDisposable)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Reported?.Invoke(OutputLevel.Error, $"{slot.Pane.PluginName}: {ex.Message}");
+        }
+    }
+
+    // Re-run each pane's AppliesTo; a pane that no longer applies is closed and disposed.
+    private void RefreshPaneAvailability()
+    {
+        foreach (var slot in QueryPanes)
+        {
+            slot.IsAvailable = PaneApplies(slot);
+            if (!slot.IsAvailable && slot.IsOpen)
+            {
+                ClosePane(slot);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasAvailablePanes));
+    }
+
+    private bool PaneApplies(QueryPaneSlot slot)
+    {
+        if (!IsQueryMode)
+        {
+            return false;
+        }
+
+        try
+        {
+            return slot.Pane.Plugin.AppliesTo(this);
+        }
+        catch (Exception ex)
+        {
+            Reported?.Invoke(OutputLevel.Error, $"{slot.Pane.PluginName}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RaiseContextChanged()
+    {
+        RefreshPaneAvailability();
+        RaiseToPlugins(_contextChanged);
+    }
+
+    // Subscribers are plugin code: one that throws is reported and costs only itself, never the editor
+    // sync, the database refresh or the other subscribers.
+    private void RaiseToPlugins(EventHandler? handlers)
+    {
+        foreach (var handler in handlers?.GetInvocationList().Cast<EventHandler>() ?? [])
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                // The plugin's name is not reachable from a bare delegate; its assembly name identifies it.
+                var source = handler.Method.DeclaringType?.Assembly.GetName().Name;
+                Reported?.Invoke(OutputLevel.Error, $"{source}: {ex.Message}");
+            }
+        }
+    }
 
     /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
     /// tab is recognisable at a glance (SE-123, mockup icon-per-tabtype).</summary>
@@ -1307,6 +1601,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
         if (!IsQueryMode)
         {
+            // Browse/monitor tabs have no database list to wait for: their context is final right here.
+            RaiseContextChanged();
             return;
         }
 
@@ -1324,9 +1620,17 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     // already resolve with — browse tabs set it once via InitBrowse and never touch this property.
     partial void OnSelectedDatabaseChanged(string? value)
     {
+        var changed = value is not null && value != _database;
         _database = value;
         RefreshPluginToolbarItems();
+        // RefreshDatabasesAsync raises the event itself once the list has settled; this is the user's pick.
+        if (changed && !_refreshingDatabases)
+        {
+            RaiseContextChanged();
+        }
     }
+
+    private bool _refreshingDatabases;
 
     private async Task RefreshDatabasesAsync(SavedConnection connection)
     {
@@ -1334,6 +1638,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         // SelectedDatabase writes null back through to _database.
         var target = _database;
 
+        _refreshingDatabases = true;
         AvailableDatabases.Clear();
         SelectedDatabase = null;
         // Put the target straight back: the picker stays empty until the list arrives, but the tab must
@@ -1382,6 +1687,13 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         catch
         {
             // Best-effort: the picker just stays empty/hidden for this connection.
+        }
+
+        // A stale refresh (a later switch raced ahead) leaves the event to the refresh that owns the tab now.
+        if (connection == Connection)
+        {
+            _refreshingDatabases = false;
+            RaiseContextChanged();
         }
     }
 
@@ -1910,9 +2222,17 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         await LoadPageAsync(ct);
     }
 
-    [RelayCommand]
+    private bool CanFormat() => !IsSqlLinked;
+
+    // RelayCommand.Execute skips CanExecute, and the Ctrl+Shift+F shortcut calls Execute directly.
+    [RelayCommand(CanExecute = nameof(CanFormat))]
     private void Format()
     {
+        if (!CanFormat())
+        {
+            return;
+        }
+
         // The provider may ship its own dialect-specialised formatter (SE-148); fall back to the host's
         // generic one (_formatter) when it doesn't. Options come from Settings (casing + indent width).
         var provider = _providers.Get(Connection.ProviderId);

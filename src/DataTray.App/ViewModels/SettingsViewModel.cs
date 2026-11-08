@@ -7,6 +7,7 @@ using Avalonia.Media;
 using DataTray.App.Theming;
 using DataTray.Core.Export;
 using DataTray.Core.Localization;
+using DataTray.Core.Plugins;
 using DataTray.Core.Providers;
 using DataTray.Core.Settings;
 using DataTray.Core.Shortcuts;
@@ -606,6 +607,7 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private PluginSettingsItem? _selectedPlugin;
+    private readonly IReadOnlyList<SubsystemActivation> _extensions;
 
     // ── MCP server (top-level) ───────────────────────────────────────────────────────────────────────
     [ObservableProperty]
@@ -776,8 +778,10 @@ public partial class SettingsViewModel : ViewModelBase
         IStoreCatalog catalog,
         System.Net.Http.HttpClient http,
         AppUpdateViewModel appUpdate,
-        ILocalizer localizer)
+        ILocalizer localizer,
+        IReadOnlyList<SubsystemActivation> extensionPlugins)
     {
+        _extensions = extensionPlugins;
         _store = store;
         _pluginStore = pluginStore;
         _providers = providers;
@@ -1116,6 +1120,11 @@ public partial class SettingsViewModel : ViewModelBase
         foreach (var tool in _tools.All)
         {
             TryAddPlugin(tool.Id, tool.Title, tool.Icon, tool);
+        }
+
+        foreach (var extension in _extensions)
+        {
+            TryAddPlugin(extension.Id, extension.Name ?? extension.Id, null, extension.Plugin);
         }
 
         SelectedPlugin = Plugins.FirstOrDefault();

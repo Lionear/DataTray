@@ -4,6 +4,7 @@
              xmlns:conv="using:Avalonia.Data.Converters"
              xmlns:vm="using:DataTray.App.ViewModels"
              xmlns:ctl="using:DataTray.App.Controls"
+             xmlns:cv="using:DataTray.App.Converters"
              x:Class="DataTray.App.Views.DocumentView">
   <UserControl.Resources>
     <!-- Shared by the three mode bars' overflow flyouts (SE-255 §4). Icon plus label; a row whose child
@@ -135,6 +136,30 @@
                       BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
                       Padding="8,0,0,0"
                       ctl:OverflowPanel.OverflowGroup="{Binding PluginToolbarItems}" />
+        <!-- Plugin pane toggles (SE-299): one per pane, highlighted while its pane is open. Without an
+             overflow header the group stays pinned on the bar. -->
+        <ItemsControl ItemsSource="{Binding QueryPanes}"
+                      IsVisible="{Binding HasAvailablePanes}"
+                      ItemsPanel="{StaticResource PluginToolbarPanel}"
+                      BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
+                      Padding="8,0,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Classes.Accent="{Binding IsOpen}" IsVisible="{Binding IsAvailable}"
+                      ToolTip.Tip="{Binding Title}"
+                      Command="{Binding $parent[ItemsControl].DataContext.TogglePaneCommand}"
+                      CommandParameter="{Binding}">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <Path Width="12" Height="12" Stretch="Uniform" Data="{Binding Icon}"
+                        IsVisible="{Binding Icon, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
+                        Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.4"
+                        StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
       </ctl:OverflowPanel>
       <Button Grid.Column="1" Classes="Subtle" Padding="7,4" Margin="6,0,0,0" VerticalAlignment="Center"
               IsVisible="{Binding #QueryBar.HasOverflow}" ToolTip.Tip="{Binding Loc[ToolbarOverflow]}">
@@ -253,31 +278,81 @@
       </Button>
     </Grid>
 
-    <!-- Row 1: SQL editor (query mode only; the row is collapsed for browse in code-behind). -->
-    <Border Grid.Row="1" IsVisible="{Binding IsQueryMode}"
-            Background="{DynamicResource SEWindowBgBrush}"
-            BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
-            CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
-      <ae:TextEditor x:Name="SqlEditor"
-                     ShowLineNumbers="True"
-                     WordWrap="{Binding EditorWordWrap}"
-                     Padding="4"
-                     FontFamily="Cascadia Code,Consolas,Menlo,monospace">
-        <ae:TextEditor.ContextMenu>
-          <ContextMenu>
-            <MenuItem Header="{Binding Loc[Cut]}" Click="OnEditorCutClick" />
-            <MenuItem Header="{Binding Loc[Copy]}" Click="OnEditorCopyClick" />
-            <MenuItem Header="{Binding Loc[Paste]}" Click="OnEditorPasteClick" />
-            <MenuItem Header="{Binding Loc[SelectAll]}" Click="OnEditorSelectAllClick" />
-            <Separator />
-            <MenuItem Header="{Binding Loc[GenerateGuid]}">
-              <MenuItem Header="{Binding Loc[GuidV4]}" Click="OnGenerateGuidV4Click" />
-              <MenuItem Header="{Binding Loc[GuidV7]}" Click="OnGenerateGuidV7Click" />
-            </MenuItem>
-          </ContextMenu>
-        </ae:TextEditor.ContextMenu>
-      </ae:TextEditor>
-    </Border>
+    <!-- Row 1: open plugin pane (SE-299), its width splitter, and the SQL editor (query mode only; the row
+         is collapsed for browse in code-behind). Not a GridSplitter, same reasoning as SE-283: the drag
+         writes the open pane's own width, so each pane keeps its size. -->
+    <Grid Grid.Row="1" x:Name="PaneRow" ColumnDefinitions="Auto,Auto,*" IsVisible="{Binding IsQueryMode}"
+          SizeChanged="OnPaneRowSizeChanged">
+      <Border Grid.Column="0" MinWidth="280" Width="{Binding OpenPane.Width}"
+              IsVisible="{Binding OpenPane, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
+              Background="{DynamicResource SEPanelBgBrush}"
+              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+              CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
+        <Panel>
+          <ContentControl Content="{Binding OpenPane.Control}"
+                          IsVisible="{Binding OpenPane.Error, Converter={x:Static conv:ObjectConverters.IsNull}}" />
+          <TextBlock Text="{Binding OpenPane.Error}" Margin="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SEStatusErrorBrush}"
+                     IsVisible="{Binding OpenPane.Error, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+        </Panel>
+      </Border>
+      <Border Grid.Column="1" x:Name="PaneSplitter" Width="4" Margin="2,0"
+              Background="{DynamicResource SEHairlineBrush}" Cursor="SizeWestEast"
+              IsVisible="{Binding OpenPane, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
+              PointerPressed="OnPaneSplitterPressed"
+              PointerMoved="OnPaneSplitterMoved"
+              PointerReleased="OnPaneSplitterReleased" />
+      <Grid Grid.Column="2" RowDefinitions="Auto,*">
+        <!-- Link bar: a pane owns the SQL, so the editor is read-only until Edit as SQL takes it back. -->
+        <Border Grid.Row="0" Margin="0,0,0,6" Padding="10,4"
+                IsVisible="{Binding IsSqlLinked}"
+                Background="{DynamicResource SEExtensibilityWashBrush}"
+                BorderBrush="{DynamicResource SEExtensibilityWashBorderBrush}" BorderThickness="1"
+                CornerRadius="{StaticResource SEControlRadius}">
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource SEExtensibilityTextBrush}">
+              <TextBlock.Text>
+                <MultiBinding Converter="{x:Static cv:StringFormatConverter.Instance}">
+                  <Binding Path="Loc[QueryPaneLinked]" />
+                  <Binding Path="LinkOwner" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+            <Button Grid.Column="1" Classes="Subtle" Margin="8,0,0,0"
+                    Content="{Binding Loc[Copy]}" Click="OnLinkCopyClick" />
+            <Button Grid.Column="2" Classes="Subtle" Margin="6,0,0,0"
+                    Content="{Binding Loc[QueryPaneEditAsSql]}" Command="{Binding EditAsSqlCommand}" />
+          </Grid>
+        </Border>
+        <Border Grid.Row="1"
+                Background="{DynamicResource SEWindowBgBrush}"
+                BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+                CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
+          <ae:TextEditor x:Name="SqlEditor"
+                         IsReadOnly="{Binding IsSqlLinked}"
+                         ShowLineNumbers="True"
+                         WordWrap="{Binding EditorWordWrap}"
+                         Padding="4"
+                         FontFamily="Cascadia Code,Consolas,Menlo,monospace">
+            <ae:TextEditor.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="{Binding Loc[Cut]}" Click="OnEditorCutClick" />
+                <MenuItem Header="{Binding Loc[Copy]}" Click="OnEditorCopyClick" />
+                <MenuItem Header="{Binding Loc[Paste]}" Click="OnEditorPasteClick" />
+                <MenuItem Header="{Binding Loc[SelectAll]}" Click="OnEditorSelectAllClick" />
+                <Separator />
+                <MenuItem Header="{Binding Loc[GenerateGuid]}" IsEnabled="{Binding !IsSqlLinked}">
+                  <MenuItem Header="{Binding Loc[GuidV4]}" Click="OnGenerateGuidV4Click" />
+                  <MenuItem Header="{Binding Loc[GuidV7]}" Click="OnGenerateGuidV7Click" />
+                </MenuItem>
+              </ContextMenu>
+            </ae:TextEditor.ContextMenu>
+          </ae:TextEditor>
+        </Border>
+      </Grid>
+    </Grid>
 
     <!-- Row 2: Query-editor/Result-grid splitter (SE-283). Not a GridSplitter: its neighbours are the
          editor (row 1, a persisted pixel height) and the edit toolbar (row 3, Auto) — a GridSplitter would

@@ -122,7 +122,13 @@ public static class ToolHostApi
     //                  The availability group failover view reads the group's state from its primary before
     //                  the run, and the primary is often not the connection the tool was launched on. A
     //                  default interface member returning null — no new types — so a fold-in by the same test.
-    public const int Version = 8;
+    // v9 (2026-11-08, SE-299): query pane seams — IQueryPanePlugin, IQueryPaneContext, IQuerySchema,
+    //                  QueryTableRef/QueryTable/QueryColumn/QueryForeignKey, INodeMenuPlugin,
+    //                  NodeMenuContribution, NodeMenuTarget and DraggedNode, plus new IQueryDocument members
+    //                  (IsReadOnly, IsLinked, Link, Unlink, ContextChanged, SqlChanged, Unlinked) and the
+    //                  "query-pane" and "schema" capabilities. A new number because these are *types* (the
+    //                  SE-166 trap). MinimumSupported stays 1.
+    public const int Version = 9;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3
     /// extensibility seams, v4 the services + providers capabilities), so older tools keep loading on a newer

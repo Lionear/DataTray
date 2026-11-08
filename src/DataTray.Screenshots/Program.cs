@@ -48,6 +48,7 @@ namespace DataTray.Screenshots;
 // firstrun (the onboarding wizard; --state welcome|engine|security|securityfile|securitynovault|
 //   connection|import|done), splash (the SE-297 startup splash; --state step1|step2|step3|updates|slow|stuck|
 //   failed|failedworkspace|ready, prefixed "compact-" for the compact layout).
+// query-pane (SE-299: query tab with a demo pane; --state open|linked|error).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
 // without a display.
@@ -175,7 +176,7 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, settings, aitree, copytable, erdiagram, splash";
+    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, settings, aitree, copytable, erdiagram, splash, query-pane";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state)
     {
@@ -207,6 +208,7 @@ internal static class SceneCatalog
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
         "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
         "splash" => Task.FromResult<Window?>(BuildSplash(services, state)),
+        "query-pane" => BuildQueryPaneAsync(services, sandbox, state),
         _ => Task.FromResult<Window?>(null)
     };
 
@@ -716,6 +718,16 @@ internal static class SceneCatalog
         return new MainWindow(
             services.GetRequiredService<IAppSettingsStore>(),
             services.GetRequiredService<KeymapService>()) { DataContext = viewModel };
+    }
+
+    // SE-299: the query scene with a demo pane. --state open|linked|error (linked = editor linked, link bar up).
+    private static async Task<Window?> BuildQueryPaneAsync(IServiceProvider services, string sandbox, string state)
+    {
+        var window = await BuildQueryAsync(services, sandbox, "input");
+        var document = ((MainViewModel)window!.DataContext!).SelectedDocument!;
+        QueryPaneDemo.Apply(document, state);
+        Program.Settle(rounds: 10);
+        return window;
     }
 
     // The export dialog: the real CSV/JSON/SQL format picker, sized to its own content (no --size needed).

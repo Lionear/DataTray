@@ -1458,11 +1458,29 @@
   <data name="Cap_panel_Desc" xml:space="preserve">
     <value>Adds a panel to the workspace, next to Output and History.</value>
   </data>
+  <data name="Cap_query-pane_Title" xml:space="preserve">
+    <value>Query pane</value>
+  </data>
+  <data name="Cap_query-pane_Desc" xml:space="preserve">
+    <value>Adds a pane to query tabs.</value>
+  </data>
+  <data name="Cap_schema_Title" xml:space="preserve">
+    <value>Schema access</value>
+  </data>
+  <data name="Cap_schema_Desc" xml:space="preserve">
+    <value>Reads the tables, columns, types and foreign keys of the connection a query tab uses.</value>
+  </data>
+  <data name="StoreUninstallConfirmTitle" xml:space="preserve">
+    <value>Uninstall {0}?</value>
+  </data>
+  <data name="StoreUninstallConfirmBody" xml:space="preserve">
+    <value>It is removed the next time DataTray starts.</value>
+  </data>
   <data name="Cap_menu_Title" xml:space="preserve">
     <value>Menu items</value>
   </data>
   <data name="Cap_menu_Desc" xml:space="preserve">
-    <value>Adds items to the Tools menu and to a connection's right-click menu.</value>
+    <value>Adds items to the Tools menu and to the right-click menu of a connection, table or view.</value>
   </data>
   <data name="Cap_background_Title" xml:space="preserve">
     <value>Background task</value>
@@ -2351,5 +2369,11 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   </data>
   <data name="SplashA11yReady" xml:space="preserve">
     <value>DataTray is ready</value>
+  </data>
+  <data name="QueryPaneLinked" xml:space="preserve">
+    <value>Written by {0} · read-only while linked</value>
+  </data>
+  <data name="QueryPaneEditAsSql" xml:space="preserve">
+    <value>Edit as SQL</value>
   </data>
 </root>
