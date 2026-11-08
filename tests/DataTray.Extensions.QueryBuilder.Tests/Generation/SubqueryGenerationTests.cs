@@ -62,6 +62,15 @@ public class SubqueryGenerationTests
     }
 
     [Fact]
+    public void Generate_QuantifiedSubqueryOnSqlite_IsAProblem()
+    {
+        var result = Generate("sqlite", "3.45.1", Outer(new Quantified(Col("a"), BinaryOp.Gt, Quantifier.All, Inner(Col("b"), null))));
+
+        Assert.Null(result.Sql);
+        Assert.Equal(["quantified-subquery"], Codes(result));
+    }
+
+    [Fact]
     public void Generate_DistinctSelect_WritesTheKeywordAndAlignsItems()
     {
         var query = new Query(null, new Select(true, [new SelectItem(Col("a"), null), new SelectItem(Col("b"), null)], [], null, [], null, []), [], null);

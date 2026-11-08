@@ -36,6 +36,10 @@ public sealed record DialectCapabilities
 
     public bool LimitInInSubquery { get; init; }
 
+    public bool QuantifiedSubquery { get; init; }
+
+    public bool CaseInsensitiveLike { get; init; }
+
     public LimitStyle LimitStyle { get; init; }
 
     public ConcatStyle ConcatStyle { get; init; }

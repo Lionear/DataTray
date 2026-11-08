@@ -3,7 +3,8 @@ using DataTray.Extensions.QueryBuilder.Model;
 
 namespace DataTray.Extensions.QueryBuilder.Generation;
 
-// Higher binds tighter. A child is parenthesized only when its level is below what its parent requires.
+// Higher binds tighter. A child is parenthesized when its level is below what its parent requires; a right
+// operand at equal level is too, so only left-deep chains print flat and the tree reads back unchanged.
 internal static class Precedence
 {
     // A fragment's inner structure is unknown, so any operator around it gets parentheses.
@@ -40,6 +41,4 @@ internal static class Precedence
         _ => Primary,
     };
 
-    // Only AND/OR are associative in SQL; `a + (b + c)` keeps its parentheses (overflow, string `+`).
-    public static bool IsAssociative(BinaryOp op) => op is BinaryOp.And or BinaryOp.Or;
 }

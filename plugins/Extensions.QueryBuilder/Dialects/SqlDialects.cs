@@ -17,6 +17,7 @@ public static class SqlDialects
 
     private static DialectCapabilities SqlServer(ServerVersion? v) => new()
     {
+        QuantifiedSubquery = true,
         RightJoin = true,
         FullJoin = true,
         Apply = true,
@@ -37,6 +38,8 @@ public static class SqlDialects
 
     private static DialectCapabilities Postgres(ServerVersion? v) => new()
     {
+        QuantifiedSubquery = true,
+        CaseInsensitiveLike = true,
         RightJoin = true,
         FullJoin = true,
         Lateral = true,
@@ -62,6 +65,7 @@ public static class SqlDialects
 
     private static DialectCapabilities MySql(ServerVersion? v) => new()
     {
+        QuantifiedSubquery = true,
         RightJoin = true,
         Lateral = ServerVersion.AtLeast(v, 8, 0, 14),
         RecursiveKeyword = true,

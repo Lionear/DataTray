@@ -19,7 +19,8 @@ public class ExpressionGenerationTests
         { "postgres", Bin(BinaryOp.Divide, Col("a"), Bin(BinaryOp.Multiply, Col("b"), Col("c"))), "SELECT \"a\" / (\"b\" * \"c\");" },
         { "postgres", Bin(BinaryOp.Multiply, Col("a"), Bin(BinaryOp.Divide, Col("b"), Col("c"))), "SELECT \"a\" * (\"b\" / \"c\");" },
         { "postgres", Bin(BinaryOp.Modulo, Col("a"), Bin(BinaryOp.Modulo, Col("b"), Col("c"))), "SELECT \"a\" % (\"b\" % \"c\");" },
-        { "postgres", Bin(BinaryOp.And, Col("a"), Bin(BinaryOp.And, Col("b"), Col("c"))), "SELECT \"a\" AND \"b\" AND \"c\";" },
+        { "postgres", Bin(BinaryOp.And, Col("a"), Bin(BinaryOp.And, Col("b"), Col("c"))), "SELECT \"a\" AND (\"b\" AND \"c\");" },
+        { "postgres", Bin(BinaryOp.And, Bin(BinaryOp.And, Col("a"), Col("b")), Col("c")), "SELECT \"a\" AND \"b\" AND \"c\";" },
         { "postgres", Bin(BinaryOp.Add, Col("a"), Bin(BinaryOp.Add, Col("b"), Col("c"))), "SELECT \"a\" + (\"b\" + \"c\");" },
         { "postgres", Bin(BinaryOp.Eq, Bin(BinaryOp.Eq, Col("a"), Col("b")), Col("c")), "SELECT (\"a\" = \"b\") = \"c\";" },
         { "postgres", Neg(Bin(BinaryOp.Add, Col("a"), Col("b"))), "SELECT -(\"a\" + \"b\");" },
@@ -108,6 +109,25 @@ public class ExpressionGenerationTests
     public void Generate_BooleansFollowTheDialect(string provider, string? version, string text, string expected)
     {
         Assert.Equal(expected, Generate(provider, version, new Literal(LiteralKind.Boolean, text)).Sql);
+    }
+
+    public static TheoryData<string, string?, Query, string> BooleanPredicateCases() => new()
+    {
+        { "sqlserver", null, Query(new Literal(LiteralKind.Boolean, "true"), [], new SelectItem(Num("1"), null)), "SELECT 1\nWHERE 1 = 1;" },
+        { "sqlite", null, Query(new Literal(LiteralKind.Boolean, "false"), [], new SelectItem(Num("1"), null)), "SELECT 1\nWHERE 1 = 0;" },
+        { "postgres", null, Query(new Literal(LiteralKind.Boolean, "true"), [], new SelectItem(Num("1"), null)), "SELECT 1\nWHERE TRUE;" },
+        { "sqlserver", null, Query(Not(new Literal(LiteralKind.Boolean, "true"))), "SELECT NOT 1 = 1;" },
+        { "sqlserver", null, Query(Bin(BinaryOp.Or, Bin(BinaryOp.Eq, Col("a"), Num("1")), new Literal(LiteralKind.Boolean, "false"))), "SELECT [a] = 1 OR 1 = 0;" },
+        { "sqlserver", null, Query(new Case(null, [new CaseWhen(new Literal(LiteralKind.Boolean, "true"), Num("1"))], null)), "SELECT CASE WHEN 1 = 1 THEN 1 END;" },
+        { "sqlserver", null, Query(new Case(Col("a"), [new CaseWhen(new Literal(LiteralKind.Boolean, "true"), Num("1"))], null)), "SELECT CASE [a] WHEN 1 THEN 1 END;" },
+        { "sqlserver", null, Query(Bin(BinaryOp.Eq, Col("a"), new Literal(LiteralKind.Boolean, "true"))), "SELECT [a] = 1;" },
+        { "sqlserver", null, Query(null, [new JoinSource(Table("A", "a"), JoinType.Inner, Table("B", "b"), new Literal(LiteralKind.Boolean, "true"))], new SelectItem(new Star(null), null)), "SELECT *\nFROM [dbo].[A] AS a\nINNER JOIN [dbo].[B] AS b ON 1 = 1;" },
+    };
+
+    [Theory, MemberData(nameof(BooleanPredicateCases))]
+    public void Generate_BooleanAsPredicate_IsAComparisonWithoutBooleanLiterals(string provider, string? version, Query query, string expected)
+    {
+        Assert.Equal(expected, Generate(provider, version, query).Sql);
     }
 
     [Fact]

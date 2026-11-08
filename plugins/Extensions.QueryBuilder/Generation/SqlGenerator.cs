@@ -114,7 +114,7 @@ public sealed partial class SqlGenerator
         {
             _w.NewLine();
             _w.Write("WHERE ");
-            WriteExpr(select.Where, 0);
+            WritePredicate(select.Where, 0);
         }
     }
 
@@ -174,7 +174,7 @@ public sealed partial class SqlGenerator
         if (join.On is not null)
         {
             _w.Write(" ON ");
-            WriteExpr(join.On, 0);
+            WritePredicate(join.On, 0);
         }
     }
 
@@ -219,6 +219,35 @@ public sealed partial class SqlGenerator
         }
     }
 
+    private void WriteOperand(Expr expr, int required, bool predicate)
+    {
+        if (predicate)
+        {
+            WritePredicate(expr, required);
+        }
+        else
+        {
+            WriteExpr(expr, required);
+        }
+    }
+
+    // Without boolean literals (SQL Server, old SQLite) a bare TRUE/FALSE condition is written as a comparison;
+    // in value position it stays 1/0.
+    private void WritePredicate(Expr expr, int required)
+    {
+        if (expr is not Literal { Kind: LiteralKind.Boolean } literal || _can.BooleanLiterals)
+        {
+            WriteExpr(expr, required);
+            return;
+        }
+
+        var wrap = Precedence.Comparison < required;
+        _w.Write(wrap ? "(" : string.Empty);
+        _w.Write("1 = ");
+        WriteLiteral(literal);
+        _w.Write(wrap ? ")" : string.Empty);
+    }
+
     private void WriteBare(Expr expr)
     {
         const int operand = Precedence.Comparison + 1;
@@ -238,7 +267,7 @@ public sealed partial class SqlGenerator
                 break;
             case Unary { Op: UnaryOp.Not } u:
                 _w.Write("NOT ");
-                WriteExpr(u.Operand, Precedence.Not);
+                WritePredicate(u.Operand, Precedence.Not);
                 break;
             case Unary u:
                 _w.Write("-");
@@ -277,6 +306,7 @@ public sealed partial class SqlGenerator
                 _w.Nested(() => WriteQuery(e.Query));
                 break;
             case Quantified q:
+                Require(_can.QuantifiedSubquery, "quantified-subquery", "ANY/ALL subqueries", q);
                 WriteExpr(q.Value, operand);
                 _w.Write($" {Operator(q.Comparison)} {(q.Quantifier == Quantifier.All ? "ALL" : "ANY")} ");
                 _w.Nested(() => WriteQuery(q.Query));
@@ -307,11 +337,10 @@ public sealed partial class SqlGenerator
     private void WriteBinary(Binary b)
     {
         var level = Precedence.Of(b.Op);
-        var comparison = level == Precedence.Comparison;
-        var sameAssociative = Precedence.IsAssociative(b.Op) && b.Right is Binary right && right.Op == b.Op;
-        WriteExpr(b.Left, comparison ? level + 1 : level);
+        var logical = b.Op is BinaryOp.And or BinaryOp.Or;
+        WriteOperand(b.Left, level == Precedence.Comparison ? level + 1 : level, logical);
         _w.Write($" {Operator(b.Op)} ");
-        WriteExpr(b.Right, sameAssociative ? level : level + 1);
+        WriteOperand(b.Right, level + 1, logical);
     }
 
     private void WriteLiteral(Literal literal)
@@ -353,7 +382,7 @@ public sealed partial class SqlGenerator
             _w.Write(not + " LIKE ");
             WriteExpr(like.Pattern, operand);
         }
-        else if (_dialect.Id == "postgres")
+        else if (_can.CaseInsensitiveLike)
         {
             WriteExpr(like.Value, operand);
             _w.Write(not + " ILIKE ");
@@ -409,7 +438,7 @@ public sealed partial class SqlGenerator
         foreach (var when in c.Whens)
         {
             _w.Write(" WHEN ");
-            WriteExpr(when.When, 0);
+            WriteOperand(when.When, 0, c.Operand is null);
             _w.Write(" THEN ");
             WriteExpr(when.Then, 0);
         }

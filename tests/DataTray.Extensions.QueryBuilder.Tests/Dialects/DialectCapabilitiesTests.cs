@@ -71,6 +71,14 @@ public class DialectCapabilitiesTests
         { "postgres", null, c => c.Merge, false },
         { "postgres", null, c => c.MergeNotMatchedBySource, false },
         { "sqlserver", null, c => c.NamedWindow, false },
+        { "sqlserver", null, c => c.QuantifiedSubquery, true },
+        { "postgres", null, c => c.QuantifiedSubquery, true },
+        { "mysql", null, c => c.QuantifiedSubquery, true },
+        { "sqlite", "3.45.1", c => c.QuantifiedSubquery, false },
+        { "postgres", null, c => c.CaseInsensitiveLike, true },
+        { "sqlserver", "16.0.1000", c => c.CaseInsensitiveLike, false },
+        { "mysql", "8.4.0", c => c.CaseInsensitiveLike, false },
+        { "sqlite", "3.45.1", c => c.CaseInsensitiveLike, false },
     };
 
     [Theory]
