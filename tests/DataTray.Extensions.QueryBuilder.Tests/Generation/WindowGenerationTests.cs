@@ -25,7 +25,7 @@ public class WindowGenerationTests
         { "postgres", null, Over(Frame(FrameUnit.Range, Bound(BoundKind.Preceding, 5), null, FrameExclude.NoOthers)), "SELECT SUM(\"x\") OVER (PARTITION BY \"p\" ORDER BY \"o\" DESC RANGE 5 PRECEDING EXCLUDE NO OTHERS);" },
         { "postgres", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.UnboundedPreceding, null), null, FrameExclude.CurrentRow)), "SELECT SUM(\"x\") OVER (PARTITION BY \"p\" ORDER BY \"o\" DESC ROWS UNBOUNDED PRECEDING EXCLUDE CURRENT ROW);" },
         { "postgres", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.CurrentRow, null), null, FrameExclude.Group)), "SELECT SUM(\"x\") OVER (PARTITION BY \"p\" ORDER BY \"o\" DESC ROWS CURRENT ROW EXCLUDE GROUP);" },
-        { "mysql", null, new WindowCall(Sum, new WindowSpec("w", [], [], null)), "SELECT SUM(`x`) OVER (w);" },
+        { "mysql", null, new WindowCall(Sum, new WindowSpec("w", [], [], null)), "SELECT SUM(`x`) OVER w;" },
         { "postgres", null, new WindowCall(Sum, new WindowSpec("w", [], [new OrderItem(Col("o"), false)], null)), "SELECT SUM(\"x\") OVER (w ORDER BY \"o\");" },
     };
 
@@ -47,6 +47,24 @@ public class WindowGenerationTests
         { "mysql", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.CurrentRow, null), null, FrameExclude.Ties)), "frame-exclude" },
         { "sqlserver", "15.0.2000", new WindowCall(Sum, new WindowSpec("w", [], [], null)), "named-window" },
     };
+
+    public static TheoryData<Frame, string> InvalidFrames() => new()
+    {
+        { Frame(FrameUnit.Rows, Bound(BoundKind.Following, 1), null, null), "invalid-frame" },
+        { Frame(FrameUnit.Rows, Bound(BoundKind.UnboundedFollowing, null), Bound(BoundKind.UnboundedFollowing, null), null), "invalid-frame" },
+        { Frame(FrameUnit.Rows, Bound(BoundKind.CurrentRow, null), Bound(BoundKind.Preceding, 1), null), "invalid-frame" },
+        { Frame(FrameUnit.Rows, Bound(BoundKind.UnboundedPreceding, null), Bound(BoundKind.UnboundedPreceding, null), null), "invalid-frame" },
+        { Frame(FrameUnit.Rows, Bound(BoundKind.Preceding, null), null, null), "invalid-frame-offset" },
+    };
+
+    [Theory, MemberData(nameof(InvalidFrames))]
+    public void Generate_InvalidFrame_IsAProblem(Frame frame, string code)
+    {
+        var result = Generate("postgres", null, Over(frame));
+
+        Assert.Null(result.Sql);
+        Assert.Equal([code], Codes(result));
+    }
 
     [Theory, MemberData(nameof(MissingCapabilities))]
     public void Generate_MissingWindowCapability_IsAProblem(string provider, string? version, Expr expr, string code)

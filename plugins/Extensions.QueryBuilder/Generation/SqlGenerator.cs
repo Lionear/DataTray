@@ -10,15 +10,6 @@ namespace DataTray.Extensions.QueryBuilder.Generation;
 /// </summary>
 public sealed partial class SqlGenerator
 {
-    private static readonly HashSet<string> Reserved = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "ALL", "AND", "ANY", "APPLY", "AS", "ASC", "BETWEEN", "BY", "CASE", "CAST", "CROSS", "DESC", "DISTINCT",
-        "ELSE", "END", "EXCEPT", "EXISTS", "FALSE", "FETCH", "FOR", "FROM", "FULL", "GROUP", "GROUPS", "HAVING",
-        "ILIKE", "IN", "INNER", "INTERSECT", "INTO", "IS", "JOIN", "LATERAL", "LEFT", "LIKE", "LIMIT", "NATURAL",
-        "NOT", "NULL", "OFFSET", "ON", "OR", "ORDER", "OUTER", "OVER", "PARTITION", "RANGE", "RIGHT", "ROWS",
-        "SELECT", "SET", "TABLE", "THEN", "TOP", "TRUE", "UNION", "USING", "VALUES", "WHEN", "WHERE", "WINDOW", "WITH",
-    };
-
     private readonly IDialect _dialect;
     private readonly DialectCapabilities _can;
     private readonly SqlWriter _w = new();
@@ -45,11 +36,15 @@ public sealed partial class SqlGenerator
             : new GenerationResult(generator._w.ToString(), []);
     }
 
-    [GeneratedRegex(@"^-?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?\z")]
+    // [0-9], not \d: \d also matches non-ASCII digits.
+    [GeneratedRegex(@"^-?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?\z")]
     private static partial Regex NumberText();
 
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*\z")]
     private static partial Regex SimpleName();
+
+    [GeneratedRegex(@"^[a-z_][a-z0-9_]*\z")]
+    private static partial Regex LowerCaseName();
 
     // Extension point for the rest of the query (WITH, ORDER BY, limits, set operations, VALUES, GROUP BY,
     // HAVING, WINDOW): until written, each is a problem so nothing is silently dropped.
@@ -114,7 +109,7 @@ public sealed partial class SqlGenerator
         {
             _w.NewLine();
             _w.Write("WHERE ");
-            WritePredicate(select.Where, 0);
+            WriteExpr(select.Where, 0, true);
         }
     }
 
@@ -149,6 +144,16 @@ public sealed partial class SqlGenerator
 
     private void WriteJoin(JoinSource join, bool inline)
     {
+        var takesOn = join.Type is JoinType.Inner or JoinType.Left or JoinType.Right or JoinType.Full;
+        if (takesOn && join.On is null)
+        {
+            Problem("join-needs-on", $"{join.Type} join needs an ON condition.", join);
+        }
+        else if (!takesOn && join.On is not null)
+        {
+            Problem("join-unexpected-on", $"{join.Type} join takes no ON condition.", join);
+        }
+
         WriteSource(join.Left, inline);
         if (inline)
         {
@@ -174,7 +179,7 @@ public sealed partial class SqlGenerator
         if (join.On is not null)
         {
             _w.Write(" ON ");
-            WritePredicate(join.On, 0);
+            WriteExpr(join.On, 0, true);
         }
     }
 
@@ -198,14 +203,29 @@ public sealed partial class SqlGenerator
                 return "LEFT JOIN";
             case JoinType.Cross:
                 return "CROSS JOIN";
-            default:
+            case JoinType.Inner:
                 return "INNER JOIN";
+            default:
+                throw new ArgumentOutOfRangeException(nameof(join), join.Type, null);
         }
     }
 
-    // Writes expr, wrapped in parentheses when it binds looser than the parent requires.
-    private void WriteExpr(Expr expr, int required)
+    // Writes expr, wrapped in parentheses when it binds looser than the parent requires. Without boolean
+    // literals a condition only exists in predicate position: a bare TRUE/FALSE there becomes `1 = 1`/`1 = 0`,
+    // and a condition in value position is refused (`SELECT [a] = 1` would be an alias assignment).
+    private void WriteExpr(Expr expr, int required, bool predicate = false)
     {
+        if (!_can.BooleanLiterals && predicate && expr is Literal { Kind: LiteralKind.Boolean } literal)
+        {
+            WriteBooleanPredicate(literal, required);
+            return;
+        }
+
+        if (!_can.BooleanLiterals && !predicate && IsCondition(expr))
+        {
+            Problem("predicate-as-value", $"{_dialect.Id} has no boolean values; a condition cannot be used as a value here.", expr);
+        }
+
         var wrap = Precedence.Of(expr, _can.ConcatStyle) < required;
         if (wrap)
         {
@@ -219,34 +239,22 @@ public sealed partial class SqlGenerator
         }
     }
 
-    private void WriteOperand(Expr expr, int required, bool predicate)
+    private void WriteBooleanPredicate(Literal literal, int required)
     {
-        if (predicate)
-        {
-            WritePredicate(expr, required);
-        }
-        else
-        {
-            WriteExpr(expr, required);
-        }
-    }
-
-    // Without boolean literals (SQL Server, old SQLite) a bare TRUE/FALSE condition is written as a comparison;
-    // in value position it stays 1/0.
-    private void WritePredicate(Expr expr, int required)
-    {
-        if (expr is not Literal { Kind: LiteralKind.Boolean } literal || _can.BooleanLiterals)
-        {
-            WriteExpr(expr, required);
-            return;
-        }
-
         var wrap = Precedence.Comparison < required;
         _w.Write(wrap ? "(" : string.Empty);
         _w.Write("1 = ");
         WriteLiteral(literal);
         _w.Write(wrap ? ")" : string.Empty);
     }
+
+    private static bool IsCondition(Expr expr) => expr switch
+    {
+        Binary b => Precedence.Of(b.Op) <= Precedence.Comparison,
+        Unary u => u.Op == UnaryOp.Not,
+        Between or Like or IsNull or InList or InSubquery or Exists or Quantified => true,
+        _ => false,
+    };
 
     private void WriteBare(Expr expr)
     {
@@ -267,9 +275,9 @@ public sealed partial class SqlGenerator
                 break;
             case Unary { Op: UnaryOp.Not } u:
                 _w.Write("NOT ");
-                WritePredicate(u.Operand, Precedence.Not);
+                WriteExpr(u.Operand, Precedence.Not, true);
                 break;
-            case Unary u:
+            case Unary { Op: UnaryOp.Negate } u:
                 _w.Write("-");
                 WriteExpr(u.Operand, Precedence.Primary);
                 break;
@@ -307,6 +315,11 @@ public sealed partial class SqlGenerator
                 break;
             case Quantified q:
                 Require(_can.QuantifiedSubquery, "quantified-subquery", "ANY/ALL subqueries", q);
+                if (Precedence.Of(q.Comparison) != Precedence.Comparison)
+                {
+                    Problem("invalid-quantified-op", $"ANY/ALL needs a comparison, not {q.Comparison}.", q);
+                }
+
                 WriteExpr(q.Value, operand);
                 _w.Write($" {Operator(q.Comparison)} {(q.Quantifier == Quantifier.All ? "ALL" : "ANY")} ");
                 _w.Nested(() => WriteQuery(q.Query));
@@ -331,6 +344,8 @@ public sealed partial class SqlGenerator
             case Concat c:
                 WriteConcat(c);
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(expr), expr, null);
         }
     }
 
@@ -338,9 +353,9 @@ public sealed partial class SqlGenerator
     {
         var level = Precedence.Of(b.Op);
         var logical = b.Op is BinaryOp.And or BinaryOp.Or;
-        WriteOperand(b.Left, level == Precedence.Comparison ? level + 1 : level, logical);
+        WriteExpr(b.Left, level == Precedence.Comparison ? level + 1 : level, logical);
         _w.Write($" {Operator(b.Op)} ");
-        WriteOperand(b.Right, level + 1, logical);
+        WriteExpr(b.Right, level + 1, logical);
     }
 
     private void WriteLiteral(Literal literal)
@@ -366,9 +381,11 @@ public sealed partial class SqlGenerator
 
                 _w.Write(_dialect.BooleanLiteral(value));
                 break;
-            default:
+            case LiteralKind.Null:
                 _w.Write("NULL");
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(literal), literal.Kind, null);
         }
     }
 
@@ -400,6 +417,11 @@ public sealed partial class SqlGenerator
 
     private void WriteConcat(Concat concat)
     {
+        if (concat.Parts.Count < 2)
+        {
+            Problem("concat-arity", "Concatenation needs at least two parts.", concat);
+        }
+
         if (_can.ConcatStyle == ConcatStyle.ConcatFunction)
         {
             _w.Write("CONCAT(");
@@ -438,7 +460,7 @@ public sealed partial class SqlGenerator
         foreach (var when in c.Whens)
         {
             _w.Write(" WHEN ");
-            WriteOperand(when.When, 0, c.Operand is null);
+            WriteExpr(when.When, 0, c.Operand is null);
             _w.Write(" THEN ");
             WriteExpr(when.Then, 0);
         }
@@ -456,12 +478,22 @@ public sealed partial class SqlGenerator
     {
         Require(_can.WindowFunctions, "window-functions", "window functions", call);
         WriteCall(call.Function);
-        _w.Write(" OVER (");
         var spec = call.Over;
+        if (spec.BaseWindow is not null)
+        {
+            Require(_can.NamedWindow, "named-window", "named windows", call);
+        }
+
+        if (spec is { BaseWindow: { } name, PartitionBy.Count: 0, OrderBy.Count: 0, Frame: null })
+        {
+            _w.Write(" OVER " + Alias(name));
+            return;
+        }
+
+        _w.Write(" OVER (");
         var separator = string.Empty;
         if (spec.BaseWindow is { } baseWindow)
         {
-            Require(_can.NamedWindow, "named-window", "named windows", call);
             _w.Write(Alias(baseWindow));
             separator = " ";
         }
@@ -508,6 +540,13 @@ public sealed partial class SqlGenerator
     {
         var offsetBound = frame.Start.Kind is BoundKind.Preceding or BoundKind.Following
             || frame.End?.Kind is BoundKind.Preceding or BoundKind.Following;
+        if (frame.Start.Kind is BoundKind.Following or BoundKind.UnboundedFollowing
+            || frame.End?.Kind == BoundKind.UnboundedPreceding
+            || frame.End?.Kind < frame.Start.Kind)
+        {
+            Problem("invalid-frame", "A frame cannot start after FOLLOWING or end before its start.", frame);
+        }
+
         if (frame.Unit == FrameUnit.Groups)
         {
             Require(_can.GroupsFrame, "groups-frame", "GROUPS frames", frame);
@@ -528,7 +567,8 @@ public sealed partial class SqlGenerator
                 FrameExclude.CurrentRow => " EXCLUDE CURRENT ROW",
                 FrameExclude.Group => " EXCLUDE GROUP",
                 FrameExclude.Ties => " EXCLUDE TIES",
-                _ => " EXCLUDE NO OTHERS",
+                FrameExclude.NoOthers => " EXCLUDE NO OTHERS",
+                _ => throw new ArgumentOutOfRangeException(nameof(frame), exclude, null),
             });
         }
     }
@@ -546,7 +586,8 @@ public sealed partial class SqlGenerator
             BoundKind.Preceding => $"{bound.Offset} PRECEDING",
             BoundKind.CurrentRow => "CURRENT ROW",
             BoundKind.Following => $"{bound.Offset} FOLLOWING",
-            _ => "UNBOUNDED FOLLOWING",
+            BoundKind.UnboundedFollowing => "UNBOUNDED FOLLOWING",
+            _ => throw new ArgumentOutOfRangeException(nameof(bound), bound.Kind, null),
         };
     }
 
@@ -577,7 +618,8 @@ public sealed partial class SqlGenerator
         BinaryOp.Subtract => "-",
         BinaryOp.Multiply => "*",
         BinaryOp.Divide => "/",
-        _ => "%",
+        BinaryOp.Modulo => "%",
+        _ => throw new ArgumentOutOfRangeException(nameof(op), op, null),
     };
 
     private string TableName(TableName name)
@@ -591,10 +633,12 @@ public sealed partial class SqlGenerator
         return alias is null ? string.Empty : " AS " + Alias(alias);
     }
 
-    // Table aliases stay bare when they are plain identifiers (`r.[FullName]`); anything else is quoted.
+    // Table aliases stay bare when they are plain identifiers (`r.[FullName]`) that case folding cannot change;
+    // anything else, and any reserved word of the four dialects, is quoted.
     private string Alias(string alias)
     {
-        return SimpleName().IsMatch(alias) && !Reserved.Contains(alias) ? alias : _dialect.QuoteIdentifier(alias);
+        var simple = _can.UnquotedFoldsToLower ? LowerCaseName().IsMatch(alias) : SimpleName().IsMatch(alias);
+        return simple && !ReservedWords.Contains(alias) ? alias : _dialect.QuoteIdentifier(alias);
     }
 
     private void Require(bool supported, string code, string feature, object node)

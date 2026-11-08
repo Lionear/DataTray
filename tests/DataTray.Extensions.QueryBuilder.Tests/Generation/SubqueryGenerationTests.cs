@@ -71,6 +71,15 @@ public class SubqueryGenerationTests
     }
 
     [Fact]
+    public void Generate_QuantifiedWithANonComparison_IsAProblem()
+    {
+        var result = Generate("postgres", null, Outer(new Quantified(Col("a"), BinaryOp.Add, Quantifier.Any, Inner(Col("b"), null))));
+
+        Assert.Null(result.Sql);
+        Assert.Equal(["invalid-quantified-op"], Codes(result));
+    }
+
+    [Fact]
     public void Generate_DistinctSelect_WritesTheKeywordAndAlignsItems()
     {
         var query = new Query(null, new Select(true, [new SelectItem(Col("a"), null), new SelectItem(Col("b"), null)], [], null, [], null, []), [], null);

@@ -12,7 +12,6 @@ public class ExpressionGenerationTests
         { "postgres", Not(Bin(BinaryOp.And, Col("a"), Col("b"))), "SELECT NOT (\"a\" AND \"b\");" },
         { "postgres", Bin(BinaryOp.And, Not(Col("a")), Col("b")), "SELECT NOT \"a\" AND \"b\";" },
         { "postgres", Not(Bin(BinaryOp.Eq, Col("a"), Col("b"))), "SELECT NOT \"a\" = \"b\";" },
-        { "sqlserver", Bin(BinaryOp.Eq, Bin(BinaryOp.Add, Col("a"), Num("1")), Bin(BinaryOp.Multiply, Col("b"), Num("2"))), "SELECT [a] + 1 = [b] * 2;" },
         { "mysql", Bin(BinaryOp.Multiply, Bin(BinaryOp.Add, Col("a"), Col("b")), Col("c")), "SELECT (`a` + `b`) * `c`;" },
         { "sqlite", Bin(BinaryOp.Subtract, Col("a"), Bin(BinaryOp.Subtract, Col("b"), Col("c"))), "SELECT \"a\" - (\"b\" - \"c\");" },
         { "sqlite", Bin(BinaryOp.Subtract, Bin(BinaryOp.Subtract, Col("a"), Col("b")), Col("c")), "SELECT \"a\" - \"b\" - \"c\";" },
@@ -42,6 +41,49 @@ public class ExpressionGenerationTests
         Assert.Equal(expected, Generate(provider, null, expr).Sql);
     }
 
+    public static TheoryData<string, Expr, string> WherePrecedenceCases() => new()
+    {
+        { "sqlserver", Bin(BinaryOp.Eq, Bin(BinaryOp.Add, Col("a"), Num("1")), Bin(BinaryOp.Multiply, Col("b"), Num("2"))), "SELECT 1\nWHERE [a] + 1 = [b] * 2;" },
+        { "sqlserver", Bin(BinaryOp.Or, Bin(BinaryOp.Eq, Col("a"), Num("1")), Bin(BinaryOp.And, Bin(BinaryOp.Eq, Col("b"), Num("2")), Bin(BinaryOp.Eq, Col("c"), Num("3")))), "SELECT 1\nWHERE [a] = 1 OR [b] = 2 AND [c] = 3;" },
+        { "mysql", Bin(BinaryOp.And, Bin(BinaryOp.Or, Bin(BinaryOp.Eq, Col("a"), Num("1")), Bin(BinaryOp.Eq, Col("b"), Num("2"))), Bin(BinaryOp.Eq, Col("c"), Num("3"))), "SELECT 1\nWHERE (`a` = 1 OR `b` = 2) AND `c` = 3;" },
+        { "sqlite", Not(Bin(BinaryOp.And, Bin(BinaryOp.Eq, Col("a"), Num("1")), Bin(BinaryOp.Eq, Col("b"), Num("2")))), "SELECT 1\nWHERE NOT (\"a\" = 1 AND \"b\" = 2);" },
+        { "sqlite", Bin(BinaryOp.Gt, Bin(BinaryOp.Multiply, Bin(BinaryOp.Subtract, Col("a"), Col("b")), Num("2")), Num("0")), "SELECT 1\nWHERE (\"a\" - \"b\") * 2 > 0;" },
+    };
+
+    [Theory, MemberData(nameof(WherePrecedenceCases))]
+    public void Generate_ParenthesizesPredicatesOnlyWhereTheTreeRequires(string provider, Expr predicate, string expected)
+    {
+        Assert.Equal(expected, Generate(provider, null, Where(predicate)).Sql);
+    }
+
+    public static TheoryData<string, string?, Query> PredicatesAsValues() => new()
+    {
+        { "sqlserver", null, Query(Bin(BinaryOp.Eq, Col("a"), Num("1"))) },
+        { "sqlserver", null, Query(new FunctionCall("ISNULL", [Bin(BinaryOp.Eq, Col("a"), Num("1")), Num("0")], false)) },
+        { "sqlserver", null, Where(Bin(BinaryOp.Eq, Bin(BinaryOp.Eq, Col("a"), Col("b")), Col("c"))) },
+        { "sqlserver", null, Query(Bin(BinaryOp.Add, new InList(Col("a"), [Num("1")], false), Num("1"))) },
+        { "sqlserver", null, Query(new Case(null, [new CaseWhen(Bin(BinaryOp.Eq, Col("a"), Num("1")), Bin(BinaryOp.Eq, Col("b"), Num("1")))], null)) },
+        { "sqlserver", null, Query(new Case(null, [new CaseWhen(Bin(BinaryOp.Eq, Col("a"), Num("1")), Num("1"))], Not(Col("b")))) },
+        { "sqlserver", null, Query(new Cast(new IsNull(Col("a"), false), "bit")) },
+        { "sqlite", null, Query(new Like(Col("a"), Str("x%"), false, false)) },
+        { "sqlite", null, Query(new Exists(Query(Num("1")), false)) },
+    };
+
+    [Theory, MemberData(nameof(PredicatesAsValues))]
+    public void Generate_PredicateAsValueWithoutBooleans_IsAProblem(string provider, string? version, Query query)
+    {
+        var result = Generate(provider, version, query);
+
+        Assert.Null(result.Sql);
+        Assert.Equal(["predicate-as-value"], Codes(result));
+    }
+
+    [Fact]
+    public void Generate_UnknownOperator_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate("postgres", null, Bin((BinaryOp)99, Col("a"), Col("b"))));
+    }
+
     public static TheoryData<string, Expr, string> EscapingCases() => new()
     {
         { "sqlserver", Col("a]b"), "SELECT [a]]b];" },
@@ -57,6 +99,18 @@ public class ExpressionGenerationTests
         { "mysql", Col("select", "x"), "SELECT `select`.`x`;" },
         { "sqlite", Col("a\"b", "x"), "SELECT \"a\"\"b\".\"x\";" },
         { "sqlserver", new Star("r"), "SELECT r.*;" },
+        { "postgres", Col("A", "x"), "SELECT \"A\".\"x\";" },
+        { "postgres", Col("r", "x"), "SELECT r.\"x\";" },
+        { "sqlserver", Col("A", "x"), "SELECT A.[x];" },
+        { "sqlserver", Col("user", "x"), "SELECT [user].[x];" },
+        { "mysql", Col("key", "x"), "SELECT `key`.`x`;" },
+        { "sqlite", Col("index", "x"), "SELECT \"index\".\"x\";" },
+        { "mysql", Col("rank", "x"), "SELECT `rank`.`x`;" },
+        { "sqlite", Col("row", "x"), "SELECT \"row\".\"x\";" },
+        { "postgres", Col("primary", "x"), "SELECT \"primary\".\"x\";" },
+        { "sqlserver", Col("check", "x"), "SELECT [check].[x];" },
+        { "postgres", Col("column", "x"), "SELECT \"column\".\"x\";" },
+        { "mysql", Col("default", "x"), "SELECT `default`.`x`;" },
         { "postgres", new Star(null), "SELECT *;" },
     };
 
@@ -92,6 +146,7 @@ public class ExpressionGenerationTests
     [InlineData("0x1F")]
     [InlineData("1,5")]
     [InlineData("")]
+    [InlineData("\u0661")]
     public void Generate_InvalidNumber_IsAProblem(string text)
     {
         var result = Generate("postgres", null, Num(text));
@@ -116,11 +171,11 @@ public class ExpressionGenerationTests
         { "sqlserver", null, Query(new Literal(LiteralKind.Boolean, "true"), [], new SelectItem(Num("1"), null)), "SELECT 1\nWHERE 1 = 1;" },
         { "sqlite", null, Query(new Literal(LiteralKind.Boolean, "false"), [], new SelectItem(Num("1"), null)), "SELECT 1\nWHERE 1 = 0;" },
         { "postgres", null, Query(new Literal(LiteralKind.Boolean, "true"), [], new SelectItem(Num("1"), null)), "SELECT 1\nWHERE TRUE;" },
-        { "sqlserver", null, Query(Not(new Literal(LiteralKind.Boolean, "true"))), "SELECT NOT 1 = 1;" },
-        { "sqlserver", null, Query(Bin(BinaryOp.Or, Bin(BinaryOp.Eq, Col("a"), Num("1")), new Literal(LiteralKind.Boolean, "false"))), "SELECT [a] = 1 OR 1 = 0;" },
+        { "sqlserver", null, Where(Not(new Literal(LiteralKind.Boolean, "true"))), "SELECT 1\nWHERE NOT 1 = 1;" },
+        { "sqlserver", null, Where(Bin(BinaryOp.Or, Bin(BinaryOp.Eq, Col("a"), Num("1")), new Literal(LiteralKind.Boolean, "false"))), "SELECT 1\nWHERE [a] = 1 OR 1 = 0;" },
         { "sqlserver", null, Query(new Case(null, [new CaseWhen(new Literal(LiteralKind.Boolean, "true"), Num("1"))], null)), "SELECT CASE WHEN 1 = 1 THEN 1 END;" },
         { "sqlserver", null, Query(new Case(Col("a"), [new CaseWhen(new Literal(LiteralKind.Boolean, "true"), Num("1"))], null)), "SELECT CASE [a] WHEN 1 THEN 1 END;" },
-        { "sqlserver", null, Query(Bin(BinaryOp.Eq, Col("a"), new Literal(LiteralKind.Boolean, "true"))), "SELECT [a] = 1;" },
+        { "sqlserver", null, Where(Bin(BinaryOp.Eq, Col("a"), new Literal(LiteralKind.Boolean, "true"))), "SELECT 1\nWHERE [a] = 1;" },
         { "sqlserver", null, Query(null, [new JoinSource(Table("A", "a"), JoinType.Inner, Table("B", "b"), new Literal(LiteralKind.Boolean, "true"))], new SelectItem(new Star(null), null)), "SELECT *\nFROM [dbo].[A] AS a\nINNER JOIN [dbo].[B] AS b ON 1 = 1;" },
     };
 
@@ -156,17 +211,32 @@ public class ExpressionGenerationTests
         Assert.Equal(expected, Generate(provider, null, expr).Sql);
     }
 
+    public static TheoryData<string, Expr> ConcatWithTooFewParts() => new()
+    {
+        { "sqlserver", new Concat([Col("a")]) },
+        { "postgres", new Concat([]) },
+    };
+
+    [Theory, MemberData(nameof(ConcatWithTooFewParts))]
+    public void Generate_ConcatWithFewerThanTwoParts_IsAProblem(string provider, Expr concat)
+    {
+        var result = Generate(provider, null, concat);
+
+        Assert.Null(result.Sql);
+        Assert.Equal(["concat-arity"], Codes(result));
+    }
+
     [Theory]
-    [InlineData("sqlserver", true, false, "SELECT LOWER([a]) LIKE LOWER(N'x%');")]
-    [InlineData("postgres", true, false, "SELECT \"a\" ILIKE 'x%';")]
-    [InlineData("postgres", true, true, "SELECT \"a\" NOT ILIKE 'x%';")]
-    [InlineData("mysql", true, true, "SELECT LOWER(`a`) NOT LIKE LOWER('x%');")]
-    [InlineData("sqlite", true, false, "SELECT LOWER(\"a\") LIKE LOWER('x%');")]
-    [InlineData("sqlite", false, false, "SELECT \"a\" LIKE 'x%';")]
-    [InlineData("sqlserver", false, true, "SELECT [a] NOT LIKE N'x%';")]
+    [InlineData("sqlserver", true, false, "SELECT 1\nWHERE LOWER([a]) LIKE LOWER(N'x%');")]
+    [InlineData("postgres", true, false, "SELECT 1\nWHERE \"a\" ILIKE 'x%';")]
+    [InlineData("postgres", true, true, "SELECT 1\nWHERE \"a\" NOT ILIKE 'x%';")]
+    [InlineData("mysql", true, true, "SELECT 1\nWHERE LOWER(`a`) NOT LIKE LOWER('x%');")]
+    [InlineData("sqlite", true, false, "SELECT 1\nWHERE LOWER(\"a\") LIKE LOWER('x%');")]
+    [InlineData("sqlite", false, false, "SELECT 1\nWHERE \"a\" LIKE 'x%';")]
+    [InlineData("sqlserver", false, true, "SELECT 1\nWHERE [a] NOT LIKE N'x%';")]
     public void Generate_LikeFollowsTheDialect(string provider, bool caseInsensitive, bool not, string expected)
     {
-        Assert.Equal(expected, Generate(provider, null, new Like(Col("a"), Str("x%"), caseInsensitive, not)).Sql);
+        Assert.Equal(expected, Generate(provider, null, Where(new Like(Col("a"), Str("x%"), caseInsensitive, not))).Sql);
     }
 
     public static TheoryData<string, Expr, string> SyntaxCases() => new()

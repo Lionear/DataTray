@@ -40,6 +40,7 @@ public static class SqlDialects
     {
         QuantifiedSubquery = true,
         CaseInsensitiveLike = true,
+        UnquotedFoldsToLower = true,
         RightJoin = true,
         FullJoin = true,
         Lateral = true,

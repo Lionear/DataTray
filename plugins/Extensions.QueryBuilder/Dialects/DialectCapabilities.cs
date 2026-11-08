@@ -40,6 +40,8 @@ public sealed record DialectCapabilities
 
     public bool CaseInsensitiveLike { get; init; }
 
+    public bool UnquotedFoldsToLower { get; init; }
+
     public LimitStyle LimitStyle { get; init; }
 
     public ConcatStyle ConcatStyle { get; init; }

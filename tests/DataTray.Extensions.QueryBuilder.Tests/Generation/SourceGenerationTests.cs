@@ -7,6 +7,8 @@ public class SourceGenerationTests
 {
     private static readonly SelectItem All = new(new Star(null), null);
 
+    private static readonly Binary On = Bin(BinaryOp.Eq, Col("a", "Id"), Col("b", "Id"));
+
     private static JoinSource Join(Source left, JoinType type, Source right, Expr? on) => new(left, type, right, on);
 
     private static Binary Eq(Expr left, Expr right) => Bin(BinaryOp.Eq, left, right);
@@ -45,6 +47,16 @@ public class SourceGenerationTests
             "sqlite", null,
             Query(null, [Table("A", "a"), new TableSource(new TableName(null, "B"), null)], All),
             "SELECT *\nFROM \"dbo\".\"A\" AS a,\n     \"B\";"
+        },
+        {
+            "postgres", null,
+            Query(null, [new TableSource(new TableName("dbo", "A"), null)], new SelectItem(Col("A", "x"), null)),
+            "SELECT \"A\".\"x\"\nFROM \"dbo\".\"A\";"
+        },
+        {
+            "postgres", null,
+            Query(null, [Table("A", "r")], new SelectItem(Col("r", "x"), null)),
+            "SELECT r.\"x\"\nFROM \"dbo\".\"A\" AS r;"
         },
         {
             "sqlserver", null,
@@ -86,9 +98,9 @@ public class SourceGenerationTests
 
     public static TheoryData<string, string?, Query, string[]> MissingCapabilities() => new()
     {
-        { "sqlite", "3.38.0", Query(null, [Join(Table("A", "a"), JoinType.Right, Table("B", "b"), null)], All), ["right-join"] },
-        { "sqlite", null, Query(null, [Join(Table("A", "a"), JoinType.Full, Table("B", "b"), null)], All), ["full-join"] },
-        { "mysql", null, Query(null, [Join(Table("A", "a"), JoinType.Full, Table("B", "b"), null)], All), ["full-join"] },
+        { "sqlite", "3.38.0", Query(null, [Join(Table("A", "a"), JoinType.Right, Table("B", "b"), On)], All), ["right-join"] },
+        { "sqlite", null, Query(null, [Join(Table("A", "a"), JoinType.Full, Table("B", "b"), On)], All), ["full-join"] },
+        { "mysql", null, Query(null, [Join(Table("A", "a"), JoinType.Full, Table("B", "b"), On)], All), ["full-join"] },
         { "sqlserver", null, Query(null, [Join(Table("A", "a"), JoinType.Cross, new SubquerySource(Inner("B", "b", null), "l", true), null)], All), ["lateral"] },
         { "sqlite", null, Query(null, [Join(Table("A", "a"), JoinType.Cross, new SubquerySource(Inner("B", "b", null), "l", true), null)], All), ["lateral"] },
         { "mysql", "8.0.13", Query(null, [Join(Table("A", "a"), JoinType.Cross, new SubquerySource(Inner("B", "b", null), "l", true), null)], All), ["lateral"] },
@@ -97,9 +109,13 @@ public class SourceGenerationTests
         { "sqlite", null, Query(null, [Join(Table("A", "a"), JoinType.CrossApply, new SubquerySource(Inner("B", "b", null), "l", false), null)], All), ["apply"] },
         {
             "sqlite", null,
-            Query(null, [Join(Join(Table("A", "a"), JoinType.Right, Table("B", "b"), null), JoinType.Full, Table("C", "c"), null)], new SelectItem(new WindowCall(new FunctionCall("RANK", [], false), new WindowSpec(null, [], [], null)), null)),
+            Query(null, [Join(Join(Table("A", "a"), JoinType.Right, Table("B", "b"), On), JoinType.Full, Table("C", "c"), On)], new SelectItem(new WindowCall(new FunctionCall("RANK", [], false), new WindowSpec(null, [], [], null)), null)),
             ["window-functions", "right-join", "full-join"]
         },
+        { "postgres", null, Query(null, [Join(Table("A", "a"), JoinType.Inner, Table("B", "b"), null)], All), ["join-needs-on"] },
+        { "sqlserver", null, Query(null, [Join(Table("A", "a"), JoinType.Left, Table("B", "b"), null)], All), ["join-needs-on"] },
+        { "mysql", null, Query(null, [Join(Table("A", "a"), JoinType.Cross, Table("B", "b"), On)], All), ["join-unexpected-on"] },
+        { "sqlserver", null, Query(null, [Join(Table("A", "a"), JoinType.CrossApply, new SubquerySource(Inner("B", "b", null), "l", false), On)], All), ["join-unexpected-on"] },
     };
 
     [Theory, MemberData(nameof(MissingCapabilities))]

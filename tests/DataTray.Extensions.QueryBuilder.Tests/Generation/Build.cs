@@ -29,6 +29,8 @@ internal static class Build
     public static Query Query(params Expr[] items) =>
         new(null, new Select(false, items.Select(i => new SelectItem(i, null)).ToArray(), [], null, [], null, []), [], null);
 
+    public static Query Where(Expr predicate) => Query(predicate, [], new SelectItem(Num("1"), null));
+
     public static GenerationResult Generate(string provider, Statement statement) =>
         SqlGenerator.Generate(statement, SqlDialects.For(provider, null));
 

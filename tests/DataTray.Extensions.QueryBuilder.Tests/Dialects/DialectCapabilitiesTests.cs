@@ -79,6 +79,10 @@ public class DialectCapabilitiesTests
         { "sqlserver", "16.0.1000", c => c.CaseInsensitiveLike, false },
         { "mysql", "8.4.0", c => c.CaseInsensitiveLike, false },
         { "sqlite", "3.45.1", c => c.CaseInsensitiveLike, false },
+        { "postgres", null, c => c.UnquotedFoldsToLower, true },
+        { "sqlserver", null, c => c.UnquotedFoldsToLower, false },
+        { "mysql", null, c => c.UnquotedFoldsToLower, false },
+        { "sqlite", null, c => c.UnquotedFoldsToLower, false },
     };
 
     [Theory]

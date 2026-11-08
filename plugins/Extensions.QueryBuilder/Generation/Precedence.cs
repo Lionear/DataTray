@@ -26,7 +26,8 @@ internal static class Precedence
         BinaryOp.And => And,
         BinaryOp.Add or BinaryOp.Subtract => Additive,
         BinaryOp.Multiply or BinaryOp.Divide or BinaryOp.Modulo => Multiplicative,
-        _ => Comparison,
+        BinaryOp.Eq or BinaryOp.NotEq or BinaryOp.Lt or BinaryOp.LtEq or BinaryOp.Gt or BinaryOp.GtEq => Comparison,
+        _ => throw new ArgumentOutOfRangeException(nameof(op), op, null),
     };
 
     public static int Of(Expr expr, ConcatStyle concat) => expr switch
