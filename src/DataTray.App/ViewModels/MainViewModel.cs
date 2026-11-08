@@ -529,25 +529,27 @@ public partial class MainViewModel : ViewModelBase
             ? NodeMenu.For(node, SelectedDocument, _nodeMenus, message => ReportError(node.Connection.Name, message))
             : null;
 
-    public async Task InvokeNodeMenuAsync(NodeMenuContribution item, NodeMenuTarget target)
-    {
-        if (_pluginHostUi is null)
-        {
-            return;
-        }
+    public Task InvokeNodeMenuAsync(NodeMenuContribution item, NodeMenuTarget target) =>
+        _pluginHostUi is null
+            ? Task.CompletedTask
+            : NodeMenu.InvokeAsync(item, target, _pluginHostUi, message => ReportError(target.Connection.Name, message));
 
+    /// <summary>Drag a table/view out of the tree; <paramref name="doDrag"/> is the platform drag. Called from an
+    /// async-void pointer handler, so a failure is reported, never rethrown.</summary>
+    public async Task DragNodeAsync(TreeNodeViewModel node, Func<Avalonia.Input.IDataTransfer, Task> doDrag)
+    {
         try
         {
-            await item.InvokeAsync(target, _pluginHostUi);
+            if (NodeDragPayload.For(node, _providers.Get(node.Connection.ProviderId).Dialect) is { } payload)
+            {
+                await doDrag(payload.ToDataTransfer());
+            }
         }
         catch (Exception ex)
         {
-            ReportError(target.Connection.Name, $"{item.Id}: {ex.Message}");
+            ReportError(node.Connection.Name, ex.Message);
         }
     }
-
-    public NodeDragPayload? DragPayloadFor(TreeNodeViewModel node) =>
-        node.IsTableOrView ? NodeDragPayload.For(node, _providers.Get(node.Connection.ProviderId).Dialect) : null;
 
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
     public ObservableCollection<HistoryRow> HistoryEntries { get; } = [];

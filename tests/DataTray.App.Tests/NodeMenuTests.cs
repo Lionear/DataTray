@@ -28,8 +28,8 @@ public class NodeMenuTests : IClassFixture<HeadlessDrawing>
     {
         var menu = NodeMenu.For(TreeNodeFixture.Node("customers"), QueryTab("c2"), [], _ => { });
 
-        Assert.Null(menu?.Target.ActiveDocument);
         Assert.NotNull(menu);
+        Assert.Null(menu.Value.Target.ActiveDocument);
     }
 
     [Fact] // AppliesTo is plugin code: one that throws costs its own item, not the menu.
@@ -45,6 +45,20 @@ public class NodeMenuTests : IClassFixture<HeadlessDrawing>
         Assert.Equal(["bad: boom"], reported);
     }
 
+    [Fact] // InvokeAsync is plugin code behind an async-void click: a throw must land in Output, not escape.
+    public async Task InvokeAsync_ThrowingContribution_ReportsOnce()
+    {
+        var reported = new List<string>();
+        var menu = NodeMenu.For(TreeNodeFixture.Node("customers"), null, [], _ => { });
+        Assert.NotNull(menu);
+        var bad = new NodeMenuContribution("bad", "Bad", _ => true,
+            (_, _) => throw new InvalidOperationException("boom"));
+
+        await NodeMenu.InvokeAsync(bad, menu.Value.Target, new NullHostUi(), reported.Add);
+
+        Assert.Equal(["bad: boom"], reported);
+    }
+
     [Fact]
     public void NodeMenu_SchemaNode_IsNull()
     {
@@ -56,6 +70,12 @@ public class NodeMenuTests : IClassFixture<HeadlessDrawing>
         var document = QueryDocumentFixture.NewDocument(out var connections, QueryDocumentFixture.Ready("master"));
         document.InitQuery(connections.List().First(c => c.Id == connectionId));
         return document;
+    }
+
+    private sealed class NullHostUi : IHostUi
+    {
+        public Task ShowDialogAsync(string title, Avalonia.Controls.Control content) => Task.CompletedTask;
+        public Task<bool> ConfirmAsync(string title, string message) => Task.FromResult(false);
     }
 
     private static NodeMenuContribution Contribution(string id, Func<NodeMenuTarget, bool> appliesTo) =>

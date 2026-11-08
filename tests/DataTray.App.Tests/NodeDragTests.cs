@@ -17,7 +17,7 @@ public class NodeDragTests : IClassFixture<HeadlessDrawing>
     [InlineData("active_customers", true)]
     public void DragPayload_TableOrView_CarriesNodeJsonAndQualifiedText(string name, bool isView)
     {
-        var payload = NodeDragPayload.For(TreeNodeFixture.Node(name), new TreeNodeFixture.RecordingDialect());
+        var payload = NodeDragPayload.For(TreeNodeFixture.Node(name), new RecordingDialect());
 
         Assert.NotNull(payload);
         Assert.Equal(new DraggedNode("c1", "Sales", "dbo", name, isView), JsonSerializer.Deserialize<DraggedNode>(payload.Json));
@@ -27,7 +27,7 @@ public class NodeDragTests : IClassFixture<HeadlessDrawing>
     [Fact]
     public void DragPayload_SchemaNode_IsNull()
     {
-        Assert.Null(NodeDragPayload.For(TreeNodeFixture.Schema(), new TreeNodeFixture.RecordingDialect()));
+        Assert.Null(NodeDragPayload.For(TreeNodeFixture.Schema(), new RecordingDialect()));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class NodeDragTests : IClassFixture<HeadlessDrawing>
         });
 
     internal static NodeDragPayload Payload() =>
-        NodeDragPayload.For(TreeNodeFixture.Node("customers"), new TreeNodeFixture.RecordingDialect())
+        NodeDragPayload.For(TreeNodeFixture.Node("customers"), new RecordingDialect())
             ?? throw new InvalidOperationException("no payload");
 
     private static (DocumentViewModel Document, TextEditor Editor) EditorView()

@@ -344,8 +344,11 @@ public partial class MainView : UserControl
 
         // A single left press on a table/view may become a drag (SE-299 H5); OnTreePointerMoved decides.
         _dragPress = props.IsLeftButtonPressed && e.ClickCount == 1 && node.IsTableOrView ? e : null;
-        _dragNode = node;
-        _dragPoint = e.GetPosition(sender as Visual);
+        if (_dragPress is not null)
+        {
+            _dragNode = node;
+            _dragPoint = e.GetPosition(sender as Visual);
+        }
 
         // Double left-click on a table/view browses it — and we swallow the press so the TreeViewItem
         // doesn't also toggle its column list open (the default double-click-to-expand).
@@ -398,10 +401,7 @@ public partial class MainView : UserControl
         }
 
         _dragPress = null;
-        if (_viewModel.DragPayloadFor(node) is { } payload)
-        {
-            await DragDrop.DoDragDropAsync(press, payload.ToDataTransfer(), DragDropEffects.Copy);
-        }
+        await _viewModel.DragNodeAsync(node, transfer => DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Copy));
     }
 
     // Double-click a connection root: (re)connect. (Table/view browse is handled on pointer-press above,

@@ -43,4 +43,17 @@ public static class NodeMenu
 
         return (target, items);
     }
+
+    /// <summary>Run a contribution; a throw is reported, never rethrown (the caller is an async-void click).</summary>
+    public static async Task InvokeAsync(NodeMenuContribution item, NodeMenuTarget target, IHostUi hostUi, Action<string> report)
+    {
+        try
+        {
+            await item.InvokeAsync(target, hostUi);
+        }
+        catch (Exception ex)
+        {
+            report($"{item.Id}: {ex.Message}");
+        }
+    }
 }
