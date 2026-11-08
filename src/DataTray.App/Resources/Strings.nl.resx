@@ -1458,6 +1458,24 @@
   <data name="Cap_panel_Desc" xml:space="preserve">
     <value>Voegt een paneel toe aan de werkruimte, naast Uitvoer en Historie.</value>
   </data>
+  <data name="Cap_query-pane_Title" xml:space="preserve">
+    <value>Querypaneel</value>
+  </data>
+  <data name="Cap_query-pane_Desc" xml:space="preserve">
+    <value>Voegt een paneel toe aan querytabs</value>
+  </data>
+  <data name="Cap_schema_Title" xml:space="preserve">
+    <value>Schematoegang</value>
+  </data>
+  <data name="Cap_schema_Desc" xml:space="preserve">
+    <value>Leest de tabel- en kolomnamen van de verbinding die een querytab gebruikt</value>
+  </data>
+  <data name="StoreUninstallConfirmTitle" xml:space="preserve">
+    <value>{0} verwijderen?</value>
+  </data>
+  <data name="StoreUninstallConfirmBody" xml:space="preserve">
+    <value>Het wordt verwijderd bij de volgende start van DataTray.</value>
+  </data>
   <data name="Cap_menu_Title" xml:space="preserve">
     <value>Menu-items</value>
   </data>

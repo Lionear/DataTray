@@ -23,6 +23,7 @@ public partial class PluginStoreWindow : Window
                 vm.RestartRequested ??= AppRestart.Restart;
                 vm.InstallFromFileRequested = PickPluginZipAsync;
                 vm.ChangelogRequested = ShowChangelogAsync;
+                vm.ConfirmRequested = ShowConfirmAsync;
             }
         };
 
@@ -34,6 +35,13 @@ public partial class PluginStoreWindow : Window
                 await vm.RefreshCommand.ExecuteAsync(null);
             }
         };
+    }
+
+    private async Task<bool> ShowConfirmAsync(string title, string message)
+    {
+        var loc = (DataContext as PluginStoreViewModel)?.Loc;
+        var dialog = new ConfirmDialog(title, message, loc?["Yes"] ?? "Yes", loc?["No"] ?? "No");
+        return await dialog.ShowDialog<bool>(this);
     }
 
     // Clicking a Browse card selects it into the detail pane.

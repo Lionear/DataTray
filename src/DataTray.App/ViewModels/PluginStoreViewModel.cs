@@ -774,10 +774,19 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         RestartRequired = true;
     }
 
+    /// <summary>Asks before a destructive step (title, message); the window wires the real dialog.</summary>
+    public Func<string, string, Task<bool>>? ConfirmRequested { get; set; }
+
     [RelayCommand]
-    private void Uninstall(InstalledListItem item)
+    private async Task Uninstall(InstalledListItem item)
     {
         if (!item.CanManage)
+        {
+            return;
+        }
+
+        if (ConfirmRequested is not null
+            && !await ConfirmRequested(Loc.Get("StoreUninstallConfirmTitle", item.Name ?? item.Id), Loc["StoreUninstallConfirmBody"]))
         {
             return;
         }
