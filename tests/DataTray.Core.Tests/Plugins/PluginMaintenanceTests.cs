@@ -32,6 +32,31 @@ public class PluginMaintenanceTests : IDisposable
         public void Remove(string id) => _entries.Remove(id);
     }
 
+    [Fact] // The splash shows an "Applying plugin updates" step only when there is something to apply.
+    public void Nothing_staged_means_nothing_pending()
+    {
+        Plugin("acme", "1.0.0");
+
+        Assert.False(PluginMaintenance.HasPending(new FakeStateStore(), _root));
+    }
+
+    [Fact]
+    public void A_staged_next_is_pending()
+    {
+        Plugin("acme.next", "2.0.0");
+
+        Assert.True(PluginMaintenance.HasPending(new FakeStateStore(), _root));
+    }
+
+    [Fact]
+    public void A_staged_removal_is_pending()
+    {
+        var store = new FakeStateStore();
+        store.Save("acme", new PluginStateEntry { Pending = PluginPendingAction.Remove });
+
+        Assert.True(PluginMaintenance.HasPending(store, _root));
+    }
+
     [Fact]
     public void Promotes_staged_next_and_keeps_old_as_prev()
     {

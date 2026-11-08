@@ -40,21 +40,28 @@ namespace DataTray.App.DependencyInjection;
 
 public static class AppServices
 {
-    public static IServiceProvider Build()
+    /// <param name="localizer">The live localizer the splash already uses; a new one when null.</param>
+    /// <param name="progress">Takes a short detail per plugin kind for the startup splash (SE-297).</param>
+    /// <param name="bundledPluginsOnly">Skip the per-user plugin folder: "Continue without store plugins".</param>
+    public static IServiceProvider Build(
+        ResxLocalizer? localizer = null, IProgress<string>? progress = null, bool bundledPluginsOnly = false)
     {
         var services = new ServiceCollection();
 
         // Instantiated here (not just type-registered) so the plugin loader below can hand the same live
         // localizer to each plugin's PluginLocalizer — its culture is set later (App startup) and reflected
         // on every lookup, so plugin strings follow a language switch just like host strings.
-        var localizer = new ResxLocalizer();
+        localizer ??= new ResxLocalizer();
         services.AddSingleton<ILocalizer>(localizer);
+
+        void LoadingPart(string partKey, int part) =>
+            progress?.Report(localizer.Get("SplashPluginsPart", localizer[partKey], part, 5));
 
         // Plugins live in two roots: the read-only bundled folder staged beside the exe at build time,
         // and the writable per-user folder the Plugin Store installs into (user wins on id conflict).
         // Apply any install/remove the Store staged last run *before* loading, then discover both roots.
         var stateStore = new JsonPluginStateStore();
-        var swapFailures = PluginMaintenance.ApplyPending(stateStore, PluginPaths.UserRoot);
+        IReadOnlyList<string> swapFailures = bundledPluginsOnly ? [] : PluginMaintenance.ApplyPending(stateStore, PluginPaths.UserRoot);
         if (swapFailures.Count > 0)
         {
             // A staged update whose folder swap couldn't complete keeps running the old version and is
@@ -64,7 +71,8 @@ public static class AppServices
                 $"Plugin update swap could not be applied for: {string.Join(", ", swapFailures)} — kept the current version, will retry next startup.");
         }
 
-        var discovered = PluginDiscovery.Discover(PluginPaths.BundledRoot, PluginPaths.UserRoot);
+        var discovered = PluginDiscovery.Discover(
+            PluginPaths.BundledRoot, bundledPluginsOnly ? string.Empty : PluginPaths.UserRoot);
         var state = stateStore.GetAll();
 
         // Disabled plugins are known to the catalog (Installed tab) but never handed to a loader.
@@ -75,6 +83,7 @@ public static class AppServices
 
         // Providers load in isolated AssemblyLoadContexts — the same path a third party would use.
         // Each provider's engine identity is its manifest id, paired with the instance here.
+        LoadingPart("SplashPartEngines", 1);
         var providerResults = new ProviderPluginLoader().Load(enabled);
         var registrations = new List<ProviderRegistration>();
         foreach (var result in providerResults)
@@ -93,6 +102,7 @@ public static class AppServices
 
         // Tool plugins (type: "tool") load from the same discovered set; one assembly may ship several.
         // The live localizer goes in so each plugin gets a PluginLocalizer over its embedded Lang/*.json.
+        LoadingPart("SplashPartTools", 2);
         var toolResults = new ToolPluginLoader(localizer).Load(enabled);
         var tools = new List<IToolPlugin>();
         var toolLocalizers = new Dictionary<string, IPluginLocalizer>();
@@ -119,6 +129,7 @@ public static class AppServices
 
         // Viewer plugins (type: "viewer") contribute alternative renderings of a result set (SE-75). Same
         // shape as tools: one assembly may ship several, and each gets its plugin's localizer.
+        LoadingPart("SplashPartViewers", 3);
         var viewerResults = new ViewerPluginLoader(localizer).Load(enabled);
         var viewers = new List<IViewerPlugin>();
         var viewerLocalizers = new Dictionary<string, IPluginLocalizer>();
@@ -145,6 +156,7 @@ public static class AppServices
 
         // MCP plugins (type: "mcp") contribute tools; the host — not any plugin — owns the server. Gather
         // the tools from every enabled MCP plugin so the host server can serve them.
+        LoadingPart("SplashPartMcp", 4);
         var mcpToolResults = new McpPluginLoader().Load(enabled);
         var mcpTools = new List<McpToolDefinition>();
         foreach (var result in mcpToolResults)
@@ -164,6 +176,7 @@ public static class AppServices
         // IManagedConnections — that don't exist until the container below is built, so the loader only
         // produces activations. SubsystemActivator (resolved + ActivateAll()'d in App startup, post-build)
         // builds each context and calls Initialize.
+        LoadingPart("SplashPartExtensions", 5);
         var subsystemResults = new SubsystemPluginLoader(
             localizer, msg => Console.Error.WriteLine($"[subsystem] {msg}")).Load(enabled);
         var subsystemActivations = new List<SubsystemActivation>();
@@ -453,7 +466,7 @@ public static class AppServices
 
     // The running build's channel stamp (e.g. 0.2.0-nightly.20260717.42) — the informational version, the
     // only one that survives the stamp (AssemblyVersion is truncated to 0.2.0.0). Same read as About.
-    private static string RunningVersion()
+    internal static string RunningVersion()
     {
         var informational = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;

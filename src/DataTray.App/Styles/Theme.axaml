@@ -33,6 +33,8 @@
           <SolidColorBrush x:Key="SEStatusErrorBrush" Color="#D64545" />
           <SolidColorBrush x:Key="SEStatusBusyBrush" Color="#3574F0" />
           <SolidColorBrush x:Key="SEStatusWaitingBrush" Color="#E0A33E" />
+          <!-- Waiting as text (SE-297). Same as the brush in dark; #B9791F is only 3.7:1 on white. -->
+          <SolidColorBrush x:Key="SEStatusWaitingTextBrush" Color="#E0A33E" />
 
           <!-- Brand (SE-209). Three colours that carry a meaning and are used for nothing else: brand
                blue is the identity, cyan means extensibility (plugins, Managed chips), purple means AI
@@ -74,6 +76,7 @@
           <SolidColorBrush x:Key="SEStatusErrorBrush" Color="#C4362F" />
           <SolidColorBrush x:Key="SEStatusBusyBrush" Color="#2F6FEB" />
           <SolidColorBrush x:Key="SEStatusWaitingBrush" Color="#B9791F" />
+          <SolidColorBrush x:Key="SEStatusWaitingTextBrush" Color="#8A5A12" />
 
           <!-- Brand (SE-209), same three meanings as the dark set. The colours themselves don't shift
                with the theme — only the ink does: brand cyan reads 2.4:1 on white, so text, hairlines

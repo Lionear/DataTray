@@ -1,0 +1,286 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DataTray.App.ViewModels"
+        x:Class="DataTray.App.Views.SplashWindow"
+        x:DataType="vm:SplashViewModel"
+        Title="DataTray"
+        AutomationProperties.Name="{Binding Loc[SplashA11yName]}"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        WindowDecorations="None">
+  <!-- SE-297 startup splash, direction A: a tray that gets one row of data per startup step. -->
+  <Window.Styles>
+    <!-- Sizes live in styles, not attributes: a local value would beat the compact overrides below. -->
+    <Style Selector="Window">
+      <Setter Property="Width" Value="500" />
+    </Style>
+    <Style Selector="Viewbox#Tray">
+      <Setter Property="Width" Value="150" />
+      <Setter Property="Height" Value="150" />
+    </Style>
+    <Style Selector="Grid#Body">
+      <Setter Property="Margin" Value="22,22,22,0" />
+      <Setter Property="ColumnSpacing" Value="22" />
+    </Style>
+    <Style Selector="TextBlock#TitleText">
+      <Setter Property="FontSize" Value="17" />
+    </Style>
+    <Style Selector="StackPanel#Below">
+      <Setter Property="Margin" Value="22,0,22,20" />
+    </Style>
+    <Style Selector="Border#Handle">
+      <Setter Property="Background" Value="{DynamicResource SEHairlineBrush}" />
+    </Style>
+    <Style Selector="Window.compact">
+      <Setter Property="Width" Value="380" />
+    </Style>
+    <Style Selector="Window.compact Border#TopStrip">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Window.compact Viewbox#Tray">
+      <Setter Property="Width" Value="118" />
+      <Setter Property="Height" Value="118" />
+    </Style>
+    <Style Selector="Window.compact Grid#Body">
+      <Setter Property="Margin" Value="16,14,16,0" />
+      <Setter Property="ColumnSpacing" Value="14" />
+    </Style>
+    <Style Selector="Window.compact TextBlock#TitleText">
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Window.compact StackPanel#Below">
+      <Setter Property="Margin" Value="16,0,16,12" />
+    </Style>
+
+    <!-- Tray rows. A row is a fill and an outline; the state picks colours from the theme. -->
+    <Style Selector="Panel.row Rectangle">
+      <Setter Property="RadiusX" Value="4" />
+      <Setter Property="RadiusY" Value="4" />
+    </Style>
+    <Style Selector="Panel.row Rectangle.outline">
+      <Setter Property="StrokeThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Panel.row.empty Rectangle.outline">
+      <Setter Property="Stroke" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="StrokeThickness" Value="1" />
+      <Setter Property="StrokeDashArray" Value="3,3" />
+    </Style>
+    <Style Selector="Panel.row.active Rectangle.fill">
+      <Setter Property="Fill" Value="{DynamicResource SEBrandBrush}" />
+      <Setter Property="Opacity" Value="0.22" />
+    </Style>
+    <Style Selector="Panel.row.active Rectangle.outline">
+      <Setter Property="Stroke" Value="{DynamicResource SEBrandBrush}" />
+    </Style>
+    <Style Selector="Panel.row.slow Rectangle.fill">
+      <Setter Property="Fill" Value="{DynamicResource SEStatusWaitingBrush}" />
+      <Setter Property="Opacity" Value="0.18" />
+    </Style>
+    <Style Selector="Panel.row.slow Rectangle.outline">
+      <Setter Property="Stroke" Value="{DynamicResource SEStatusWaitingBrush}" />
+    </Style>
+    <Style Selector="Panel.row.failed">
+      <Setter Property="RenderTransform" Value="translate(16px,-24px) rotate(-8deg)" />
+    </Style>
+    <Style Selector="Panel.row.failed Rectangle.fill">
+      <Setter Property="Fill" Value="{DynamicResource SEStatusErrorBrush}" />
+      <Setter Property="Opacity" Value="0.18" />
+    </Style>
+    <Style Selector="Panel.row.failed Rectangle.outline">
+      <Setter Property="Stroke" Value="{DynamicResource SEStatusErrorBrush}" />
+    </Style>
+    <Style Selector="Panel.row.done Rectangle.fill">
+      <Setter Property="Fill" Value="{DynamicResource SEBrandBrush}" />
+    </Style>
+    <!-- Cyan means extensibility and nothing else (SE-209): the plugins row is exactly that. -->
+    <Style Selector="Panel.row.donePlugins Rectangle.fill">
+      <Setter Property="Fill" Value="{DynamicResource SEExtensibilityBrush}" />
+    </Style>
+    <Style Selector="Panel.row Border.col">
+      <Setter Property="BorderBrush" Value="{DynamicResource SETextSecondaryBrush}" />
+      <Setter Property="BorderThickness" Value="1,0,0,0" />
+      <Setter Property="Margin" Value="0,4" />
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="Panel.row.done Border.col, Panel.row.donePlugins Border.col">
+      <Setter Property="BorderBrush" Value="White" />
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="Panel.row.empty Border.col">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- Motion: a row drops in when its step starts and breathes while it runs. None of it under reduced motion. -->
+    <Style Selector="Window:not(.reduced-motion) Panel.row.active">
+      <Setter Property="RenderTransform">
+        <TranslateTransform />
+      </Setter>
+      <Style.Animations>
+        <Animation Duration="0:0:0.42" Easing="CubicEaseOut" FillMode="Forward">
+          <KeyFrame Cue="0%">
+            <Setter Property="TranslateTransform.Y" Value="-34" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Window:not(.reduced-motion) Panel.row.active Rectangle.outline">
+      <Style.Animations>
+        <Animation Duration="0:0:2.2" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.55" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Window:not(.reduced-motion) Panel.row.slow Rectangle.outline">
+      <Style.Animations>
+        <Animation Duration="0:0:3.4" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.55" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="Border#Handle.ready">
+      <Setter Property="Background" Value="{DynamicResource SEBrandBrush}" />
+    </Style>
+    <Style Selector="Button.Link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0,5" />
+      <Setter Property="Foreground" Value="{DynamicResource SEAccentBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.Link:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.Link TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SEAccentBrush}" />
+    </Style>
+    <Style Selector="Button.Link:pointerover TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SEAccentHoverBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Border BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+          Background="{DynamicResource SEWindowBgBrush}">
+    <StackPanel>
+      <Border x:Name="TopStrip" Background="{DynamicResource SESecondaryBgBrush}"
+              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
+          <Image Width="28" Height="28" RenderOptions.BitmapInterpolationMode="HighQuality"
+                 Source="avares://DataTray.App/Assets/icon.png" />
+          <TextBlock Grid.Column="1" Text="DataTray" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="3" x:Name="VersionText" FontFamily="{StaticResource SEMonoFont}" FontSize="11.5" VerticalAlignment="Center"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+        </Grid>
+      </Border>
+
+      <Grid x:Name="Body" ColumnDefinitions="Auto,*">
+        <!-- The tray: drawn at 150 and scaled, so the compact window keeps the same drawing. -->
+        <Viewbox x:Name="Tray" VerticalAlignment="Center">
+          <Panel Width="150" Height="150">
+            <Border Margin="12,8,12,20" CornerRadius="8" Background="{DynamicResource SESecondaryBgBrush}"
+                    BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1" />
+            <ItemsControl ItemsSource="{Binding Rows}" VerticalAlignment="Bottom" Margin="22,0,22,34">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="5" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TrayRow">
+                  <Panel Classes="row" Height="18"
+                         Classes.empty="{Binding IsEmpty}" Classes.active="{Binding IsActive}"
+                         Classes.slow="{Binding IsSlow}" Classes.done="{Binding IsDone}"
+                         Classes.donePlugins="{Binding IsDonePlugins}" Classes.failed="{Binding IsFailed}">
+                    <Rectangle Classes="fill" />
+                    <Rectangle Classes="outline" />
+                    <Grid ColumnDefinitions="3*,3*,4*">
+                      <Border Grid.Column="1" Classes="col" />
+                      <Border Grid.Column="2" Classes="col" />
+                    </Grid>
+                  </Panel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border VerticalAlignment="Bottom" Height="30" Margin="4,0" CornerRadius="7"
+                    Background="{DynamicResource SEPanelBgBrush}"
+                    BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1">
+              <Border x:Name="Handle" Width="36" Height="6" CornerRadius="3" VerticalAlignment="Center"
+                      Classes.ready="{Binding IsReady}" />
+            </Border>
+          </Panel>
+        </Viewbox>
+
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+          <Grid ColumnDefinitions="Auto,*">
+            <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center" IsVisible="{Binding IsFailed}"
+                     Fill="{DynamicResource SEStatusErrorBrush}" />
+            <TextBlock Grid.Column="1" x:Name="TitleText" FontWeight="SemiBold" TextWrapping="Wrap">
+              <Run Text="{Binding Title}" /><Run Text="{Binding SlowSuffix}"
+                                                 Foreground="{DynamicResource SEStatusWaitingTextBrush}" />
+            </TextBlock>
+          </Grid>
+          <TextBlock Text="{Binding SubLine}" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding !IsFailed}"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+          <TextBlock Text="{Binding DetailLine}" FontSize="12" TextWrapping="Wrap"
+                     IsVisible="{Binding DetailLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+          <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+            <!-- The one line screen readers follow; the drawing is decoration. -->
+            <TextBlock x:Name="AccessibleStatus" Text="{Binding StepOf}" FontFamily="{StaticResource SEMonoFont}" FontSize="11.5"
+                       Foreground="{DynamicResource SETextSecondaryBrush}"
+                       AutomationProperties.Name="{Binding AccessibleStatus}"
+                       AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="CompactVersion" FontFamily="{StaticResource SEMonoFont}" FontSize="11.5" IsVisible="False"
+                       Foreground="{DynamicResource SETextSecondaryBrush}" />
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+
+      <StackPanel x:Name="Below">
+        <!-- After 30 s on a step that has a degraded mode: two quiet ways past it. Nothing has failed. -->
+        <Grid IsVisible="{Binding ShowWaysOut}" Margin="0,14,0,0" RowDefinitions="Auto,Auto"
+              ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+          <TextBlock Grid.ColumnSpan="3" Text="{Binding Loc[SplashStillWaiting]}" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextSecondaryBrush}" />
+          <Button Grid.Row="1" Grid.Column="1" Classes="Link" Command="{Binding OpenLogCommand}">
+            <TextBlock Text="{Binding Loc[SplashOpenLog]}" />
+          </Button>
+          <Button Grid.Row="1" Grid.Column="2" Content="{Binding Loc[SplashContinueWithout]}" Margin="0,6,0,0"
+                  Command="{Binding ContinueWithoutCommand}" />
+        </Grid>
+
+        <StackPanel IsVisible="{Binding IsFailed}" Margin="0,14,0,0" Spacing="14">
+          <Panel>
+            <Border CornerRadius="6" Background="{DynamicResource SEStatusErrorBrush}" Opacity="0.09" />
+            <Border CornerRadius="6" BorderBrush="{DynamicResource SEStatusErrorBrush}" BorderThickness="1" Opacity="0.45" />
+            <StackPanel Margin="11,9" Spacing="6">
+              <SelectableTextBlock Text="{Binding ErrorText}" FontFamily="{StaticResource SEMonoFont}" FontSize="11.5" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding SubLine}" FontSize="12" TextWrapping="Wrap"
+                         Foreground="{DynamicResource SETextSecondaryBrush}" />
+            </StackPanel>
+          </Panel>
+          <!-- The actions wrap rather than clip: the compact window fits them on two lines, not one. -->
+          <WrapPanel ItemsAlignment="End" ItemSpacing="8" LineSpacing="6">
+            <Button Classes="Link" Margin="0,0,6,0" Command="{Binding OpenLogCommand}">
+              <TextBlock Text="{Binding Loc[SplashOpenLog]}" />
+            </Button>
+            <Button Content="{Binding Loc[SplashQuit]}" Command="{Binding QuitCommand}" />
+            <Button x:Name="ContinueWithoutButton" Content="{Binding Loc[SplashContinueWithout]}"
+                    IsVisible="{Binding CanContinueWithout}" Command="{Binding ContinueWithoutCommand}" />
+            <Button x:Name="RetryButton" Classes="Accent" IsDefault="True"
+                    Content="{Binding Loc[SplashRetry]}" Command="{Binding RetryCommand}" />
+          </WrapPanel>
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

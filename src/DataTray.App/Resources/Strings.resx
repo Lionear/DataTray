@@ -2235,4 +2235,121 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="WindowClose" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="SplashStepOf" xml:space="preserve">
+    <value>{0} of {1}</value>
+  </data>
+  <data name="SplashStepUpdates" xml:space="preserve">
+    <value>Applying plugin updates</value>
+  </data>
+  <data name="SplashStepUpdatesSub" xml:space="preserve">
+    <value>Staged the last time DataTray ran</value>
+  </data>
+  <data name="SplashStepPlugins" xml:space="preserve">
+    <value>Loading your plugins</value>
+  </data>
+  <data name="SplashStepPluginsSub" xml:space="preserve">
+    <value>Engines, tools and viewers</value>
+  </data>
+  <data name="SplashStepWorkspace" xml:space="preserve">
+    <value>Putting your workspace back</value>
+  </data>
+  <data name="SplashStepWorkspaceSub" xml:space="preserve">
+    <value>Connection tree and query tabs</value>
+  </data>
+  <data name="SplashStepExtensions" xml:space="preserve">
+    <value>Starting extensions</value>
+  </data>
+  <data name="SplashStepExtensionsSub" xml:space="preserve">
+    <value>Panels, menus and background work</value>
+  </data>
+  <data name="SplashWhyUpdates" xml:space="preserve">
+    <value>They go in before anything loads the old version.</value>
+  </data>
+  <data name="SplashWhyPlugins" xml:space="preserve">
+    <value>DataTray can't open a connection without its engines.</value>
+  </data>
+  <data name="SplashWhyWorkspace" xml:space="preserve">
+    <value>The main window opens where you left it.</value>
+  </data>
+  <data name="SplashWhyExtensions" xml:space="preserve">
+    <value>They add panels and menus to the main window.</value>
+  </data>
+  <data name="SplashSlower" xml:space="preserve">
+    <value>(slower than usual)</value>
+  </data>
+  <data name="SplashWaited" xml:space="preserve">
+    <value>{0} s so far. {1}</value>
+  </data>
+  <data name="SplashNow" xml:space="preserve">
+    <value>Now: {0}</value>
+  </data>
+  <data name="SplashPluginsPart" xml:space="preserve">
+    <value>{0} · {1} of {2}</value>
+  </data>
+  <data name="SplashPartEngines" xml:space="preserve">
+    <value>Engines</value>
+  </data>
+  <data name="SplashPartTools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="SplashPartViewers" xml:space="preserve">
+    <value>Viewers</value>
+  </data>
+  <data name="SplashPartMcp" xml:space="preserve">
+    <value>MCP tools</value>
+  </data>
+  <data name="SplashPartExtensions" xml:space="preserve">
+    <value>Extensions</value>
+  </data>
+  <data name="SplashStillWaiting" xml:space="preserve">
+    <value>You can keep waiting, or start without it.</value>
+  </data>
+  <data name="SplashFailedUpdates" xml:space="preserve">
+    <value>Plugin updates didn't apply</value>
+  </data>
+  <data name="SplashFailedPlugins" xml:space="preserve">
+    <value>Your plugins didn't load</value>
+  </data>
+  <data name="SplashFailedWorkspace" xml:space="preserve">
+    <value>Your workspace didn't come back</value>
+  </data>
+  <data name="SplashFailedExtensions" xml:space="preserve">
+    <value>Extensions didn't start</value>
+  </data>
+  <data name="SplashFailedPluginsMeans" xml:space="preserve">
+    <value>You can still work with the engines that ship with DataTray. Plugin Store plugins stay off until this is fixed.</value>
+  </data>
+  <data name="SplashFailedOtherMeans" xml:space="preserve">
+    <value>Retry restarts DataTray. The log has the details.</value>
+  </data>
+  <data name="SplashRetry" xml:space="preserve">
+    <value>Retry</value>
+  </data>
+  <data name="SplashContinueWithout" xml:space="preserve">
+    <value>Continue without store plugins</value>
+  </data>
+  <data name="SplashOpenLog" xml:space="preserve">
+    <value>Open log</value>
+  </data>
+  <data name="SplashQuit" xml:space="preserve">
+    <value>Quit</value>
+  </data>
+  <data name="SplashReady" xml:space="preserve">
+    <value>All set</value>
+  </data>
+  <data name="SplashReadySub" xml:space="preserve">
+    <value>Started in {0} s</value>
+  </data>
+  <data name="SplashA11yName" xml:space="preserve">
+    <value>DataTray is starting</value>
+  </data>
+  <data name="SplashA11yStep" xml:space="preserve">
+    <value>Step {0} of {1}: {2}</value>
+  </data>
+  <data name="SplashA11ySlow" xml:space="preserve">
+    <value>{0} is taking longer than usual</value>
+  </data>
+  <data name="SplashA11yReady" xml:space="preserve">
+    <value>DataTray is ready</value>
+  </data>
 </root>
