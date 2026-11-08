@@ -95,9 +95,10 @@ public sealed class ExtensionHostIntegrationTests : IDisposable, IClassFixture<H
     }
 
     [Theory]
-    [InlineData("query-pane", "Adds a pane to query tabs")]
-    [InlineData("schema", "Reads the table and column names of the connection a query tab uses")]
-    public void CapabilityCatalog_DescribesQueryPaneCapabilities(string key, string description)
+    [InlineData("query-pane", "Adds a pane to query tabs.")]
+    [InlineData("schema", "Reads the tables, columns, types and foreign keys of the connection a query tab uses.")]
+    [InlineData("menu", "Adds items to the Tools menu and to the right-click menu of a connection, table or view.")]
+    public void CapabilityCatalog_DescribesHostApi9Capabilities(string key, string description)
     {
         Assert.Equal(description, CapabilityCatalog.Describe(key, _loc).Description);
     }

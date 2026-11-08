@@ -9,6 +9,7 @@ public interface IQuerySchema
     /// <summary>Loads columns and foreign keys of one table; null when it no longer exists.</summary>
     Task<QueryTable?> GetTableAsync(QueryTableRef table, CancellationToken ct = default);
 
-    /// <summary>Raised when the schema changed or was reloaded.</summary>
+    /// <summary>Raised when the schema changed or was reloaded. It can fire on a background thread;
+    /// marshal to the UI thread (e.g. <c>Dispatcher.UIThread.Post</c>) before touching controls.</summary>
     event EventHandler? Changed;
 }

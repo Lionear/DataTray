@@ -8,7 +8,8 @@ public interface IQueryPaneContext
     /// <summary>The query tab the pane lives in.</summary>
     IQueryDocument Document { get; }
 
-    /// <summary>Schema of the tab's connection/database; null while there is none (see <see cref="IQuerySchema"/>).</summary>
+    /// <summary>Schema of the tab's connection/database (see <see cref="IQuerySchema"/>); null when the plugin
+    /// does not declare the <c>schema</c> capability.</summary>
     IQuerySchema? Schema { get; }
 
     /// <summary>Dialogs and notifications.</summary>

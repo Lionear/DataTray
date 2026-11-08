@@ -1462,13 +1462,13 @@
     <value>Query pane</value>
   </data>
   <data name="Cap_query-pane_Desc" xml:space="preserve">
-    <value>Adds a pane to query tabs</value>
+    <value>Adds a pane to query tabs.</value>
   </data>
   <data name="Cap_schema_Title" xml:space="preserve">
     <value>Schema access</value>
   </data>
   <data name="Cap_schema_Desc" xml:space="preserve">
-    <value>Reads the table and column names of the connection a query tab uses</value>
+    <value>Reads the tables, columns, types and foreign keys of the connection a query tab uses.</value>
   </data>
   <data name="StoreUninstallConfirmTitle" xml:space="preserve">
     <value>Uninstall {0}?</value>
@@ -1480,7 +1480,7 @@
     <value>Menu items</value>
   </data>
   <data name="Cap_menu_Desc" xml:space="preserve">
-    <value>Adds items to the Tools menu and to a connection's right-click menu.</value>
+    <value>Adds items to the Tools menu and to the right-click menu of a connection, table or view.</value>
   </data>
   <data name="Cap_background_Title" xml:space="preserve">
     <value>Background task</value>

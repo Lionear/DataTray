@@ -26,17 +26,15 @@ public class SubsystemActivatorTests
     [Theory]
     [InlineData(PluginCapabilities.QueryPane, 1)]
     [InlineData(PluginCapabilities.Menu, 0)]
-    public void ActivateAll_QueryPane_OnlyWithCapability(string capability, int expected)
-    {
-        var result = Activate(capability);
+    public void ActivateAll_QueryPane_OnlyWithCapability(string capability, int expected) =>
+        Assert.Equal(expected, Activate(capability).QueryPanes.Count);
 
-        Assert.Equal(expected, result.QueryPanes.Count);
-        if (expected == 1)
-        {
-            Assert.Equal("p", result.QueryPanes[0].PluginId);
-            Assert.Equal("P", result.QueryPanes[0].PluginName);
-            Assert.Contains(PluginCapabilities.QueryPane, result.QueryPanes[0].Capabilities);
-        }
+    [Fact]
+    public void ActivateAll_QueryPane_CarriesPluginIdentityAndCapabilities()
+    {
+        var pane = Assert.Single(Activate(PluginCapabilities.QueryPane, PluginCapabilities.Schema).QueryPanes);
+
+        Assert.Equal(("p", "P", true), (pane.PluginId, pane.PluginName, pane.Capabilities.Contains(PluginCapabilities.Schema)));
     }
 
     [Theory]
