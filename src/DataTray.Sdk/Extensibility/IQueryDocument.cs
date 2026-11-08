@@ -46,7 +46,7 @@ public interface IQueryDocument
     /// <summary>Run the tab exactly as the Run button does; completes when the run finishes.</summary>
     Task RunAsync(CancellationToken ct = default);
 
-    /// <summary>True when the editor is read-only, as it is while a pane owns the SQL.</summary>
+    /// <summary>True when the connection is flagged read-only. Informational: the host blocks nothing.</summary>
     bool IsReadOnly { get; }
 
     /// <summary>True while a pane owns the SQL (see <see cref="Link"/>).</summary>
@@ -61,7 +61,7 @@ public interface IQueryDocument
     /// <summary>Raised once when connection, database or mode changed and the schema has settled.</summary>
     event EventHandler? ContextChanged;
 
-    /// <summary>Raised when the editor text changed, except through <see cref="SetSql"/>.</summary>
+    /// <summary>Raised whenever the editor text changed, by typing or through <see cref="SetSql"/>.</summary>
     event EventHandler? SqlChanged;
 
     /// <summary>Raised when the link ended, whether through <see cref="Unlink"/> or the host.</summary>

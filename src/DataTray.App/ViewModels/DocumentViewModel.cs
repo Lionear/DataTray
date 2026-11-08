@@ -14,6 +14,7 @@ using DataTray.Sdk.Formatting;
 using DataTray.Core.History;
 using DataTray.Core.Localization;
 using DataTray.Core.Logging;
+using DataTray.Core.Plugins;
 using DataTray.Core.Providers;
 using DataTray.Core.Schema;
 using DataTray.Core.Settings;
@@ -156,6 +157,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         {
             IsDirty = true;
         }
+
+        _sqlChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Load query text without dirtying the tab, optionally associating a <c>.sql</c> file (open
@@ -512,31 +515,214 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     Task IQueryDocument.RunAsync(CancellationToken ct) => RunAsync(ct);
 
-    // Stubs: implemented test-first in a later SE-299 task.
-    bool IQueryDocument.IsReadOnly => false;
+    // Informs only: a pane may warn on a read-only connection, nothing is blocked (SE-299).
+    bool IQueryDocument.IsReadOnly => Connection is { ReadOnly: true };
 
-    bool IQueryDocument.IsLinked => false;
+    bool IQueryDocument.IsLinked => IsSqlLinked;
 
-    void IQueryDocument.Link(string ownerTitle) => throw new NotImplementedException();
+    void IQueryDocument.Link(string ownerTitle)
+    {
+        LinkOwner = ownerTitle;
+        IsSqlLinked = true;
+    }
 
-    void IQueryDocument.Unlink() => throw new NotImplementedException();
+    void IQueryDocument.Unlink() => EditAsSql();
+
+    private EventHandler? _contextChanged;
+    private EventHandler? _sqlChanged;
+    private EventHandler? _unlinked;
 
     event EventHandler? IQueryDocument.ContextChanged
     {
-        add { }
-        remove { }
+        add => _contextChanged += value;
+        remove => _contextChanged -= value;
     }
 
     event EventHandler? IQueryDocument.SqlChanged
     {
-        add { }
-        remove { }
+        add => _sqlChanged += value;
+        remove => _sqlChanged -= value;
     }
 
     event EventHandler? IQueryDocument.Unlinked
     {
-        add { }
-        remove { }
+        add => _unlinked += value;
+        remove => _unlinked -= value;
+    }
+
+    // --- Plugin panes in the query tab (SE-299) ----------------------------------------------------
+
+    private readonly Dictionary<string, string> _paneStates = [];
+    private IHostUi? _paneHostUi;
+    private Func<SubsystemQueryPane, IQuerySchema?> _paneSchemaFor = _ => null;
+
+    /// <summary>True while a pane owns the SQL; the editor is read-only and shows <see cref="LinkOwner"/>.</summary>
+    [ObservableProperty]
+    private bool _isSqlLinked;
+
+    [ObservableProperty]
+    private string? _linkOwner;
+
+    public ObservableCollection<QueryPaneSlot> QueryPanes { get; } = [];
+
+    /// <summary>Opaque per-plugin pane state, persisted with the open tab.</summary>
+    public IReadOnlyDictionary<string, string> PaneStates => _paneStates;
+
+    internal string? ServerVersion => _serverVersions.Get(Connection.Id);
+
+    internal ISqlDialect Dialect => _providers.Get(Connection.ProviderId).Dialect;
+
+    /// <summary>Offer the registered query panes in this tab (MainViewModel does it for every document).</summary>
+    public void MountQueryPanes(IReadOnlyList<SubsystemQueryPane> panes, IHostUi hostUi, Func<SubsystemQueryPane, IQuerySchema?> schemaFor)
+    {
+        foreach (var slot in QueryPanes)
+        {
+            ClosePane(slot);
+        }
+
+        QueryPanes.Clear();
+        _paneHostUi = hostUi;
+        _paneSchemaFor = schemaFor;
+        foreach (var pane in panes)
+        {
+            QueryPanes.Add(new QueryPaneSlot(pane));
+        }
+
+        RefreshPaneAvailability();
+    }
+
+    [RelayCommand]
+    private void TogglePane(QueryPaneSlot slot)
+    {
+        if (slot.IsOpen)
+        {
+            ClosePane(slot);
+            return;
+        }
+
+        if (!slot.IsAvailable || _paneHostUi is not { } hostUi)
+        {
+            return;
+        }
+
+        var context = new QueryPaneContext(this, slot.Pane, hostUi, _paneSchemaFor(slot.Pane));
+        slot.Context = context;
+        slot.IsOpen = true;
+        // Plugin code: a pane that fails to build costs its own slot an error line, never the tab.
+        try
+        {
+            slot.Control = slot.Pane.Plugin.CreatePane(context);
+            slot.Error = null;
+        }
+        catch (Exception ex)
+        {
+            slot.Error = ex.Message;
+            Reported?.Invoke(OutputLevel.Error, $"{slot.Pane.PluginName}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Takes the SQL back from the pane that owns it.</summary>
+    [RelayCommand]
+    private void EditAsSql()
+    {
+        if (!IsSqlLinked)
+        {
+            return;
+        }
+
+        IsSqlLinked = false;
+        LinkOwner = null;
+        _unlinked?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RestorePaneStates(IReadOnlyDictionary<string, string>? states)
+    {
+        _paneStates.Clear();
+        foreach (var (pluginId, state) in states ?? new Dictionary<string, string>())
+        {
+            _paneStates[pluginId] = state;
+        }
+    }
+
+    internal string? GetPaneState(string pluginId) => _paneStates.GetValueOrDefault(pluginId);
+
+    internal void SetPaneState(string pluginId, string? state)
+    {
+        if (state is null)
+        {
+            _paneStates.Remove(pluginId);
+            return;
+        }
+
+        _paneStates[pluginId] = state;
+    }
+
+    /// <summary>The tab is closing: dispose every open pane and stop raising events to anyone.</summary>
+    public void DisposePanes()
+    {
+        foreach (var slot in QueryPanes)
+        {
+            ClosePane(slot);
+        }
+
+        _contextChanged = null;
+        _sqlChanged = null;
+        _unlinked = null;
+    }
+
+    private void ClosePane(QueryPaneSlot slot)
+    {
+        var control = slot.Control;
+        slot.Control = null;
+        slot.Error = null;
+        slot.IsOpen = false;
+        slot.Context?.Dispose();
+        slot.Context = null;
+        try
+        {
+            (control as IDisposable)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Reported?.Invoke(OutputLevel.Error, $"{slot.Pane.PluginName}: {ex.Message}");
+        }
+    }
+
+    // Re-run each pane's AppliesTo; a pane that no longer applies is closed and disposed.
+    private void RefreshPaneAvailability()
+    {
+        foreach (var slot in QueryPanes)
+        {
+            slot.IsAvailable = PaneApplies(slot);
+            if (!slot.IsAvailable && slot.IsOpen)
+            {
+                ClosePane(slot);
+            }
+        }
+    }
+
+    private bool PaneApplies(QueryPaneSlot slot)
+    {
+        if (IsPluginMode)
+        {
+            return false;
+        }
+
+        try
+        {
+            return slot.Pane.Plugin.AppliesTo(this);
+        }
+        catch (Exception ex)
+        {
+            Reported?.Invoke(OutputLevel.Error, $"{slot.Pane.PluginName}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RaiseContextChanged()
+    {
+        RefreshPaneAvailability();
+        _contextChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
@@ -1334,6 +1520,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
         if (!IsQueryMode)
         {
+            // Browse/monitor tabs have no database list to wait for: their context is final right here.
+            RaiseContextChanged();
             return;
         }
 
@@ -1351,9 +1539,17 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     // already resolve with — browse tabs set it once via InitBrowse and never touch this property.
     partial void OnSelectedDatabaseChanged(string? value)
     {
+        var changed = value is not null && value != _database;
         _database = value;
         RefreshPluginToolbarItems();
+        // RefreshDatabasesAsync raises the event itself once the list has settled; this is the user's pick.
+        if (changed && !_refreshingDatabases)
+        {
+            RaiseContextChanged();
+        }
     }
+
+    private bool _refreshingDatabases;
 
     private async Task RefreshDatabasesAsync(SavedConnection connection)
     {
@@ -1361,6 +1557,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         // SelectedDatabase writes null back through to _database.
         var target = _database;
 
+        _refreshingDatabases = true;
         AvailableDatabases.Clear();
         SelectedDatabase = null;
         // Put the target straight back: the picker stays empty until the list arrives, but the tab must
@@ -1409,6 +1606,13 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         catch
         {
             // Best-effort: the picker just stays empty/hidden for this connection.
+        }
+
+        // A stale refresh (a later switch raced ahead) leaves the event to the refresh that owns the tab now.
+        if (connection == Connection)
+        {
+            _refreshingDatabases = false;
+            RaiseContextChanged();
         }
     }
 
