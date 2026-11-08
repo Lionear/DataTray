@@ -25,6 +25,8 @@ public interface IQueryPanePlugin
     /// <summary>Whether the pane is offered for this document; re-evaluated on <see cref="IQueryDocument.ContextChanged"/>.</summary>
     bool AppliesTo(IQueryDocument document);
 
-    /// <summary>Builds the pane's control for one query tab. The host disposes it when the tab closes.</summary>
+    /// <summary>Builds the pane's control for one query tab. The host disposes it when the pane or tab closes:
+    /// implement IDisposable and unsubscribe from the document's events there, or a pane the user closed keeps
+    /// receiving them through its context.</summary>
     Control CreatePane(IQueryPaneContext context);
 }

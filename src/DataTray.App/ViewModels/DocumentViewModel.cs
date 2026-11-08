@@ -665,6 +665,9 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
             ClosePane(slot);
         }
 
+        // Nothing may re-open or re-evaluate a pane on a closed tab, e.g. a database refresh landing late.
+        QueryPanes.Clear();
+        _paneHostUi = null;
         _contextChanged = null;
         _sqlChanged = null;
         _unlinked = null;
@@ -709,7 +712,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     private bool PaneApplies(QueryPaneSlot slot)
     {
-        if (IsPluginMode)
+        if (!IsQueryMode)
         {
             return false;
         }
@@ -743,7 +746,9 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
             }
             catch (Exception ex)
             {
-                Reported?.Invoke(OutputLevel.Error, ex.Message);
+                // The plugin's name is not reachable from a bare delegate; its assembly name identifies it.
+                var source = handler.Method.DeclaringType?.Assembly.GetName().Name;
+                Reported?.Invoke(OutputLevel.Error, $"{source}: {ex.Message}");
             }
         }
     }

@@ -91,7 +91,7 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
     }
 
     [Fact]
-    public void ContextChanged_PaneNoLongerApplies_ClosesAndStaysClosed()
+    public void ContextChanged_PaneNoLongerApplies_ClosesAndDisposes()
     {
         var (document, slot, plugin) = OpenablePane();
         document.TogglePaneCommand.Execute(slot);
@@ -99,10 +99,44 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         plugin.Applies = false;
 
         document.SelectedDatabase = "Sales";
-        document.TogglePaneCommand.Execute(slot);
 
         Assert.True(control.Disposed);
-        Assert.Equal((false, false, 1), (slot.IsOpen, slot.IsAvailable, plugin.CreateCalls));
+        Assert.Equal((false, false), (slot.IsOpen, slot.IsAvailable));
+    }
+
+    [Fact]
+    public void TogglePane_NotApplicable_DoesNothing()
+    {
+        var document = QueryDocument();
+        var plugin = new FakePanePlugin(() => new PaneControl()) { Applies = false };
+        var slot = Mount(document, plugin);
+
+        document.TogglePaneCommand.Execute(slot);
+
+        Assert.Equal((false, 0), (slot.IsOpen, plugin.CreateCalls));
+    }
+
+    [Fact] // Panes belong to query tabs only; a browse tab never offers one, whatever AppliesTo says.
+    public void MountQueryPanes_OnBrowseTab_PaneNotAvailable()
+    {
+        var document = QueryDocumentFixture.NewDocument(out var connections, QueryDocumentFixture.Ready("master"));
+        document.InitBrowse(connections.List().First(c => c.Id == "c1"), "master", "dbo", "Orders");
+
+        var slot = Mount(document, new FakePanePlugin(() => new PaneControl()));
+
+        Assert.False(slot.IsAvailable);
+    }
+
+    [Fact]
+    public void ContextChanged_FiresOnce_OnBrowseInit()
+    {
+        var document = QueryDocumentFixture.NewDocument(out var connections, QueryDocumentFixture.Ready("master"));
+        var changes = 0;
+        ((IQueryDocument)document).ContextChanged += (_, _) => changes++;
+
+        document.InitBrowse(connections.List().First(c => c.Id == "c1"), "master", "dbo", "Orders");
+
+        Assert.Equal(1, changes);
     }
 
     [Fact] // The SQL stays in the editor; only the link goes, so the editor is editable again.
@@ -135,7 +169,7 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         document.Sql = "select 1";
 
         Assert.Equal(1, calls);
-        Assert.Equal([(OutputLevel.Error, "pane bug")], reported);
+        Assert.Equal([(OutputLevel.Error, "DataTray.App.Tests: pane bug")], reported);
     }
 
     [Fact]
@@ -197,6 +231,38 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         Assert.Equal(0, changes);
     }
 
+    [Fact]
+    public void DisposePanes_WhileLinked_RaisesUnlinkedOnce()
+    {
+        var (document, slot, plugin) = OpenablePane();
+        document.TogglePaneCommand.Execute(slot);
+        var query = Assert.IsAssignableFrom<IQueryPaneContext>(plugin.LastContext).Document;
+        query.Link("Builder");
+        var unlinked = 0;
+        query.Unlinked += (_, _) => unlinked++;
+
+        document.DisposePanes();
+
+        Assert.Equal((false, 1), (document.IsSqlLinked, unlinked));
+    }
+
+    [Fact] // Review Focus 1: a closed tab must not run plugin code when a pending refresh lands late.
+    public void DisposePanes_LateRefresh_DoesNotCallAppliesTo()
+    {
+        var pending = new TaskCompletionSource<IReadOnlyList<string>>();
+        var document = QueryDocumentFixture.NewDocument(out var connections, QueryDocumentFixture.Ready("master"), pending.Task);
+        document.InitQuery(connections.List().First(c => c.Id == "c1"));
+        var plugin = new FakePanePlugin(() => new PaneControl());
+        Mount(document, plugin);
+        document.Connection = connections.List().First(c => c.Id == "c2");
+        document.DisposePanes();
+        var callsAtClose = plugin.AppliesCalls;
+
+        pending.SetResult(["staging"]);
+
+        Assert.Equal(callsAtClose, plugin.AppliesCalls);
+    }
+
     private static DocumentViewModel QueryDocument()
     {
         var document = QueryDocumentFixture.NewDocument(out var connections, QueryDocumentFixture.Ready("master", "Sales"));
@@ -209,9 +275,14 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
     {
         var document = QueryDocument();
         var plugin = new FakePanePlugin(create ?? (() => new PaneControl()));
+        return (document, Mount(document, plugin), plugin);
+    }
+
+    private static QueryPaneSlot Mount(DocumentViewModel document, FakePanePlugin plugin)
+    {
         var pane = new SubsystemQueryPane("builder", "Builder", new HashSet<string>(), new FakePluginLocalizer(), plugin);
         document.MountQueryPanes([pane], new FakeHostUi(), _ => null);
-        return (document, document.QueryPanes[0], plugin);
+        return document.QueryPanes[0];
     }
 
     private sealed class FakePanePlugin(Func<Control> create) : IQueryPanePlugin
@@ -221,7 +292,13 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         public string PaneId => "builder";
         public string Title => "Builder";
         public bool Applies { get; set; } = true;
-        public bool AppliesTo(IQueryDocument document) => Applies;
+        public int AppliesCalls { get; private set; }
+
+        public bool AppliesTo(IQueryDocument document)
+        {
+            AppliesCalls++;
+            return Applies;
+        }
 
         public Control CreatePane(IQueryPaneContext context)
         {
