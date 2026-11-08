@@ -20,13 +20,13 @@ internal static class QueryPaneDemo
         document.TogglePaneCommand.Execute(document.QueryPanes[0]);
         if (state == "linked")
         {
-            ((DemoPane)plugin.Created!).Generate();
+            plugin.Created!.Generate();
         }
     }
 
     private sealed class DemoPlugin(bool fail) : IQueryPanePlugin
     {
-        public Control? Created { get; private set; }
+        public DemoPane? Created { get; private set; }
         public string PaneId => "demo";
         public string Title => "Demo pane";
         public bool AppliesTo(IQueryDocument document) => true;
@@ -42,7 +42,7 @@ internal static class QueryPaneDemo
         }
     }
 
-    private sealed class DemoPane : UserControl
+    internal sealed class DemoPane : UserControl
     {
         private readonly IQueryDocument _document;
 

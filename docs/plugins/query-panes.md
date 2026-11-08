@@ -12,7 +12,7 @@ host owns the toggle, the column next to the editor and the pane's lifetime; the
 | `IQueryPanePlugin` | `PaneId`, `Title`, optional `Icon` and `Shortcut` (e.g. `"Ctrl+Shift+B"`), `AppliesTo(IQueryDocument)` and `CreatePane(IQueryPaneContext)`. |
 | `IQueryPaneContext` | The tab's `Document`, `Schema`, `HostUi`, `Localizer`, persisted `State`, `GetServerVersionAsync`, dialect keywords/functions and `QuoteIdentifier`. |
 | `IQuerySchema` | `GetTablesAsync`, `GetTableAsync` (columns, foreign keys) and a `Changed` event. Types: `QueryTableRef`, `QueryTable`, `QueryColumn`, `QueryForeignKey`. |
-| `IQueryDocument` | `Sql`, `SelectedSql`, `SetSql`, `RunAsync`, `Connection`, `Database`, plus `IsReadOnly`, `IsLinked`, `Link`, `Unlink` and the events `ContextChanged`, `SqlChanged`, `Unlinked`. |
+| `IQueryDocument` | `DocumentId`, `Kind` (`QueryDocumentKind`: Query, Browse, Monitor; handy in `AppliesTo`), `Sql`, `SelectedSql`, `SetSql`, `RunAsync`, `Connection`, `Database`, plus `IsReadOnly`, `IsLinked`, `Link`, `Unlink` and the events `ContextChanged`, `SqlChanged`, `Unlinked`. |
 
 ### Capabilities
 
@@ -49,7 +49,3 @@ A pane that generates SQL calls `Document.Link("My pane")` and then `SetSql(...)
 ### Nothing is blocked
 
 DataTray never refuses a statement. Panes cannot veto Run, and the Run path does not classify or filter SQL.
-
-### Screenshots
-
-`dotnet run --project src/DataTray.Screenshots -- --scene query-pane --state open|linked|error --theme light|dark --out <file.png>`
