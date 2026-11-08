@@ -139,6 +139,33 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         Assert.Equal(1, unlinked);
     }
 
+    [Theory] // Consent boundary: only a pane granted `schema` gets to read the connection's tables.
+    [InlineData(PluginCapabilities.Schema, true)]
+    [InlineData(PluginCapabilities.QueryPane, false)]
+    public void SchemaFor_GivesASchemaOnlyWithTheSchemaCapability(string capability, bool expected)
+    {
+        var pane = new SubsystemQueryPane("builder", "Builder", new HashSet<string> { capability },
+            new FakePluginLocalizer(), new FakePanePlugin(() => new PaneControl()));
+
+        var schema = MainViewModel.SchemaFor(pane, new QueryDocumentFixture.FakeSchemaCache(), QueryDocument());
+
+        Assert.Equal(expected, schema is not null);
+    }
+
+    [Fact] // The button and the shortcut both go through FormatCommand; the fake dialect throws if it formats.
+    public void Format_WhileLinked_IsDisabledAndLeavesSqlAlone()
+    {
+        var document = QueryDocument();
+        IQueryDocument query = document;
+        query.Link("Builder");
+        query.SetSql("select 1");
+
+        var canFormat = document.FormatCommand.CanExecute(null);
+        document.FormatCommand.Execute(null);
+
+        Assert.Equal((false, "select 1"), (canFormat, document.Sql));
+    }
+
     [Fact]
     public void SetSql_RaisesSqlChanged_UserTyping_RaisesSqlChanged()
     {
@@ -296,6 +323,22 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         second.TogglePaneCommand.Execute(secondSlot);
 
         Assert.Equal("{\"tables\":[\"Orders\"]}", Assert.IsAssignableFrom<IQueryPaneContext>(secondPlugin.LastContext).State);
+    }
+
+    [Fact] // Duplicate tab and Reopen closed tab both go through CaptureTab/ApplyTab.
+    public void ApplyTab_CarriesSqlAndPaneStateToTheNewTab()
+    {
+        var (first, firstSlot, firstPlugin) = OpenablePane();
+        first.TogglePaneCommand.Execute(firstSlot);
+        Assert.IsAssignableFrom<IQueryPaneContext>(firstPlugin.LastContext).State = "{\"tables\":[\"Orders\"]}";
+        ((IQueryDocument)first).SetSql("select * from Orders");
+        var (second, secondSlot, secondPlugin) = OpenablePane();
+
+        second.ApplyTab(first.CaptureTab());
+        second.TogglePaneCommand.Execute(secondSlot);
+
+        var state = Assert.IsAssignableFrom<IQueryPaneContext>(secondPlugin.LastContext).State;
+        Assert.Equal(("select * from Orders", "{\"tables\":[\"Orders\"]}"), (second.Sql, state));
     }
 
     [Fact]

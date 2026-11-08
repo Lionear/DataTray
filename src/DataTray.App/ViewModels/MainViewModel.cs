@@ -374,11 +374,14 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    // A schema is built per pane open, only for panes that asked for the capability; the pane disposes it on close.
     private void MountPanes(DocumentViewModel document, IHostUi hostUi) =>
-        document.MountQueryPanes(_queryPanes, hostUi, pane => pane.Capabilities.Contains(PluginCapabilities.Schema)
-            ? new QuerySchema(_schemaCache, () => document.Connection, () => ((IQueryDocument)document).Database)
-            : null);
+        document.MountQueryPanes(_queryPanes, hostUi, pane => SchemaFor(pane, _schemaCache, document));
+
+    // A schema is built per pane open, only for panes that asked for the capability; the pane disposes it on close.
+    internal static IQuerySchema? SchemaFor(Core.Plugins.SubsystemQueryPane pane, ISchemaCache cache, DocumentViewModel document) =>
+        pane.Capabilities.Contains(PluginCapabilities.Schema)
+            ? new QuerySchema(cache, () => document.Connection, () => ((IQueryDocument)document).Database)
+            : null;
 
 
     // Reopen the query tabs from the previous session (skipping any whose connection no longer exists).
@@ -2979,16 +2982,17 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private Task CloseAllTabs() => CloseManyAsync(Documents.ToList());
 
-    // Duplicate a query tab: a fresh tab on the same connection with the same SQL. (Browse tabs reopen
-    // from the tree, so there's nothing to duplicate.)
+    // Duplicate a query tab: a fresh tab on the same connection with the same SQL and pane states.
+    // (Browse tabs reopen from the tree, so there's nothing to duplicate.)
     [RelayCommand]
     private void DuplicateTab(DocumentViewModel? document)
     {
         if (document is { IsQueryMode: true, Connection: { } connection })
         {
             // The duplicate keeps the source tab's database, not the tree's — the two can differ.
-            var copy = NewQueryDocument(connection, document.SelectedDatabase);
-            copy.Sql = document.Sql;
+            var tab = document.CaptureTab();
+            var copy = NewQueryDocument(connection, tab.Database);
+            copy.ApplyTab(tab);
             AddDocument(copy);
         }
     }
@@ -3053,10 +3057,10 @@ public partial class MainViewModel : ViewModelBase
         // Remember closed query tabs so Ctrl+Shift+T can bring them back (browse tabs reopen from the tree).
         if (document.IsQueryMode && document.Connection is { } connection)
         {
-            _closedTabs.Push((connection, document.SelectedDatabase, document.Sql));
+            _closedTabs.Push((connection, document.CaptureTab()));
             if (_closedTabs.Count > ClosedTabHistory)
             {
-                _closedTabs = new Stack<(SavedConnection, string?, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
+                _closedTabs = new Stack<(SavedConnection, OpenTabState)>(_closedTabs.Take(ClosedTabHistory).Reverse());
             }
         }
 
@@ -3076,9 +3080,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private const int ClosedTabHistory = 15;
-    private Stack<(SavedConnection Connection, string? Database, string Sql)> _closedTabs = new();
+    private Stack<(SavedConnection Connection, OpenTabState Tab)> _closedTabs = new();
 
-    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL, connection and database restored.
+    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL, connection, database and pane states.
     [RelayCommand]
     private void ReopenClosedTab()
     {
@@ -3087,9 +3091,9 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var (connection, database, sql) = _closedTabs.Pop();
-        var document = NewQueryDocument(connection, database);
-        document.Sql = sql;
+        var (connection, tab) = _closedTabs.Pop();
+        var document = NewQueryDocument(connection, tab.Database);
+        document.ApplyTab(tab);
         AddDocument(document);
     }
 

@@ -40,7 +40,7 @@ Declare them in the plugin manifest; `ToolHostApi.Version` is 9 (`MinimumSupport
 
 A pane that generates SQL calls `Document.Link("My pane")` and then `SetSql(...)`. While linked:
 
-- the editor is read-only (typing, paste, GUID insert, comment toggle, completion, undo and redo are blocked)
+- the editor is read-only (typing, paste, GUID insert, comment toggle, completion, Format, Replace, undo and redo are blocked)
   and a link bar shows who wrote the SQL, with **Copy** and **Edit as SQL**;
 - **Edit as SQL**, closing the pane or closing the tab unlinks the editor and raises `Unlinked`;
 - `SqlChanged` is raised for typing and for `SetSql`, so do not call `SetSql` from a `SqlChanged` handler

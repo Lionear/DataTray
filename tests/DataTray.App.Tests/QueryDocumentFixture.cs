@@ -117,7 +117,7 @@ internal static class QueryDocumentFixture
         public void Clear() { }
     }
 
-    private sealed class FakeSchemaCache : ISchemaCache
+    internal sealed class FakeSchemaCache : ISchemaCache
     {
         public event Action? Changed { add { } remove { } }
         public SchemaSnapshot? Get(string connectionId) => null;

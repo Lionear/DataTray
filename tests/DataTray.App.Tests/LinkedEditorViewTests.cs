@@ -74,8 +74,32 @@ public class LinkedEditorViewTests : IClassFixture<HeadlessDrawing>
         Assert.Equal("select 2", sql);
     }
 
+    [Fact] // Replace All writes through Document.Replace; AvaloniaEdit leaves replace mode when the editor turns read-only.
+    public void Link_WithReplacePanelOpen_LeavesReplaceMode()
+    {
+        var replaceMode = HeadlessDrawing.Run(() =>
+        {
+            var (document, editor) = UnlinkedView();
+            editor.SearchPanel.IsReplaceMode = true;
+            ((IQueryDocument)document).Link("Builder");
+            return editor.SearchPanel.IsReplaceMode;
+        });
+
+        Assert.False(replaceMode);
+    }
+
     // A query tab in a view, linked to a pane that has written the SQL twice.
     private static (DocumentViewModel Document, TextEditor Editor) LinkedView()
+    {
+        var (document, editor) = UnlinkedView();
+        IQueryDocument query = document;
+        query.Link("Builder");
+        query.SetSql("select 1");
+        query.SetSql("select 2");
+        return (document, editor);
+    }
+
+    private static (DocumentViewModel Document, TextEditor Editor) UnlinkedView()
     {
         SeedAppResources();
         var document = QueryDocumentFixture.NewDocument(out var connections, QueryDocumentFixture.Ready("master"));
@@ -85,10 +109,6 @@ public class LinkedEditorViewTests : IClassFixture<HeadlessDrawing>
         window.Show();
         window.UpdateLayout();   // applies the editor template, so keys bubble from TextArea as in the app
         var editor = view.FindControl<TextEditor>("SqlEditor") ?? throw new InvalidOperationException("no SqlEditor");
-        IQueryDocument query = document;
-        query.Link("Builder");
-        query.SetSql("select 1");
-        query.SetSql("select 2");
         return (document, editor);
     }
 

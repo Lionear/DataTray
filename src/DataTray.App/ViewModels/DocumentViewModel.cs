@@ -559,6 +559,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     /// <summary>True while a pane owns the SQL; the editor is read-only and shows <see cref="LinkOwner"/>.</summary>
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(FormatCommand))]
     private bool _isSqlLinked;
 
     [ObservableProperty]
@@ -676,6 +677,15 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         {
             _paneStates[pluginId] = state;
         }
+    }
+
+    // What Duplicate and Reopen closed tab carry over. The live state map, so a pane that saves on dispose is kept.
+    internal Core.Session.OpenTabState CaptureTab() => new(Connection.Id, SelectedDatabase, Sql, PaneStates: _paneStates);
+
+    internal void ApplyTab(Core.Session.OpenTabState tab)
+    {
+        Sql = tab.Sql;
+        RestorePaneStates(tab.PaneStates);
     }
 
     internal string? GetPaneState(string pluginId) => _paneStates.GetValueOrDefault(pluginId);
@@ -2212,9 +2222,17 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         await LoadPageAsync(ct);
     }
 
-    [RelayCommand]
+    private bool CanFormat() => !IsSqlLinked;
+
+    // RelayCommand.Execute skips CanExecute, and the Ctrl+Shift+F shortcut calls Execute directly.
+    [RelayCommand(CanExecute = nameof(CanFormat))]
     private void Format()
     {
+        if (!CanFormat())
+        {
+            return;
+        }
+
         // The provider may ship its own dialect-specialised formatter (SE-148); fall back to the host's
         // generic one (_formatter) when it doesn't. Options come from Settings (casing + indent width).
         var provider = _providers.Get(Connection.ProviderId);
