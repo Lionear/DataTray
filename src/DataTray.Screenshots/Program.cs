@@ -14,6 +14,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using HostApp = DataTray.App.App;
 using DataTray.App.DependencyInjection;
+using DataTray.App.Startup;
 using DataTray.App.ViewModels;
 using DataTray.App.Views;
 using DataTray.Core.Connections;
@@ -45,7 +46,8 @@ namespace DataTray.Screenshots;
 // importconnections (the DataGrip/DBeaver import picker), querysettings (the Query settings pane),
 // copytable (the Copy Table tool dialog; --state input|progress|done|failed picks which of its states),
 // firstrun (the onboarding wizard; --state welcome|engine|security|securityfile|securitynovault|
-//   connection|import|done).
+//   connection|import|done), splash (the SE-297 startup splash; --state step1|step2|step3|updates|slow|stuck|
+//   failed|failedworkspace|ready, prefixed "compact-" for the compact layout).
 // Window-canvas scenes take --size (default 1280x820); the export dialog sizes itself.
 // --theme light|dark renders the scene in that theme, which is how a dialog's dark rendering gets checked
 // without a display.
@@ -173,7 +175,7 @@ internal static class Program
 // Builds each scene as a Window ready to show, seeding synthetic data as needed.
 internal static class SceneCatalog
 {
-    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, settings, aitree, copytable, erdiagram";
+    public static string Names => "hero, query, store, export, importconnections, firstrun, main, mcpsettings, querysettings, settings, aitree, copytable, erdiagram, splash";
 
     public static Task<Window?> BuildAsync(string scene, IServiceProvider services, string sandbox, string state)
     {
@@ -204,8 +206,68 @@ internal static class SceneCatalog
         "aitree" => BuildAiTreeAsync(services, sandbox),
         "copytable" => Task.FromResult(BuildCopyTable(services, sandbox, state)),
         "erdiagram" => BuildErDiagramAsync(services, sandbox, state),
+        "splash" => Task.FromResult<Window?>(BuildSplash(services, state)),
         _ => Task.FromResult<Window?>(null)
     };
+
+    // SE-297 startup splash in one of its states. The clock is moved by hand, so "slow" needs no waiting, and
+    // motion is off so the capture never lands mid-animation.
+    private static Window BuildSplash(IServiceProvider services, string state)
+    {
+        var compact = state.StartsWith("compact-", StringComparison.Ordinal);
+        var name = compact ? state["compact-".Length..] : state;
+        string[] keys = name == "updates"
+            ? [StartupSteps.Updates, StartupSteps.Plugins, StartupSteps.Workspace, StartupSteps.Extensions]
+            : [StartupSteps.Plugins, StartupSteps.Workspace, StartupSteps.Extensions];
+        var index = name switch
+        {
+            "step2" or "failedworkspace" or "updates" => 1,
+            "step3" => 2,
+            _ => 0,
+        };
+
+        var clock = new ManualClock();
+        var vm = new SplashViewModel(services.GetRequiredService<ILocalizer>(), clock);
+        for (var i = 0; i <= index; i++)
+        {
+            vm.Report(new StartupStep(keys[i], i, keys.Length));
+        }
+
+        switch (name)
+        {
+            case "step1":
+            case "updates":
+                vm.ReportDetail("Engines · 1 of 5");
+                break;
+            case "slow":
+            case "stuck":
+                clock.Advance(TimeSpan.FromSeconds(name == "slow" ? 9 : 34));
+                vm.ReportDetail("Tools · 2 of 5");
+                vm.Tick();
+                break;
+            case "failed":
+                vm.Fail(new IOException("Access to the path '/home/ada/.config/Lionear/DataTray/plugins/redis' is denied."));
+                break;
+            case "failedworkspace":
+                vm.Fail(new InvalidOperationException("open-tabs.json could not be read."));
+                break;
+            case "ready":
+                clock.Advance(TimeSpan.FromSeconds(2.4));
+                vm.Complete();
+                break;
+        }
+
+        return new SplashWindow(vm, compact, reducedMotion: true);
+    }
+
+    private sealed class ManualClock : TimeProvider
+    {
+        private DateTimeOffset _now = DateTimeOffset.UnixEpoch;
+
+        public override DateTimeOffset GetUtcNow() => _now;
+
+        public void Advance(TimeSpan by) => _now += by;
+    }
 
     /// <summary>
     /// The Copy Table tool dialog (SE-188), in whichever of its states <paramref name="state"/> names. The

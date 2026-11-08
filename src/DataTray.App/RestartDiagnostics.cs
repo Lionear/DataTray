@@ -15,7 +15,7 @@ namespace DataTray.App;
 /// </summary>
 public static class RestartDiagnostics
 {
-    private static string LogPath => AppPaths.File("restart.log");
+    internal static string LogPath => AppPaths.File("restart.log");
 
     public static void Log(string message)
     {

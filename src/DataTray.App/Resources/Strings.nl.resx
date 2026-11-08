@@ -2235,4 +2235,121 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="WindowClose" xml:space="preserve">
     <value>Sluiten</value>
   </data>
+  <data name="SplashStepOf" xml:space="preserve">
+    <value>{0} van {1}</value>
+  </data>
+  <data name="SplashStepUpdates" xml:space="preserve">
+    <value>Plug-in-updates toepassen</value>
+  </data>
+  <data name="SplashStepUpdatesSub" xml:space="preserve">
+    <value>Klaargezet toen DataTray de vorige keer draaide</value>
+  </data>
+  <data name="SplashStepPlugins" xml:space="preserve">
+    <value>Je plug-ins laden</value>
+  </data>
+  <data name="SplashStepPluginsSub" xml:space="preserve">
+    <value>Engines, tools en viewers</value>
+  </data>
+  <data name="SplashStepWorkspace" xml:space="preserve">
+    <value>Je werkruimte terugzetten</value>
+  </data>
+  <data name="SplashStepWorkspaceSub" xml:space="preserve">
+    <value>Verbindingsboom en querytabbladen</value>
+  </data>
+  <data name="SplashStepExtensions" xml:space="preserve">
+    <value>Extensies starten</value>
+  </data>
+  <data name="SplashStepExtensionsSub" xml:space="preserve">
+    <value>Panelen, menu's en achtergrondwerk</value>
+  </data>
+  <data name="SplashWhyUpdates" xml:space="preserve">
+    <value>Ze gaan erin voordat iets de oude versie laadt.</value>
+  </data>
+  <data name="SplashWhyPlugins" xml:space="preserve">
+    <value>DataTray kan zonder zijn engines geen verbinding openen.</value>
+  </data>
+  <data name="SplashWhyWorkspace" xml:space="preserve">
+    <value>Het hoofdvenster opent waar je gebleven was.</value>
+  </data>
+  <data name="SplashWhyExtensions" xml:space="preserve">
+    <value>Ze voegen panelen en menu's toe aan het hoofdvenster.</value>
+  </data>
+  <data name="SplashSlower" xml:space="preserve">
+    <value>(trager dan normaal)</value>
+  </data>
+  <data name="SplashWaited" xml:space="preserve">
+    <value>Al {0} s. {1}</value>
+  </data>
+  <data name="SplashNow" xml:space="preserve">
+    <value>Nu: {0}</value>
+  </data>
+  <data name="SplashPluginsPart" xml:space="preserve">
+    <value>{0} · {1} van {2}</value>
+  </data>
+  <data name="SplashPartEngines" xml:space="preserve">
+    <value>Engines</value>
+  </data>
+  <data name="SplashPartTools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="SplashPartViewers" xml:space="preserve">
+    <value>Viewers</value>
+  </data>
+  <data name="SplashPartMcp" xml:space="preserve">
+    <value>MCP-tools</value>
+  </data>
+  <data name="SplashPartExtensions" xml:space="preserve">
+    <value>Extensies</value>
+  </data>
+  <data name="SplashStillWaiting" xml:space="preserve">
+    <value>Je kunt blijven wachten, of zonder starten.</value>
+  </data>
+  <data name="SplashFailedUpdates" xml:space="preserve">
+    <value>Plug-in-updates zijn niet toegepast</value>
+  </data>
+  <data name="SplashFailedPlugins" xml:space="preserve">
+    <value>Je plug-ins zijn niet geladen</value>
+  </data>
+  <data name="SplashFailedWorkspace" xml:space="preserve">
+    <value>Je werkruimte kwam niet terug</value>
+  </data>
+  <data name="SplashFailedExtensions" xml:space="preserve">
+    <value>Extensies zijn niet gestart</value>
+  </data>
+  <data name="SplashFailedPluginsMeans" xml:space="preserve">
+    <value>Je kunt verder met de engines die bij DataTray horen. Plug-ins uit de Plugin Store blijven uit tot dit is opgelost.</value>
+  </data>
+  <data name="SplashFailedOtherMeans" xml:space="preserve">
+    <value>Opnieuw proberen herstart DataTray. In het log staan de details.</value>
+  </data>
+  <data name="SplashRetry" xml:space="preserve">
+    <value>Opnieuw proberen</value>
+  </data>
+  <data name="SplashContinueWithout" xml:space="preserve">
+    <value>Doorgaan zonder Store-plug-ins</value>
+  </data>
+  <data name="SplashOpenLog" xml:space="preserve">
+    <value>Log openen</value>
+  </data>
+  <data name="SplashQuit" xml:space="preserve">
+    <value>Afsluiten</value>
+  </data>
+  <data name="SplashReady" xml:space="preserve">
+    <value>Klaar</value>
+  </data>
+  <data name="SplashReadySub" xml:space="preserve">
+    <value>Gestart in {0} s</value>
+  </data>
+  <data name="SplashA11yName" xml:space="preserve">
+    <value>DataTray start op</value>
+  </data>
+  <data name="SplashA11yStep" xml:space="preserve">
+    <value>Stap {0} van {1}: {2}</value>
+  </data>
+  <data name="SplashA11ySlow" xml:space="preserve">
+    <value>{0} duurt langer dan normaal</value>
+  </data>
+  <data name="SplashA11yReady" xml:space="preserve">
+    <value>DataTray is klaar</value>
+  </data>
 </root>

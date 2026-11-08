@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Headless;
+using Avalonia.Threading;
 
 namespace DataTray.App.Tests;
 
@@ -24,10 +25,23 @@ public sealed class HeadlessDrawing
                 return;
             }
 
-            AppBuilder.Configure<Application>()
-                .UseHeadless(new AvaloniaHeadlessPlatformOptions())
-                .SetupWithoutStarting();
+            // Avalonia's compositor checks the thread it was set up on, so a window can only be built there.
+            // Set up on a thread of our own that keeps the dispatcher running, and let tests Run() on it.
+            using var ready = new ManualResetEventSlim();
+            var thread = new Thread(() =>
+            {
+                AppBuilder.Configure<Application>()
+                    .UseHeadless(new AvaloniaHeadlessPlatformOptions())
+                    .SetupWithoutStarting();
+                ready.Set();
+                Dispatcher.UIThread.MainLoop(CancellationToken.None);
+            }) { IsBackground = true, Name = "Avalonia UI (tests)" };
+            thread.Start();
+            ready.Wait();
             _started = true;
         }
     }
+
+    /// <summary>Runs <paramref name="work"/> on the Avalonia UI thread, as anything that builds a window must.</summary>
+    public static T Run<T>(Func<T> work) => Dispatcher.UIThread.Invoke(work);
 }

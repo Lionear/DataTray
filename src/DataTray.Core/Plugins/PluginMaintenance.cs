@@ -24,6 +24,11 @@ public static class PluginMaintenance
     /// promoted (still-locked files, an undeletable slot) so the caller can surface/log them — the update
     /// stays staged and is retried next startup. An empty list means everything applied.
     /// </summary>
+    /// <summary>Whether <see cref="ApplyPending"/> has real work to do: a staged removal or a staged <c>&lt;id&gt;.next</c>.</summary>
+    public static bool HasPending(IPluginStateStore stateStore, string userRoot) =>
+        stateStore.GetAll().Values.Any(e => e.Pending == PluginPendingAction.Remove)
+        || (Directory.Exists(userRoot) && Directory.EnumerateDirectories(userRoot, "*" + NextSuffix).Any());
+
     public static IReadOnlyList<string> ApplyPending(IPluginStateStore stateStore, string userRoot)
     {
         // 1. Removals first, so a removed id's staged .next is gone before the swap scan runs.

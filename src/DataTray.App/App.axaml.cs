@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using DataTray.App.DependencyInjection;
+using DataTray.App.Startup;
 using DataTray.App.Theming;
 using DataTray.App.ViewModels;
 using DataTray.App.Views;
@@ -78,26 +79,202 @@ public partial class App : Application
             return;
         }
 
-        var services = AppServices.Build();
+        switch (ApplicationLifetime)
+        {
+            case IClassicDesktopStyleApplicationLifetime desktop:
+                StartBehindSplash(desktop);
+                break;
+            case ISingleViewApplicationLifetime singleView:
+                // No splash outside the desktop lifetime: build synchronously, as before SE-297.
+                var services = AppServices.Build();
+                var settings = services.GetRequiredService<IAppSettingsStore>().Load();
+                ApplyAppearance(settings, services.GetRequiredService<ILocalizer>());
+                ApplyQueryLog(services, settings);
+                var viewModel = services.GetRequiredService<MainViewModel>();
+                MountSubsystems(services, viewModel, services.GetRequiredService<KeymapService>());
+                singleView.MainView = new MainView { DataContext = viewModel };
+                break;
+        }
 
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    // SE-297: the splash shows first, the plugin work runs on a worker so the splash can draw and count, and
+    // everything that builds UI (view model, extension panels, the main window) stays on the UI thread.
+    private void StartBehindSplash(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        // Theme and language before the first frame, so the splash is never drawn in the wrong theme.
+        var settings = new Infrastructure.Persistence.JsonAppSettingsStore().Load();
+        var localizer = new Localization.ResxLocalizer();
+        ApplyAppearance(settings, localizer);
+
+        var relaunched = Environment.GetCommandLineArgs().Contains(AppRestart.RelaunchArgument);
+        var splashModel = new SplashViewModel(localizer, TimeProvider.System);
+        var splash = new SplashWindow(splashModel, compact: relaunched, ReducedMotion.IsRequested());
+        desktop.MainWindow = splash;
+
+        Window front = splash;
+        var handedOver = false;
+
+        // Single-instance listener, started now rather than with the main window: a second launch during a
+        // slow start surfaces the splash instead of finding nobody listening.
+        SingleInstance.StartServer(
+            () => Avalonia.Threading.Dispatcher.UIThread.Post(() => ShowWindow(front)),
+            _shutdownCts.Token);
+
+        // Closing the splash before the hand-over is quitting; the main window must not appear afterwards.
+        splash.Closed += (_, _) =>
+        {
+            if (!handedOver)
+            {
+                desktop.Shutdown();
+            }
+        };
+
+        splashModel.RetryRequested = AppRestart.Restart;
+        splashModel.QuitRequested = () => desktop.Shutdown();
+        splashModel.OpenLogRequested = OpenLog;
+
+        // "Continue without store plugins" starts a new run while a slow one may still be going; the old run
+        // is cancelled so it can neither report over the new one nor open a second main window.
+        CancellationTokenSource? currentRun = null;
+
+        async Task RunAsync(bool bundledPluginsOnly)
+        {
+            currentRun?.Cancel();
+            var run = currentRun = new CancellationTokenSource();
+            var mainWindow = await StartupAsync(desktop, splashModel, localizer, bundledPluginsOnly, run.Token);
+            if (mainWindow is null || run.IsCancellationRequested || !splash.IsVisible)
+            {
+                return;
+            }
+
+            try
+            {
+                // A short beat on "All set", then the main window takes over. No beat under reduced motion.
+                await Task.Delay(splash.Classes.Contains("reduced-motion") ? 0 : 350);
+                handedOver = true;
+                front = mainWindow;
+                desktop.MainWindow = mainWindow;
+                mainWindow.Show();
+                splash.Close();
+            }
+            catch (Exception ex)
+            {
+                // Fire-and-forget from here on: a throw must land on the splash, not in an unobserved task.
+                handedOver = false;
+                front = splash;
+                desktop.MainWindow = splash;
+                RestartDiagnostics.Log($"start: hand-over FAILED {ex.GetType().Name}: {ex.Message}");
+                splashModel.Fail(ex);
+            }
+        }
+
+        splashModel.ContinueWithoutRequested = () => _ = RunAsync(bundledPluginsOnly: true);
+        splash.Opened += (_, _) => _ = RunAsync(bundledPluginsOnly: false);
+    }
+
+    // Runs the steps and builds the main window. Null when a step failed: the splash then shows why.
+    private async Task<MainWindow?> StartupAsync(IClassicDesktopStyleApplicationLifetime desktop,
+        SplashViewModel splash, Localization.ResxLocalizer localizer, bool bundledPluginsOnly, CancellationToken ct)
+    {
+        IServiceProvider? services = null;
+        MainViewModel? viewModel = null;
+        KeymapService? keymap = null;
+        Core.Plugins.SubsystemActivationResult? subsystems = null;
+        var simulate = StartupSimulation.Current;
+
+        var work = new List<Startup.StartupWork>();
+        if (!bundledPluginsOnly && Core.Plugins.PluginMaintenance.HasPending(
+                new Infrastructure.Persistence.JsonPluginStateStore(), Core.Plugins.PluginPaths.UserRoot))
+        {
+            work.Add(new(Startup.StartupSteps.Updates, _ => Task.Run(() =>
+                Core.Plugins.PluginMaintenance.ApplyPending(
+                    new Infrastructure.Persistence.JsonPluginStateStore(), Core.Plugins.PluginPaths.UserRoot))));
+        }
+
+        work.Add(new(Startup.StartupSteps.Plugins, async progress =>
+            services = await Task.Run(() =>
+            {
+                simulate.During(Startup.StartupSteps.Plugins, bundledPluginsOnly);
+                return AppServices.Build(localizer, progress, bundledPluginsOnly);
+            })));
+        work.Add(new(Startup.StartupSteps.Workspace, async _ =>
+        {
+            await LetTheSplashDrawAsync();
+            simulate.During(Startup.StartupSteps.Workspace, bundledPluginsOnly);
+            var built = services ?? throw new InvalidOperationException("The plugins step built no services.");
+            ApplyQueryLog(built, built.GetRequiredService<IAppSettingsStore>().Load());
+            viewModel = built.GetRequiredService<MainViewModel>();
+            keymap = built.GetRequiredService<KeymapService>();
+        }));
+        work.Add(new(Startup.StartupSteps.Extensions, async _ =>
+        {
+            await LetTheSplashDrawAsync();
+            if (services is null || viewModel is null || keymap is null)
+            {
+                throw new InvalidOperationException("The workspace step built no main view model.");
+            }
+
+            subsystems = MountSubsystems(services, viewModel, keymap);
+        }));
+
+        if (!await Startup.StartupRunner.RunAsync(splash, work, RestartDiagnostics.Log, ct)
+            || services is null || viewModel is null || keymap is null || subsystems is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return WireDesktop(desktop, services, viewModel, keymap, subsystems);
+        }
+        catch (Exception ex)
+        {
+            RestartDiagnostics.Log($"start: main window FAILED {ex.GetType().Name}: {ex.Message}");
+            splash.Fail(ex);
+            return null;
+        }
+    }
+
+    // The UI-thread steps block the dispatcher while they run; yield once at background priority first, so the
+    // splash renders the step it is about to block on.
+    private static Task LetTheSplashDrawAsync() =>
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(static () => { }, Avalonia.Threading.DispatcherPriority.Background)
+            .GetTask();
+
+    private static void OpenLog()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(RestartDiagnostics.LogPath) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            RestartDiagnostics.Log($"start: open log FAILED {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private static void ApplyAppearance(Core.Settings.AppSettings settings, ILocalizer localizer)
+    {
         // Apply the saved theme/language before anything renders, so there's no flash of the
         // wrong theme or a Language toggle needed after every launch.
-        var settingsStore = services.GetRequiredService<IAppSettingsStore>();
-        var settings = settingsStore.Load();
         ThemeApplier.Apply(settings.Theme);
         ThemeApplier.ApplyScrollbars(settings.OverlayScrollbars);
         if (settings.Language is { Length: > 0 } language)
         {
-            services.GetRequiredService<ILocalizer>().SetCulture(CultureInfo.GetCultureInfo(language));
+            localizer.SetCulture(CultureInfo.GetCultureInfo(language));
         }
+    }
 
+    private static void ApplyQueryLog(IServiceProvider services, Core.Settings.AppSettings settings) =>
         // Apply the saved query-log policy before any query can run (SettingsViewModel re-applies on save).
         services.GetRequiredService<Core.Logging.IQueryLog>()
             .Configure(settings.QueryLogEnabled, settings.QueryLogApp, settings.QueryLogMcp);
 
-        var viewModel = services.GetRequiredService<MainViewModel>();
-        var keymap = services.GetRequiredService<KeymapService>();
-
+    private Core.Plugins.SubsystemActivationResult MountSubsystems(
+        IServiceProvider services, MainViewModel viewModel, KeymapService keymap)
+    {
         // Activate standing-subsystem plugins (SE-164) now the container is built: only here do the services
         // their capability-gated contexts need — plugin storage and, crucially, the ConnectionService behind
         // managed connections — actually exist. Held for Deactivate at shutdown (wired below in the desktop case).
@@ -194,127 +371,119 @@ public partial class App : Application
             _ = background.RunAsync(_shutdownCts.Token);
         }
 
-        switch (ApplicationLifetime)
+        return subsystems;
+    }
+
+    private MainWindow WireDesktop(IClassicDesktopStyleApplicationLifetime desktop, IServiceProvider services,
+        MainViewModel viewModel, KeymapService keymap, Core.Plugins.SubsystemActivationResult subsystems)
+    {
+        var settingsStore = services.GetRequiredService<IAppSettingsStore>();
+        var mainWindow = new MainWindow(settingsStore, keymap) { DataContext = viewModel };
+
+        // System-tray presence so the app can keep running in the background (notably the MCP
+        // server) after a close-to-tray. The icon is always available while the app runs; whether
+        // the window's close button hides or quits is governed by the CloseToTray setting, which
+        // MainWindow reads live on each close. Quit from here or File > Exit routes through
+        // desktop.Shutdown(), which closes with CloseReason=ApplicationShutdown (a real quit).
+        // Opening the log from the tray surfaces the window first (it may be hidden), then runs the
+        // same command the menu uses — which shows the non-modal, single-instance Query Log window.
+        void OpenQueryLog()
         {
-            case IClassicDesktopStyleApplicationLifetime desktop:
-                var mainWindow = new MainWindow(settingsStore, keymap) { DataContext = viewModel };
-                desktop.MainWindow = mainWindow;
-
-                // System-tray presence so the app can keep running in the background (notably the MCP
-                // server) after a close-to-tray. The icon is always available while the app runs; whether
-                // the window's close button hides or quits is governed by the CloseToTray setting, which
-                // MainWindow reads live on each close. Quit from here or File > Exit routes through
-                // desktop.Shutdown(), which closes with CloseReason=ApplicationShutdown (a real quit).
-                // Opening the log from the tray surfaces the window first (it may be hidden), then runs the
-                // same command the menu uses — which shows the non-modal, single-instance Query Log window.
-                void OpenQueryLog()
-                {
-                    ShowWindow(mainWindow);
-                    (mainWindow.DataContext as MainViewModel)?.OpenQueryLogCommand.Execute(null);
-                }
-
-                _trayIcon = BuildTrayIcon(desktop, mainWindow, services.GetRequiredService<ILocalizer>(), OpenQueryLog);
-
-                // Fill in the macOS application-menu items created in Initialize() (SE-278) now that
-                // services exist. Services/Hide/Quit stay with the platform. No-op off macOS: only that
-                // backend exports an application menu, so the items are null elsewhere.
-                var appMenuLoc = services.GetRequiredService<ILocalizer>();
-                if (_appMenuAboutItem is not null)
-                {
-                    _appMenuAboutItem.Header = $"{appMenuLoc["About"]} DataTray";
-                    _appMenuAboutItem.Click += (_, _) => viewModel.ShowAboutCommand.Execute(null);
-                }
-                if (_appMenuSettingsItem is not null)
-                {
-                    _appMenuSettingsItem.Header = appMenuLoc["Preferences"];
-                    _appMenuSettingsItem.Click += (_, _) => viewModel.OpenSettingsCommand.Execute(null);
-                }
-
-                // Single-instance listener: a second launch (e.g. clicking the app again while it's hidden
-                // in the tray) signals us here instead of opening a new window. Marshal onto the UI thread.
-                SingleInstance.StartServer(
-                    () => Avalonia.Threading.Dispatcher.UIThread.Post(() => ShowWindow(mainWindow)),
-                    _shutdownCts.Token);
-
-                desktop.Exit += (_, _) =>
-                {
-                    _shutdownCts.Cancel();
-                    // Best-effort teardown of the standing-subsystem plugins (SE-164) — one failing Deactivate
-                    // never blocks the rest (SubsystemRegistry swallows), and this must not hold up exit.
-                    subsystems.Registry.DeactivateAll();
-                    // Drop any MCP-created transient connections (SE-155): they are session-only, held only in
-                    // memory, and must never outlive the process.
-                    services.GetRequiredService<Core.Connections.ConnectionService>().ClearTransient();
-                    // Close every SSH tunnel (SE-18) rather than leave a forwarded loopback port and a live
-                    // bastion session behind for as long as the process lingers.
-                    services.GetRequiredService<Core.Connections.Ssh.ISshTunnelManager>().CloseAll();
-                    _trayIcon?.Dispose();
-                };
-                // Stop the MCP listener cleanly on exit so its loopback port is released promptly. Run it
-                // OFF the UI thread with a timeout: awaiting StopAsync's continuations back onto the (blocked)
-                // UI thread would deadlock and hang shutdown; the OS reclaims the port regardless, so this is
-                // best-effort and must never block exit.
-                desktop.ShutdownRequested += (_, _) =>
-                {
-                    try
-                    {
-                        Task.Run(() => services.GetRequiredService<Mcp.Hosting.McpService>().StopAsync())
-                            .Wait(TimeSpan.FromSeconds(2));
-                    }
-                    catch
-                    {
-                        // Best-effort: never let a slow/failed stop hold the app open.
-                    }
-                };
-
-                // Master password: gate the (already-shown) main window behind an unlock prompt on open, and
-                // re-prompt when the idle timeout auto-locks. Connection secrets aren't decrypted until the
-                // user actually connects, so the empty shell behind the modal reveals nothing.
-                var masterPassword = services.GetRequiredService<Core.Security.MasterPasswordService>();
-                var loc = services.GetRequiredService<ILocalizer>();
-                // The first-run wizard (SE-239) rides the same handler rather than its own, so it can never
-                // stack a second modal on top of the unlock prompt: unlock first, onboarding only after.
-                mainWindow.Opened += async (_, _) =>
-                {
-                    if (masterPassword.IsEnabled)
-                    {
-                        await GateUnlockAsync(mainWindow, masterPassword, desktop, loc);
-                        if (!masterPassword.IsUnlocked)
-                        {
-                            return;
-                        }
-                    }
-
-                    if (!settingsStore.Load().OnboardingCompleted)
-                    {
-                        await ShowFirstRunAsync(mainWindow, services, _shutdownCts.Token);
-                    }
-                };
-                services.GetRequiredService<Core.Security.IMasterKeyProvider>().Locked += () =>
-                    Avalonia.Threading.Dispatcher.UIThread.Post(
-                        () => _ = GateUnlockAsync(mainWindow, masterPassword, desktop, loc));
-
-                // In-app updater (SE-137): check the chosen channel once the window is up, then periodically
-                // while the app stays open (notably close-to-tray). Fully async and fault-tolerant — offline
-                // or a fetch failure is silent; the banner appears via binding only for a newer, non-dismissed
-                // build. Both stop cleanly on shutdown via the shared token.
-                mainWindow.Opened += (_, _) =>
-                {
-                    _ = viewModel.Update.CheckOnStartupAsync(_shutdownCts.Token);
-                    _ = viewModel.Update.RunPeriodicChecksAsync(_shutdownCts.Token);
-                    // Proactive plugin-update check (SE-138), same fire-and-forget lifecycle as the app-updater.
-                    // First confirm anything the Auto policy staged last run and this startup just applied.
-                    viewModel.PluginUpdates.ReportRestartSummaryIfAny();
-                    _ = viewModel.PluginUpdates.CheckOnStartupAsync(_shutdownCts.Token);
-                    _ = viewModel.PluginUpdates.RunPeriodicChecksAsync(_shutdownCts.Token);
-                };
-                break;
-            case ISingleViewApplicationLifetime singleView:
-                singleView.MainView = new MainView { DataContext = viewModel };
-                break;
+            ShowWindow(mainWindow);
+            (mainWindow.DataContext as MainViewModel)?.OpenQueryLogCommand.Execute(null);
         }
 
-        base.OnFrameworkInitializationCompleted();
+        _trayIcon = BuildTrayIcon(desktop, mainWindow, services.GetRequiredService<ILocalizer>(), OpenQueryLog);
+
+        // Fill in the macOS application-menu items created in Initialize() (SE-278) now that
+        // services exist. Services/Hide/Quit stay with the platform. No-op off macOS: only that
+        // backend exports an application menu, so the items are null elsewhere.
+        var appMenuLoc = services.GetRequiredService<ILocalizer>();
+        if (_appMenuAboutItem is not null)
+        {
+            _appMenuAboutItem.Header = $"{appMenuLoc["About"]} DataTray";
+            _appMenuAboutItem.Click += (_, _) => viewModel.ShowAboutCommand.Execute(null);
+        }
+        if (_appMenuSettingsItem is not null)
+        {
+            _appMenuSettingsItem.Header = appMenuLoc["Preferences"];
+            _appMenuSettingsItem.Click += (_, _) => viewModel.OpenSettingsCommand.Execute(null);
+        }
+
+        desktop.Exit += (_, _) =>
+        {
+            _shutdownCts.Cancel();
+            // Best-effort teardown of the standing-subsystem plugins (SE-164) — one failing Deactivate
+            // never blocks the rest (SubsystemRegistry swallows), and this must not hold up exit.
+            subsystems.Registry.DeactivateAll();
+            // Drop any MCP-created transient connections (SE-155): they are session-only, held only in
+            // memory, and must never outlive the process.
+            services.GetRequiredService<Core.Connections.ConnectionService>().ClearTransient();
+            // Close every SSH tunnel (SE-18) rather than leave a forwarded loopback port and a live
+            // bastion session behind for as long as the process lingers.
+            services.GetRequiredService<Core.Connections.Ssh.ISshTunnelManager>().CloseAll();
+            _trayIcon?.Dispose();
+        };
+        // Stop the MCP listener cleanly on exit so its loopback port is released promptly. Run it
+        // OFF the UI thread with a timeout: awaiting StopAsync's continuations back onto the (blocked)
+        // UI thread would deadlock and hang shutdown; the OS reclaims the port regardless, so this is
+        // best-effort and must never block exit.
+        desktop.ShutdownRequested += (_, _) =>
+        {
+            try
+            {
+                Task.Run(() => services.GetRequiredService<Mcp.Hosting.McpService>().StopAsync())
+                    .Wait(TimeSpan.FromSeconds(2));
+            }
+            catch
+            {
+                // Best-effort: never let a slow/failed stop hold the app open.
+            }
+        };
+
+        // Master password: gate the (already-shown) main window behind an unlock prompt on open, and
+        // re-prompt when the idle timeout auto-locks. Connection secrets aren't decrypted until the
+        // user actually connects, so the empty shell behind the modal reveals nothing.
+        var masterPassword = services.GetRequiredService<Core.Security.MasterPasswordService>();
+        var loc = services.GetRequiredService<ILocalizer>();
+        // The first-run wizard (SE-239) rides the same handler rather than its own, so it can never
+        // stack a second modal on top of the unlock prompt: unlock first, onboarding only after.
+        mainWindow.Opened += async (_, _) =>
+        {
+            if (masterPassword.IsEnabled)
+            {
+                await GateUnlockAsync(mainWindow, masterPassword, desktop, loc);
+                if (!masterPassword.IsUnlocked)
+                {
+                    return;
+                }
+            }
+
+            if (!settingsStore.Load().OnboardingCompleted)
+            {
+                await ShowFirstRunAsync(mainWindow, services, _shutdownCts.Token);
+            }
+        };
+        services.GetRequiredService<Core.Security.IMasterKeyProvider>().Locked += () =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                () => _ = GateUnlockAsync(mainWindow, masterPassword, desktop, loc));
+
+        // In-app updater (SE-137): check the chosen channel once the window is up, then periodically
+        // while the app stays open (notably close-to-tray). Fully async and fault-tolerant — offline
+        // or a fetch failure is silent; the banner appears via binding only for a newer, non-dismissed
+        // build. Both stop cleanly on shutdown via the shared token.
+        mainWindow.Opened += (_, _) =>
+        {
+            _ = viewModel.Update.CheckOnStartupAsync(_shutdownCts.Token);
+            _ = viewModel.Update.RunPeriodicChecksAsync(_shutdownCts.Token);
+            // Proactive plugin-update check (SE-138), same fire-and-forget lifecycle as the app-updater.
+            // First confirm anything the Auto policy staged last run and this startup just applied.
+            viewModel.PluginUpdates.ReportRestartSummaryIfAny();
+            _ = viewModel.PluginUpdates.CheckOnStartupAsync(_shutdownCts.Token);
+            _ = viewModel.PluginUpdates.RunPeriodicChecksAsync(_shutdownCts.Token);
+        };
+
+        return mainWindow;
     }
 
     private static TrayIcon BuildTrayIcon(IClassicDesktopStyleApplicationLifetime desktop, Window window, ILocalizer loc, Action openQueryLog)
