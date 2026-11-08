@@ -26,6 +26,9 @@ public class WindowGenerationTests
         { "postgres", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.UnboundedPreceding, null), null, FrameExclude.CurrentRow)), "SELECT SUM(\"x\") OVER (PARTITION BY \"p\" ORDER BY \"o\" DESC ROWS UNBOUNDED PRECEDING EXCLUDE CURRENT ROW);" },
         { "postgres", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.CurrentRow, null), null, FrameExclude.Group)), "SELECT SUM(\"x\") OVER (PARTITION BY \"p\" ORDER BY \"o\" DESC ROWS CURRENT ROW EXCLUDE GROUP);" },
         { "mysql", null, new WindowCall(Sum, new WindowSpec("w", [], [], null)), "SELECT SUM(`x`) OVER w;" },
+        { "postgres", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.Following, 1), Bound(BoundKind.Following, 3), null)), "SELECT SUM(\"x\") OVER (PARTITION BY \"p\" ORDER BY \"o\" DESC ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING);" },
+        { "sqlserver", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.Preceding, 3), Bound(BoundKind.Preceding, 1), null)), "SELECT SUM([x]) OVER (PARTITION BY [p] ORDER BY [o] DESC ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING);" },
+        { "mysql", null, Over(Frame(FrameUnit.Rows, Bound(BoundKind.Following, 2), Bound(BoundKind.Following, 2), null)), "SELECT SUM(`x`) OVER (PARTITION BY `p` ORDER BY `o` DESC ROWS BETWEEN 2 FOLLOWING AND 2 FOLLOWING);" },
         { "postgres", null, new WindowCall(Sum, new WindowSpec("w", [], [new OrderItem(Col("o"), false)], null)), "SELECT SUM(\"x\") OVER (w ORDER BY \"o\");" },
     };
 
@@ -54,6 +57,8 @@ public class WindowGenerationTests
         { Frame(FrameUnit.Rows, Bound(BoundKind.UnboundedFollowing, null), Bound(BoundKind.UnboundedFollowing, null), null), "invalid-frame" },
         { Frame(FrameUnit.Rows, Bound(BoundKind.CurrentRow, null), Bound(BoundKind.Preceding, 1), null), "invalid-frame" },
         { Frame(FrameUnit.Rows, Bound(BoundKind.UnboundedPreceding, null), Bound(BoundKind.UnboundedPreceding, null), null), "invalid-frame" },
+        { Frame(FrameUnit.Rows, Bound(BoundKind.Following, 3), Bound(BoundKind.Following, 1), null), "invalid-frame" },
+        { Frame(FrameUnit.Rows, Bound(BoundKind.Preceding, 1), Bound(BoundKind.Preceding, 3), null), "invalid-frame" },
         { Frame(FrameUnit.Rows, Bound(BoundKind.Preceding, null), null, null), "invalid-frame-offset" },
     };
 

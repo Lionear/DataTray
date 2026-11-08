@@ -540,11 +540,12 @@ public sealed partial class SqlGenerator
     {
         var offsetBound = frame.Start.Kind is BoundKind.Preceding or BoundKind.Following
             || frame.End?.Kind is BoundKind.Preceding or BoundKind.Following;
-        if (frame.Start.Kind is BoundKind.Following or BoundKind.UnboundedFollowing
+        if (frame.Start.Kind == BoundKind.UnboundedFollowing
+            || (frame.End is null && frame.Start.Kind == BoundKind.Following)
             || frame.End?.Kind == BoundKind.UnboundedPreceding
-            || frame.End?.Kind < frame.Start.Kind)
+            || (frame.End is { } end && EndsBeforeStart(frame.Start, end)))
         {
-            Problem("invalid-frame", "A frame cannot start after FOLLOWING or end before its start.", frame);
+            Problem("invalid-frame", "A frame cannot start at UNBOUNDED FOLLOWING or end before its start.", frame);
         }
 
         if (frame.Unit == FrameUnit.Groups)
@@ -572,6 +573,11 @@ public sealed partial class SqlGenerator
             });
         }
     }
+
+    // Bounds order by kind; within PRECEDING a larger offset is earlier, within FOLLOWING a smaller one.
+    private static bool EndsBeforeStart(FrameBound start, FrameBound end) => end.Kind == start.Kind
+        ? (end.Kind == BoundKind.Preceding && end.Offset > start.Offset) || (end.Kind == BoundKind.Following && end.Offset < start.Offset)
+        : end.Kind < start.Kind;
 
     private string Bound(FrameBound bound)
     {
