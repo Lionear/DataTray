@@ -512,6 +512,33 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     Task IQueryDocument.RunAsync(CancellationToken ct) => RunAsync(ct);
 
+    // Stubs: implemented test-first in a later SE-299 task.
+    bool IQueryDocument.IsReadOnly => false;
+
+    bool IQueryDocument.IsLinked => false;
+
+    void IQueryDocument.Link(string ownerTitle) => throw new NotImplementedException();
+
+    void IQueryDocument.Unlink() => throw new NotImplementedException();
+
+    event EventHandler? IQueryDocument.ContextChanged
+    {
+        add { }
+        remove { }
+    }
+
+    event EventHandler? IQueryDocument.SqlChanged
+    {
+        add { }
+        remove { }
+    }
+
+    event EventHandler? IQueryDocument.Unlinked
+    {
+        add { }
+        remove { }
+    }
+
     /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
     /// tab is recognisable at a glance (SE-123, mockup icon-per-tabtype).</summary>
     public Avalonia.Media.Geometry TabIcon => Mode switch

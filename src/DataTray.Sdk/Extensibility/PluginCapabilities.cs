@@ -50,4 +50,10 @@ public static class PluginCapabilities
     /// the plugin learns what engines exist and how to provision them, but gains no control over them.
     /// </summary>
     public const string Providers = "providers";
+
+    /// <summary>Adds a pane inside query tabs (<see cref="IQueryPanePlugin"/>).</summary>
+    public const string QueryPane = "query-pane";
+
+    /// <summary>Reads the schema of the tab's connection through <see cref="IQuerySchema"/>.</summary>
+    public const string Schema = "schema";
 }

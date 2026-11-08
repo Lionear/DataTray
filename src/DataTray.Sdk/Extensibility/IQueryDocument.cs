@@ -45,4 +45,25 @@ public interface IQueryDocument
 
     /// <summary>Run the tab exactly as the Run button does; completes when the run finishes.</summary>
     Task RunAsync(CancellationToken ct = default);
+
+    /// <summary>True when the editor is read-only, as it is while a pane owns the SQL.</summary>
+    bool IsReadOnly { get; }
+
+    /// <summary>True while a pane owns the SQL (see <see cref="Link"/>).</summary>
+    bool IsLinked { get; }
+
+    /// <summary>A pane takes ownership of the SQL: the editor turns read-only, labelled with <paramref name="ownerTitle"/>.</summary>
+    void Link(string ownerTitle);
+
+    /// <summary>Gives the SQL back to the user ("Edit as SQL"); raises <see cref="Unlinked"/>.</summary>
+    void Unlink();
+
+    /// <summary>Raised once when connection, database or mode changed and the schema has settled.</summary>
+    event EventHandler? ContextChanged;
+
+    /// <summary>Raised when the editor text changed, except through <see cref="SetSql"/>.</summary>
+    event EventHandler? SqlChanged;
+
+    /// <summary>Raised when the link ended, whether through <see cref="Unlink"/> or the host.</summary>
+    event EventHandler? Unlinked;
 }
