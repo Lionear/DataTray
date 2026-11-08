@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Avalonia.Input;
 using Avalonia.Threading;
 using DataTray.Core.Completion;
 using DataTray.Core.Connections;
@@ -568,6 +569,9 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     /// <summary>The pane shown in the pane column; at most one is open at a time.</summary>
     public QueryPaneSlot? OpenPane => QueryPanes.FirstOrDefault(s => s.IsOpen);
 
+    /// <summary>True when at least one pane applies to this tab; hides the toggle group otherwise.</summary>
+    public bool HasAvailablePanes => QueryPanes.Any(s => s.IsAvailable);
+
     /// <summary>Opaque per-plugin pane state, persisted with the open tab.</summary>
     public IReadOnlyDictionary<string, string> PaneStates => _paneStates;
 
@@ -588,10 +592,29 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         _paneSchemaFor = schemaFor;
         foreach (var pane in panes)
         {
-            QueryPanes.Add(new QueryPaneSlot(pane));
+            QueryPanes.Add(new QueryPaneSlot(pane) { Gesture = ParseShortcut(pane) });
         }
 
         RefreshPaneAvailability();
+    }
+
+    // A malformed plugin shortcut is reported to Output and left unbound; the pane itself still works.
+    private KeyGesture? ParseShortcut(SubsystemQueryPane pane)
+    {
+        if (pane.Plugin.Shortcut is not { Length: > 0 } shortcut)
+        {
+            return null;
+        }
+
+        try
+        {
+            return KeyGesture.Parse(shortcut);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
+        {
+            Reported?.Invoke(OutputLevel.Error, $"{pane.PluginName}: invalid shortcut '{shortcut}'");
+            return null;
+        }
     }
 
     [RelayCommand]
@@ -678,6 +701,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
         // Nothing may re-open or re-evaluate a pane on a closed tab, e.g. a database refresh landing late.
         QueryPanes.Clear();
+        OnPropertyChanged(nameof(HasAvailablePanes));
         _paneHostUi = null;
         _contextChanged = null;
         _sqlChanged = null;
@@ -725,6 +749,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
                 ClosePane(slot);
             }
         }
+
+        OnPropertyChanged(nameof(HasAvailablePanes));
     }
 
     private bool PaneApplies(QueryPaneSlot slot)

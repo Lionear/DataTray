@@ -4,6 +4,7 @@
              xmlns:conv="using:Avalonia.Data.Converters"
              xmlns:vm="using:DataTray.App.ViewModels"
              xmlns:ctl="using:DataTray.App.Controls"
+             xmlns:cv="using:DataTray.App.Converters"
              x:Class="DataTray.App.Views.DocumentView">
   <UserControl.Resources>
     <!-- Shared by the three mode bars' overflow flyouts (SE-255 §4). Icon plus label; a row whose child
@@ -138,7 +139,7 @@
         <!-- Plugin pane toggles (SE-299): one per pane, highlighted while its pane is open. Without an
              overflow header the group stays pinned on the bar. -->
         <ItemsControl ItemsSource="{Binding QueryPanes}"
-                      IsVisible="{Binding QueryPanes.Count}"
+                      IsVisible="{Binding HasAvailablePanes}"
                       ItemsPanel="{StaticResource PluginToolbarPanel}"
                       BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0"
                       Padding="8,0,0,0">
@@ -280,7 +281,8 @@
     <!-- Row 1: open plugin pane (SE-299), its width splitter, and the SQL editor (query mode only; the row
          is collapsed for browse in code-behind). Not a GridSplitter, same reasoning as SE-283: the drag
          writes the open pane's own width, so each pane keeps its size. -->
-    <Grid Grid.Row="1" x:Name="PaneRow" ColumnDefinitions="Auto,Auto,*" IsVisible="{Binding IsQueryMode}">
+    <Grid Grid.Row="1" x:Name="PaneRow" ColumnDefinitions="Auto,Auto,*" IsVisible="{Binding IsQueryMode}"
+          SizeChanged="OnPaneRowSizeChanged">
       <Border Grid.Column="0" MinWidth="280" Width="{Binding OpenPane.Width}"
               IsVisible="{Binding OpenPane, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
               Background="{DynamicResource SEPanelBgBrush}"
@@ -308,9 +310,16 @@
                 BorderBrush="{DynamicResource SEExtensibilityWashBorderBrush}" BorderThickness="1"
                 CornerRadius="{StaticResource SEControlRadius}">
           <Grid ColumnDefinitions="*,Auto,Auto">
-            <TextBlock Grid.Column="0" x:Name="LinkText" VerticalAlignment="Center"
+            <TextBlock Grid.Column="0" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
-                       Foreground="{DynamicResource SEExtensibilityTextBrush}" />
+                       Foreground="{DynamicResource SEExtensibilityTextBrush}">
+              <TextBlock.Text>
+                <MultiBinding Converter="{x:Static cv:StringFormatConverter.Instance}">
+                  <Binding Path="Loc[QueryPaneLinked]" />
+                  <Binding Path="LinkOwner" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
             <Button Grid.Column="1" Classes="Subtle" Margin="8,0,0,0"
                     Content="{Binding Loc[Copy]}" Click="OnLinkCopyClick" />
             <Button Grid.Column="2" Classes="Subtle" Margin="6,0,0,0"
@@ -334,7 +343,7 @@
                 <MenuItem Header="{Binding Loc[Paste]}" Click="OnEditorPasteClick" />
                 <MenuItem Header="{Binding Loc[SelectAll]}" Click="OnEditorSelectAllClick" />
                 <Separator />
-                <MenuItem Header="{Binding Loc[GenerateGuid]}">
+                <MenuItem Header="{Binding Loc[GenerateGuid]}" IsEnabled="{Binding !IsSqlLinked}">
                   <MenuItem Header="{Binding Loc[GuidV4]}" Click="OnGenerateGuidV4Click" />
                   <MenuItem Header="{Binding Loc[GuidV7]}" Click="OnGenerateGuidV7Click" />
                 </MenuItem>

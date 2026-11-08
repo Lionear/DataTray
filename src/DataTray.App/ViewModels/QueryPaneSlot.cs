@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DataTray.Core.Plugins;
@@ -30,6 +31,9 @@ public partial class QueryPaneSlot(SubsystemQueryPane pane) : ObservableObject
 
     [ObservableProperty]
     private double _width = 360;
+
+    /// <summary>The plugin's shortcut, parsed; null when it has none or it is malformed.</summary>
+    public KeyGesture? Gesture { get; internal set; }
 
     internal QueryPaneContext? Context { get; set; }
 }

@@ -53,8 +53,6 @@ public partial class DocumentView : UserControl
     private double _editorDragStartHeight;
 
     // Plugin pane column (SE-299). The width lives on the slot, so each pane keeps its own size.
-    private const double PaneMinWidth = 280;
-    private const double EditorMinWidth = 240;
     private bool _paneDragging;
     private double _paneDragStartX;
     private double _paneDragStartWidth;
@@ -82,6 +80,8 @@ public partial class DocumentView : UserControl
             _sqlEditor.TextChanged += OnEditorTextChanged;
             _sqlEditor.TextArea.TextEntered += OnSqlTextEntered;
             _sqlEditor.KeyDown += OnSqlEditorKeyDown;
+            // Tunnel: AvaloniaEdit's own undo/redo runs in a TextArea KeyDown handler and ignores IsReadOnly.
+            _sqlEditor.AddHandler(KeyDownEvent, OnSqlEditorPreviewKeyDown, RoutingStrategies.Tunnel);
             _sqlEditor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
             _sqlEditor.TextArea.SelectionChanged += OnEditorSelectionChanged;
         }
@@ -200,7 +200,6 @@ public partial class DocumentView : UserControl
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.QueryPanes.CollectionChanged += OnQueryPanesChanged;
-        UpdateLinkText();
         _viewModel.SaveReviewRequested = ShowSaveReviewAsync;
         _viewModel.ConfirmRequested = ShowConfirmAsync;
         _viewModel.CellActionRequested = ShowCellActionDialogAsync;
@@ -316,8 +315,16 @@ public partial class DocumentView : UserControl
         }
 
         // The splitter sits right of the pane, so dragging right grows it; the editor keeps a minimum.
-        var max = Math.Max(PaneMinWidth, row.Bounds.Width - EditorMinWidth);
-        pane.Width = Math.Clamp(_paneDragStartWidth + e.GetPosition(row).X - _paneDragStartX, PaneMinWidth, max);
+        pane.Width = PaneColumnWidth.Clamp(_paneDragStartWidth + e.GetPosition(row).X - _paneDragStartX, row.Bounds.Width);
+    }
+
+    // A narrower window must not squeeze the editor below its minimum, so the open pane gives way.
+    private void OnPaneRowSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (_viewModel?.OpenPane is { } pane)
+        {
+            pane.Width = PaneColumnWidth.Clamp(pane.Width, e.NewSize.Width);
+        }
     }
 
     private void OnPaneSplitterReleased(object? sender, PointerReleasedEventArgs e)
@@ -334,7 +341,7 @@ public partial class DocumentView : UserControl
 
     private void OnQueryPanesChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildPaneKeyBindings();
 
-    // Each pane's own shortcut toggles it, in query tabs only. A malformed gesture is skipped.
+    // Each pane's own shortcut toggles it, in query tabs only (the VM already dropped malformed ones).
     private void RebuildPaneKeyBindings()
     {
         foreach (var binding in _paneKeyBindings)
@@ -350,29 +357,14 @@ public partial class DocumentView : UserControl
 
         foreach (var slot in vm.QueryPanes)
         {
-            if (slot.Pane.Plugin.Shortcut is not { Length: > 0 } shortcut)
+            if (slot.Gesture is not { } gesture)
             {
                 continue;
             }
 
-            try
-            {
-                var binding = new KeyBinding { Gesture = KeyGesture.Parse(shortcut), Command = vm.TogglePaneCommand, CommandParameter = slot };
-                _paneKeyBindings.Add(binding);
-                KeyBindings.Add(binding);
-            }
-            catch (Exception)
-            {
-                Console.Error.WriteLine($"[pane] {slot.Pane.PluginName}: unparseable shortcut '{shortcut}'");
-            }
-        }
-    }
-
-    private void UpdateLinkText()
-    {
-        if (this.FindControl<TextBlock>("LinkText") is { } text && _viewModel is not null)
-        {
-            text.Text = _viewModel.LinkOwner is { } owner ? _viewModel.Loc.Get("QueryPaneLinked", owner) : null;
+            var binding = new KeyBinding { Gesture = gesture, Command = vm.TogglePaneCommand, CommandParameter = slot };
+            _paneKeyBindings.Add(binding);
+            KeyBindings.Add(binding);
         }
     }
 
@@ -608,7 +600,7 @@ public partial class DocumentView : UserControl
 
     private void InsertGuid(Guid guid)
     {
-        if (_sqlEditor is null)
+        if (_sqlEditor is null or { IsReadOnly: true })
         {
             return;
         }
@@ -700,10 +692,6 @@ public partial class DocumentView : UserControl
         else if (e.PropertyName == nameof(DocumentViewModel.ViewerContext))
         {
             RebuildViewerControl();
-        }
-        else if (e.PropertyName == nameof(DocumentViewModel.LinkOwner))
-        {
-            UpdateLinkText();
         }
     }
 
@@ -833,6 +821,17 @@ public partial class DocumentView : UserControl
 
     // Ctrl+Space explicitly requests completion anywhere in the query; the line-comment toggle is
     // resolved live from the user's keymap (default Ctrl+/) so it honours a rebind from Settings.
+    // While a pane owns the SQL, undo/redo would rewrite it as if the user typed; after Edit as SQL they work.
+    private void OnSqlEditorPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_viewModel is { IsSqlLinked: true }
+            && (AvaloniaEdit.ApplicationCommands.Undo.Gesture?.Matches(e) == true
+                || AvaloniaEdit.ApplicationCommands.Redo.Gesture?.Matches(e) == true))
+        {
+            e.Handled = true;
+        }
+    }
+
     private void OnSqlEditorKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.Control)
@@ -885,7 +884,7 @@ public partial class DocumentView : UserControl
     // If every non-blank line in range is already commented, it uncomments; otherwise it comments all.
     private void ToggleLineComment()
     {
-        if (_sqlEditor is null)
+        if (_sqlEditor is null or { IsReadOnly: true })
         {
             return;
         }
@@ -951,7 +950,7 @@ public partial class DocumentView : UserControl
     // built-in popup and lets it handle the replacement on accept.
     private void OpenCompletion()
     {
-        if (_viewModel is not { IsQueryMode: true } || _sqlEditor is null)
+        if (_viewModel is not { IsQueryMode: true } || _sqlEditor is null or { IsReadOnly: true })
         {
             return;
         }

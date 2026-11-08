@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using DataTray.App.ViewModels;
 using DataTray.Core.Logging;
 using DataTray.Core.Plugins;
@@ -44,8 +45,8 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
     public void OpenPane_FollowsToggle_AndRaisesPropertyChanged()
     {
         var (document, slot, _) = OpenablePane();
-        var raised = 0;
-        document.PropertyChanged += (_, e) => raised += e.PropertyName == nameof(DocumentViewModel.OpenPane) ? 1 : 0;
+        var names = new List<string?>();
+        document.PropertyChanged += (_, e) => names.Add(e.PropertyName);
 
         document.TogglePaneCommand.Execute(slot);
         var whileOpen = document.OpenPane;
@@ -53,7 +54,57 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
 
         Assert.Same(slot, whileOpen);
         Assert.Null(document.OpenPane);
-        Assert.Equal(2, raised);
+        Assert.Equal(2, names.Count(name => name == nameof(DocumentViewModel.OpenPane)));
+    }
+
+    [Fact]
+    public void MountQueryPanes_Shortcut_ParsesToGesture()
+    {
+        var document = QueryDocument();
+        var plugin = new FakePanePlugin(() => new PaneControl()) { Shortcut = "Ctrl+Shift+B" };
+
+        document.MountQueryPanes([Pane(plugin)], new FakeHostUi(), _ => null);
+
+        Assert.Equal(new KeyGesture(Key.B, KeyModifiers.Control | KeyModifiers.Shift), document.QueryPanes[0].Gesture);
+    }
+
+    [Fact] // A plugin's malformed shortcut is its problem: reported to Output, no binding, the pane still works.
+    public void MountQueryPanes_MalformedShortcut_ReportsAndBindsNothing()
+    {
+        var document = QueryDocument();
+        var reported = new List<(OutputLevel, string)>();
+        document.Reported += (level, message) => reported.Add((level, message));
+        var plugin = new FakePanePlugin(() => new PaneControl()) { Shortcut = "Ctrl+Nope" };
+
+        document.MountQueryPanes([Pane(plugin)], new FakeHostUi(), _ => null);
+
+        Assert.Null(document.QueryPanes[0].Gesture);
+        Assert.Equal([(OutputLevel.Error, "Builder: invalid shortcut 'Ctrl+Nope'")], reported);
+    }
+
+    [Theory] // The toggle group and its hairline only show when a pane applies to the tab.
+    [InlineData(true)]
+    [InlineData(false)]
+    public void HasAvailablePanes_FollowsAppliesTo(bool applies)
+    {
+        var document = QueryDocument();
+        var plugin = new FakePanePlugin(() => new PaneControl()) { Applies = applies };
+
+        document.MountQueryPanes([Pane(plugin)], new FakeHostUi(), _ => null);
+
+        Assert.Equal(applies, document.HasAvailablePanes);
+    }
+
+    [Fact]
+    public void MountQueryPanes_RaisesHasAvailablePanes()
+    {
+        var document = QueryDocument();
+        var names = new List<string?>();
+        document.PropertyChanged += (_, e) => names.Add(e.PropertyName);
+
+        Mount(document, new FakePanePlugin(() => new PaneControl()));
+
+        Assert.Contains(nameof(DocumentViewModel.HasAvailablePanes), names);
     }
 
     [Fact]
@@ -326,6 +377,7 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         public IQueryPaneContext? LastContext { get; private set; }
         public string PaneId => "builder";
         public string Title => "Builder";
+        public string? Shortcut { get; init; }
         public bool Applies { get; set; } = true;
         public int AppliesCalls { get; private set; }
 
