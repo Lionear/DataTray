@@ -13,7 +13,9 @@ public sealed record SubsystemActivationResult(
     IReadOnlyList<IBackgroundPlugin> Background,
     IReadOnlyList<IConnectionMenuPlugin> ConnectionMenus,
     IReadOnlyList<SubsystemToolbar> Toolbars,
-    IReadOnlyList<IQueryToolbarPlugin> QueryToolbars);
+    IReadOnlyList<IQueryToolbarPlugin> QueryToolbars,
+    IReadOnlyList<SubsystemQueryPane> QueryPanes,
+    IReadOnlyList<INodeMenuPlugin> NodeMenus);
 
 /// <summary>An application-toolbar contributor with the identity the host needs to mount it: the plugin id
 /// namespaces its action ids, and the plugin's name is what the user sees beside the action in
@@ -83,6 +85,8 @@ public sealed class SubsystemActivator
         var connectionMenus = new List<IConnectionMenuPlugin>();
         var toolbars = new List<SubsystemToolbar>();
         var queryToolbars = new List<IQueryToolbarPlugin>();
+        var queryPanes = new List<SubsystemQueryPane>();
+        var nodeMenus = new List<INodeMenuPlugin>();
         foreach (var activation in _activations)
         {
             try
@@ -133,6 +137,22 @@ public sealed class SubsystemActivator
                 {
                     queryToolbars.Add(queryToolbar);
                 }
+
+                // Schema access is decided per pane at context build time from the carried capabilities.
+                if (activation.Capabilities.Contains(PluginCapabilities.QueryPane)
+                    && activation.Plugin is IQueryPanePlugin queryPane)
+                {
+                    queryPanes.Add(new SubsystemQueryPane(
+                        activation.Id, activation.Name ?? activation.Id,
+                        activation.Capabilities.ToHashSet(), activation.Localizer ?? NullPluginLocalizer.Instance,
+                        queryPane));
+                }
+
+                if (activation.Capabilities.Contains(PluginCapabilities.Menu)
+                    && activation.Plugin is INodeMenuPlugin nodeMenu)
+                {
+                    nodeMenus.Add(nodeMenu);
+                }
             }
             catch (Exception ex)
             {
@@ -141,7 +161,8 @@ public sealed class SubsystemActivator
         }
 
         return new SubsystemActivationResult(
-            new SubsystemRegistry(active), panels, menus, background, connectionMenus, toolbars, queryToolbars);
+            new SubsystemRegistry(active), panels, menus, background, connectionMenus, toolbars, queryToolbars,
+            queryPanes, nodeMenus);
     }
 
     // The plugin's own-service resolver, or null when it has no host container / registered no services.
