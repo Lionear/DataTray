@@ -9,6 +9,7 @@
     <Project Path="plugins/Providers.Redis/DataTray.Providers.Redis.csproj" />
     <Project Path="plugins/Providers.Template/DataTray.Providers.Template.csproj" />
     <Project Path="plugins/Backends.Docker/DataTray.Backends.Docker.csproj" />
+    <Project Path="plugins/Extensions.QueryBuilder/DataTray.Extensions.QueryBuilder.csproj" />
     <Project Path="plugins/Tools.MsSqlBacpac/DataTray.Tools.MsSqlBacpac.csproj" />
     <Project Path="plugins/Tools.UniversalBackup/DataTray.Tools.UniversalBackup.csproj" />
     <Project Path="plugins/Viewers.Basic/DataTray.Viewers.Basic.csproj" />
@@ -36,6 +37,7 @@
     <Project Path="tests/DataTray.App.Tests/DataTray.App.Tests.csproj" />
     <Project Path="tests/DataTray.Backends.Docker.Tests/DataTray.Backends.Docker.Tests.csproj" />
     <Project Path="tests/DataTray.Core.Tests/DataTray.Core.Tests.csproj" />
+    <Project Path="tests/DataTray.Extensions.QueryBuilder.Tests/DataTray.Extensions.QueryBuilder.Tests.csproj" />
     <Project Path="tests/DataTray.Providers.Prometheus.Tests/DataTray.Providers.Prometheus.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.CopyTable.Tests/DataTray.Tools.CopyTable.Tests.csproj" />
     <Project Path="tests/DataTray.Tools.ErDiagram.Tests/DataTray.Tools.ErDiagram.Tests.csproj" />
