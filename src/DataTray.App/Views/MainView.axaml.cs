@@ -34,6 +34,7 @@ public partial class MainView : UserControl
             // Right-click selects the node under the cursor first, so the context menu acts on it
             // (Avalonia's TreeView doesn't select on right-press by default).
             schemaTree.AddHandler(InputElement.PointerPressedEvent, OnTreePointerPressed, RoutingStrategies.Tunnel);
+            schemaTree.AddHandler(InputElement.PointerMovedEvent, OnTreePointerMoved, RoutingStrategies.Tunnel);
         }
 
         // …and if that press hit no node, there is nothing for the menu to act on: every item binds to
@@ -341,6 +342,11 @@ public partial class MainView : UserControl
             return;
         }
 
+        // A single left press on a table/view may become a drag (SE-299 H5); OnTreePointerMoved decides.
+        _dragPress = props.IsLeftButtonPressed && e.ClickCount == 1 && node.IsTableOrView ? e : null;
+        _dragNode = node;
+        _dragPoint = e.GetPosition(sender as Visual);
+
         // Double left-click on a table/view browses it — and we swallow the press so the TreeViewItem
         // doesn't also toggle its column list open (the default double-click-to-expand).
         if (props.IsLeftButtonPressed && e.ClickCount == 2 && node.IsTableOrView)
@@ -363,6 +369,38 @@ public partial class MainView : UserControl
             }
 
             e.Handled = true;
+        }
+    }
+
+    private const double DragThreshold = 5;
+    private PointerPressedEventArgs? _dragPress;
+    private TreeNodeViewModel? _dragNode;
+    private Point _dragPoint;
+
+    // Same threshold and shape as the Connection Manager's drag source (ConnectionListView).
+    private async void OnTreePointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragPress is not { } press || _dragNode is not { } node || _viewModel is null)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(sender as Visual).Properties.IsLeftButtonPressed)
+        {
+            _dragPress = null;
+            return;
+        }
+
+        var delta = e.GetPosition(sender as Visual) - _dragPoint;
+        if (Math.Abs(delta.X) < DragThreshold && Math.Abs(delta.Y) < DragThreshold)
+        {
+            return;
+        }
+
+        _dragPress = null;
+        if (_viewModel.DragPayloadFor(node) is { } payload)
+        {
+            await DragDrop.DoDragDropAsync(press, payload.ToDataTransfer(), DragDropEffects.Copy);
         }
     }
 
@@ -863,7 +901,47 @@ public partial class MainView : UserControl
         }
 
         _nodeActionsHooked = true;
-        TreeContextMenu.Opening += (_, _) => SyncNodeActions();
+        TreeContextMenu.Opening += (_, _) =>
+        {
+            SyncNodeActions();
+            SyncPluginNodeMenu();
+        };
+    }
+
+    // SE-299 H5: plugin items for a table/view node, appended at the end and rebuilt per opening.
+    private readonly List<Control> _pluginNodeMenuItems = new();
+
+    private void SyncPluginNodeMenu()
+    {
+        if (TreeContextMenu is null || _viewModel is null)
+        {
+            return;
+        }
+
+        foreach (var item in _pluginNodeMenuItems)
+        {
+            TreeContextMenu.Items.Remove(item);
+        }
+
+        _pluginNodeMenuItems.Clear();
+        if (_viewModel.NodeMenuForSelection() is not { Items.Count: > 0 } menu)
+        {
+            return;
+        }
+
+        var vm = _viewModel;
+        _pluginNodeMenuItems.Add(new Separator());
+        foreach (var contribution in menu.Items)
+        {
+            var item = new MenuItem { Header = contribution.Title };
+            item.Click += async (_, _) => await vm.InvokeNodeMenuAsync(contribution, menu.Target);
+            _pluginNodeMenuItems.Add(item);
+        }
+
+        foreach (var item in _pluginNodeMenuItems)
+        {
+            TreeContextMenu.Items.Add(item);
+        }
     }
 
     private void SyncNodeActions()

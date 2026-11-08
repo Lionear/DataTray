@@ -61,6 +61,19 @@ public class LinkedEditorViewTests : IClassFixture<HeadlessDrawing>
         Assert.Equal("select 2", sql);
     }
 
+    [Fact] // The pane owns the SQL; it takes drops itself.
+    public void DropNode_WhileLinked_LeavesSqlAlone()
+    {
+        var sql = HeadlessDrawing.Run(() =>
+        {
+            var (document, editor) = LinkedView();
+            NodeDragTests.Drop(editor, NodeDragTests.Payload());
+            return document.Sql;
+        });
+
+        Assert.Equal("select 2", sql);
+    }
+
     // A query tab in a view, linked to a pane that has written the SQL twice.
     private static (DocumentViewModel Document, TextEditor Editor) LinkedView()
     {
@@ -81,7 +94,7 @@ public class LinkedEditorViewTests : IClassFixture<HeadlessDrawing>
 
     // Headless has no App.axaml: seed the one app resource DocumentView.axaml resolves while loading, and the
     // Fluent + AvaloniaEdit themes so the editor gets its template (and the MenuItem theme the view is based on).
-    private static void SeedAppResources()
+    internal static void SeedAppResources()
     {
         var app = Application.Current ?? throw new InvalidOperationException("no Application");
         app.Resources["SEControlRadius"] = new CornerRadius(4);

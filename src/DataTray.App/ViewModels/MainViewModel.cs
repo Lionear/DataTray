@@ -515,6 +515,40 @@ public partial class MainViewModel : ViewModelBase
         Func<Sdk.Extensibility.ManagedConnectionInfo, Task> invoke) =>
         SubsystemConnectionMenuItems.Add(new SubsystemConnectionMenuItem(title, appliesTo, invoke));
 
+    private IReadOnlyList<NodeMenuContribution> _nodeMenus = [];
+
+    /// <summary>Plugin items for table/view nodes (SE-299 H5), filtered per node when the tree menu opens.</summary>
+    public void MountNodeMenus(IReadOnlyList<NodeMenuContribution> contributions, IHostUi hostUi)
+    {
+        _nodeMenus = contributions;
+        _pluginHostUi = hostUi;
+    }
+
+    public (NodeMenuTarget Target, IReadOnlyList<NodeMenuContribution> Items)? NodeMenuForSelection() =>
+        SelectedNode is { } node && _nodeMenus.Count > 0
+            ? NodeMenu.For(node, SelectedDocument, _nodeMenus, message => ReportError(node.Connection.Name, message))
+            : null;
+
+    public async Task InvokeNodeMenuAsync(NodeMenuContribution item, NodeMenuTarget target)
+    {
+        if (_pluginHostUi is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await item.InvokeAsync(target, _pluginHostUi);
+        }
+        catch (Exception ex)
+        {
+            ReportError(target.Connection.Name, $"{item.Id}: {ex.Message}");
+        }
+    }
+
+    public NodeDragPayload? DragPayloadFor(TreeNodeViewModel node) =>
+        node.IsTableOrView ? NodeDragPayload.For(node, _providers.Get(node.Connection.ProviderId).Dialect) : null;
+
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
     public ObservableCollection<HistoryRow> HistoryEntries { get; } = [];
 
