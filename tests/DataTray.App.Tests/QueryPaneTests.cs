@@ -105,6 +105,54 @@ public class QueryPaneTests : IClassFixture<HeadlessDrawing>
         Assert.Equal((false, false, 1), (slot.IsOpen, slot.IsAvailable, plugin.CreateCalls));
     }
 
+    [Fact] // The SQL stays in the editor; only the link goes, so the editor is editable again.
+    public void ClosePane_WhileLinked_UnlinksEditor()
+    {
+        var (document, slot, plugin) = OpenablePane();
+        document.TogglePaneCommand.Execute(slot);
+        var query = Assert.IsAssignableFrom<IQueryPaneContext>(plugin.LastContext).Document;
+        query.SetSql("select * from Orders");
+        query.Link("Builder");
+        var unlinked = 0;
+        query.Unlinked += (_, _) => unlinked++;
+
+        document.TogglePaneCommand.Execute(slot);
+
+        Assert.Equal((false, 1, "select * from Orders"), (document.IsSqlLinked, unlinked, document.Sql));
+    }
+
+    [Fact]
+    public void ThrowingSqlChangedHandler_IsReported_AndOtherHandlersStillRun()
+    {
+        var document = QueryDocument();
+        IQueryDocument query = document;
+        var reported = new List<(OutputLevel, string)>();
+        document.Reported += (level, message) => reported.Add((level, message));
+        var calls = 0;
+        query.SqlChanged += (_, _) => throw new InvalidOperationException("pane bug");
+        query.SqlChanged += (_, _) => calls++;
+
+        document.Sql = "select 1";
+
+        Assert.Equal(1, calls);
+        Assert.Equal([(OutputLevel.Error, "pane bug")], reported);
+    }
+
+    [Fact]
+    public async Task ContextChanged_FiresOnce_WhenDatabaseListFails()
+    {
+        var failing = Task.FromException<IReadOnlyList<string>>(new InvalidOperationException("no access"));
+        var document = QueryDocumentFixture.NewDocument(out var connections, failing);
+        IQueryDocument query = document;
+        var seen = new List<string?>();
+        query.ContextChanged += (_, _) => seen.Add(query.Database);
+
+        document.InitQuery(connections.List().First(c => c.Id == "c1"), "Sales");
+        await QueryDocumentFixture.WaitFor(() => seen.Count > 0);
+
+        Assert.Equal(["Sales"], seen);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

@@ -158,7 +158,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
             IsDirty = true;
         }
 
-        _sqlChanged?.Invoke(this, EventArgs.Empty);
+        RaiseToPlugins(_sqlChanged);
     }
 
     /// <summary>Load query text without dirtying the tab, optionally associating a <c>.sql</c> file (open
@@ -632,7 +632,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
         IsSqlLinked = false;
         LinkOwner = null;
-        _unlinked?.Invoke(this, EventArgs.Empty);
+        RaiseToPlugins(_unlinked);
     }
 
     public void RestorePaneStates(IReadOnlyDictionary<string, string>? states)
@@ -672,6 +672,12 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     private void ClosePane(QueryPaneSlot slot)
     {
+        // Closing the pane keeps its SQL in the editor but hands it back to the user.
+        if (slot.IsOpen)
+        {
+            EditAsSql();
+        }
+
         var control = slot.Control;
         slot.Control = null;
         slot.Error = null;
@@ -722,7 +728,24 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     private void RaiseContextChanged()
     {
         RefreshPaneAvailability();
-        _contextChanged?.Invoke(this, EventArgs.Empty);
+        RaiseToPlugins(_contextChanged);
+    }
+
+    // Subscribers are plugin code: one that throws is reported and costs only itself, never the editor
+    // sync, the database refresh or the other subscribers.
+    private void RaiseToPlugins(EventHandler? handlers)
+    {
+        foreach (var handler in handlers?.GetInvocationList().Cast<EventHandler>() ?? [])
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Reported?.Invoke(OutputLevel.Error, ex.Message);
+            }
+        }
     }
 
     /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
