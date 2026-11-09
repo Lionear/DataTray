@@ -6,6 +6,12 @@ namespace DataTray.Extensions.QueryBuilder.Reading;
 /// </summary>
 internal static class ScriptScanner
 {
+    private static readonly string[] MySqlModifiers =
+    [
+        "DISTINCTROW", "SQL_CALC_FOUND_ROWS", "HIGH_PRIORITY", "STRAIGHT_JOIN", "SQL_SMALL_RESULT", "SQL_BIG_RESULT",
+        "SQL_BUFFER_RESULT", "SQL_NO_CACHE", "SQL_CACHE",
+    ];
+
     public static ScriptScan Scan(string sql, string providerId)
     {
         var mysql = providerId == "mysql";
@@ -19,6 +25,8 @@ internal static class ScriptScanner
         var starterLine = 0;
         var line = 1;
         var i = 0;
+        var prev = string.Empty;
+        var afterString = false;
 
         while (i < sql.Length)
         {
@@ -42,7 +50,9 @@ internal static class ScriptScanner
                 i++;
                 continue;
             }
-            if ((c == '-' && next == '-') || (mysql && c == '#'))
+            // MySQL needs whitespace after "--" for a comment; "1 --1" is 1 - -1.
+            var dashComment = c == '-' && next == '-' && (!mysql || i + 2 >= sql.Length || char.IsWhiteSpace(sql[i + 2]) || char.IsControl(sql[i + 2]));
+            if (dashComment || (mysql && c == '#'))
             {
                 comments++;
                 i = LineEnd(sql, i);
@@ -50,9 +60,16 @@ internal static class ScriptScanner
             }
             if (c == '/' && next == '*')
             {
-                comments++;
                 var end = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
                 var stop = end >= 0 ? end + 2 : sql.Length;
+                if (mysql && i + 2 < sql.Length && sql[i + 2] is '!' or '+')
+                {
+                    reasons.Add(new ReadReason("mysql-executable-comment", "MySQL runs /*! … */ and /*+ … */ comments; the builder would drop them.", line));
+                }
+                else
+                {
+                    comments++;
+                }
                 line += sql.AsSpan(i, stop - i).Count('\n');
                 i = stop;
                 continue;
@@ -61,16 +78,30 @@ internal static class ScriptScanner
             {
                 Flush();
                 atStart = true;
+                prev = ";";
+                afterString = false;
                 i++;
                 continue;
             }
 
             var tokenLine = line;
             string? word = null;
+            ReadReason? finding = null;
+            var isString = false;
             if (c is '\'' || (c is '"' && !sqlServer) || (c is '`' && !sqlServer) || (c is '[' && providerId is "sqlserver" or "sqlite"))
             {
+                var start = i;
                 var close = c == '[' ? ']' : c;
                 i = SkipQuoted(sql, i + 1, close, mysql && c != '`', ref line);
+                isString = c == '\'' || (mysql && c == '"');
+                if (isString && afterString)
+                {
+                    finding = Reason("adjacent-strings", "Adjacent string literals are joined or read as an alias depending on the server; the builder can't keep that.") with { Line = tokenLine };
+                }
+                else if (isString && mysql && HasLikeEscape(sql, start + 1, i))
+                {
+                    finding = Reason("mysql-like-escape", "MySQL keeps \\% and \\_ in strings as written; the builder would read them differently.") with { Line = tokenLine };
+                }
             }
             else if (char.IsLetter(c) || c == '_' || c == '@')
             {
@@ -80,17 +111,34 @@ internal static class ScriptScanner
                     i++;
                 }
                 word = sql[start..i].ToUpperInvariant();
-                // SqlParserCS 0.6.5 misreads PostgreSQL E'…' strings (it invents an alias), so they are refused.
-                if (providerId == "postgres" && word == "E" && i < sql.Length && sql[i] == '\'')
+                var quoteAt = word == "U" && providerId == "postgres" && i + 1 < sql.Length && sql[i] == '&' ? i + 1 : i;
+                if (quoteAt < sql.Length && sql[quoteAt] == '\'' && Prefix(word, providerId) is { } prefix)
                 {
-                    reasons.Add(new ReadReason("escape-string", "PostgreSQL E'…' strings can't be read back yet.", tokenLine));
-                    i = SkipQuoted(sql, i + 1, '\'', true, ref line);
+                    finding = prefix with { Line = tokenLine };
+                    i = SkipQuoted(sql, quoteAt + 1, '\'', mysql || word == "E", ref line);
+                    isString = true;
                 }
+                else if (WordFinding(word, prev, providerId) is { } wordFinding)
+                {
+                    finding = wordFinding with { Line = tokenLine };
+                }
+            }
+            else if (mysql && ((c == '|' && next == '|') || (c == '-' && next == '-')))
+            {
+                finding = c == '|' ? MySqlOperator() with { Line = tokenLine } : Reason("mysql-double-dash", "In MySQL, -- without a following space is not a comment; the builder would read it as one.") with { Line = tokenLine };
+                i += 2;
+            }
+            else if (providerId == "sqlite" && c == ':' && next == ':')
+            {
+                finding = Reason("sqlite-cast", "SQLite has no :: cast; the builder would read one.") with { Line = tokenLine };
+                i += 2;
             }
             else
             {
                 i++;
             }
+            prev = word ?? c.ToString();
+            afterString = isString;
 
             if (atStart)
             {
@@ -106,19 +154,23 @@ internal static class ScriptScanner
                 }
                 starter = word;
                 starterLine = tokenLine;
-                if (word is not null && word != "BEGIN" && word != "START" && Finding(word, null, sqlServer) is { } finding)
+                if (word is not null && word != "BEGIN" && word != "START" && Finding(word, null, sqlServer) is { } startFinding)
                 {
-                    reasons.Add(finding with { Line = tokenLine });
+                    reasons.Add(startFinding with { Line = tokenLine });
                     starter = null;
                 }
             }
             else if (starter is not null)
             {
-                if (Finding(starter, word, sqlServer) is { } finding)
+                if (Finding(starter, word, sqlServer) is { } starterFinding)
                 {
-                    reasons.Add(finding with { Line = starterLine });
+                    reasons.Add(starterFinding with { Line = starterLine });
                 }
                 starter = null;
+            }
+            if (finding is not null)
+            {
+                reasons.Add(finding);
             }
         }
         Flush();
@@ -148,6 +200,44 @@ internal static class ScriptScanner
         "EXEC" or "EXECUTE" or "CALL" => Reason("procedure-call", "Procedure calls can't be shown in the builder."),
         _ => null,
     };
+
+    // Tokens the parser accepts but reads with another meaning than the server; see AstMapper for the rule.
+    private static ReadReason? Prefix(string word, string providerId) => (providerId, word) switch
+    {
+        ("postgres", "E") => Reason("escape-string", "PostgreSQL E'…' strings can't be read back yet."),
+        ("postgres", "B" or "X" or "U") or ("mysql", "B" or "X") => PrefixedString(),
+        ("mysql", _) when word.StartsWith('_') => PrefixedString(),
+        _ => null,
+    };
+
+    private static ReadReason? WordFinding(string word, string prev, string providerId) => providerId switch
+    {
+        "mysql" when word.StartsWith('@') => Reason("variable", "Variables can't be shown in the builder."),
+        "mysql" when word == "XOR" => MySqlOperator(),
+        "mysql" when MySqlModifiers.Contains(word) => Reason("mysql-modifier", "MySQL SELECT modifiers can't be shown in the builder."),
+        "postgres" when word == "ONLY" && prev is "FROM" or "JOIN" or "," => Reason("only", "ONLY (skip inherited tables) can't be shown in the builder."),
+        _ => null,
+    };
+
+    private static ReadReason PrefixedString() => Reason("prefixed-string", "Prefixed string literals (B'…', X'…', U&'…', _charset'…') can't be read back yet.");
+
+    private static ReadReason MySqlOperator() => Reason("mysql-operator", "MySQL || and XOR can't be read back with their MySQL meaning.");
+
+    private static bool HasLikeEscape(string sql, int from, int to)
+    {
+        for (var j = from; j < to - 1; j++)
+        {
+            if (sql[j] == '\\')
+            {
+                if (sql[j + 1] is '%' or '_')
+                {
+                    return true;
+                }
+                j++;
+            }
+        }
+        return false;
+    }
 
     private static ReadReason ControlFlow() => Reason("control-flow", "Control flow (IF, WHILE, BEGIN … END) can't be shown in the builder.");
 

@@ -7,11 +7,11 @@ namespace DataTray.Extensions.QueryBuilder.Reading;
 
 /// <summary>
 /// Maps a SqlParserCS query to the model. A node the model has no place for becomes a Fragment or FragmentSource
-/// holding the node's SQL; a part that can't even be text (a clause of the query itself) throws Unrepresentable.
+/// holding the node's SQL; a clause of a query itself, or a node no text can keep, throws Refused.
 /// </summary>
 internal sealed class AstMapper(string providerId)
 {
-    private readonly bool _foldsUnquoted = providerId == "postgres";
+    private readonly bool _postgres = providerId == "postgres";
     private readonly bool _mysql = providerId == "mysql";
     private readonly bool _sqlite = providerId == "sqlite";
     private readonly List<string> _cteScope = [];
@@ -22,7 +22,7 @@ internal sealed class AstMapper(string providerId)
     {
         if (q.Fetch is not null || q.Locks is not null || q.LimitBy is not null || q.ForClause is not null || q.Settings is not null || q.FormatClause is not null)
         {
-            throw new Unrepresentable("a FETCH, FOR, locking or settings clause");
+            throw new Refused("a FETCH, FOR, locking or settings clause");
         }
         var scopeMark = _cteScope.Count;
         try
@@ -45,7 +45,7 @@ internal sealed class AstMapper(string providerId)
         {
             if (cte.Materialized is not null || cte.From is not null)
             {
-                throw new Unrepresentable("a MATERIALIZED common table expression");
+                throw new Refused("a MATERIALIZED common table expression");
             }
             var name = Name(cte.Alias.Name);
             if (with.Recursive)
@@ -66,11 +66,11 @@ internal sealed class AstMapper(string providerId)
     {
         Ast.SetExpression.SelectExpression s => Select(s.Select),
         // Parentheses around a plain query are only grouping; the model's tree carries that.
-        Ast.SetExpression.QueryExpression { Query: { With: null, OrderBy: null, Limit: null, Offset: null } q } => Body(q.Body),
+        Ast.SetExpression.QueryExpression { Query: { With: null, OrderBy: null, Limit: null, Offset: null, Fetch: null, Locks: null, LimitBy: null, ForClause: null, Settings: null, FormatClause: null } q } => Body(q.Body),
         Ast.SetExpression.QueryExpression q => new M.NestedQuery(Query(q.Query)),
         Ast.SetExpression.ValuesExpression v => new M.ValuesBody(v.Values.Rows.Select(r => new M.ValueList<M.Expr>(r.Select(Expr))).ToArray()),
         Ast.SetExpression.SetOperation op => SetOperation(op),
-        _ => throw new Unrepresentable("this kind of query body"),
+        _ => throw new Refused("this kind of query body"),
     };
 
     private M.QueryBody SetOperation(Ast.SetExpression.SetOperation op)
@@ -105,11 +105,11 @@ internal sealed class AstMapper(string providerId)
 
     private static M.SetOp SetOp(Ast.SetExpression.SetOperation op) => (op.Op, op.SetQuantifier) switch
     {
-        (_, not (Ast.SetQuantifier.All or Ast.SetQuantifier.Distinct or Ast.SetQuantifier.None)) => throw new Unrepresentable("BY NAME set operations"),
+        (_, not (Ast.SetQuantifier.All or Ast.SetQuantifier.Distinct or Ast.SetQuantifier.None)) => throw new Refused("BY NAME set operations"),
         (Ast.SetOperator.Union, _) => M.SetOp.Union,
         (Ast.SetOperator.Intersect, _) => M.SetOp.Intersect,
         (Ast.SetOperator.Except, _) => M.SetOp.Except,
-        _ => throw new Unrepresentable("this set operator"),
+        _ => throw new Refused("this set operator"),
     };
 
     private M.Select Select(Ast.Select s)
@@ -117,19 +117,19 @@ internal sealed class AstMapper(string providerId)
         if (s.Top is not null || s.Into is not null || s.LateralViews is not null || s.PreWhere is not null || s.ClusterBy is not null
             || s.DistributeBy is not null || s.SortBy is not null || s.QualifyBy is not null || s.ConnectBy is not null || s.ValueTableMode is not null)
         {
-            throw new Unrepresentable("a clause the builder has no place for");
+            throw new Refused("a clause the builder has no place for");
         }
         var distinct = s.Distinct switch
         {
             null => false,
             Ast.DistinctFilter.Distinct => true,
-            _ => throw new Unrepresentable("DISTINCT ON"),
+            _ => throw new Refused("DISTINCT ON"),
         };
         var groupBy = s.GroupBy switch
         {
             null => [],
             Ast.GroupByExpression.Expressions { Modifiers: null or { Count: 0 } } g => g.ColumnNames.Select(Expr).ToArray(),
-            _ => throw new Unrepresentable("GROUP BY ALL or a grouping modifier"),
+            _ => throw new Refused("GROUP BY ALL or a grouping modifier"),
         };
         return new M.Select(
             distinct,
@@ -153,8 +153,8 @@ internal sealed class AstMapper(string providerId)
 
     private M.NamedWindow NamedWindow(Ast.NamedWindowDefinition w) => w.WindowSpec switch
     {
-        Ast.NamedWindowExpression.NamedWindowSpec spec => new M.NamedWindow(w.Name.Value, WindowSpec(spec.Spec)),
-        Ast.NamedWindowExpression.NamedWindow other => new M.NamedWindow(w.Name.Value, new M.WindowSpec(other.Expression.Value, [], [], null)),
+        Ast.NamedWindowExpression.NamedWindowSpec spec => new M.NamedWindow(Name(w.Name), WindowSpec(spec.Spec)),
+        Ast.NamedWindowExpression.NamedWindow other => new M.NamedWindow(Name(w.Name), new M.WindowSpec(Name(other.Expression), [], [], null)),
         _ => throw new Unrepresentable("this window definition"),
     };
 
@@ -162,7 +162,7 @@ internal sealed class AstMapper(string providerId)
     {
         if (interpolate)
         {
-            throw new Unrepresentable("INTERPOLATE");
+            throw new Refused("INTERPOLATE");
         }
         return items.Select(o => o.NullsFirst is null && o.WithFill is null
             ? new M.OrderItem(Expr(o.Expression), o.Asc == false)
@@ -174,13 +174,15 @@ internal sealed class AstMapper(string providerId)
         (null, null) => null,
         (not null, null) => new M.RowLimit(Count(limit), null),
         (not null, not null) => new M.RowLimit(Count(limit), Count(offset.Value)),
-        _ => throw new Unrepresentable("an OFFSET without a row count"),
+        _ => throw new Refused("an OFFSET without a row count"),
     };
 
-    private static long Count(Ast.Expression e) =>
+    private static long Count(Ast.Expression e) => WholeNumber(e) ?? throw new Refused("a row count that is not a whole number");
+
+    private static long? WholeNumber(Ast.Expression e) =>
         e is Ast.Expression.LiteralValue { Value: Ast.Value.Number n } && long.TryParse(n.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var count)
             ? count
-            : throw new Unrepresentable("a row count that is not a whole number");
+            : null;
 
     // Sources
 
@@ -241,7 +243,7 @@ internal sealed class AstMapper(string providerId)
     private M.Source Table(Ast.ObjectName name, string? alias)
     {
         var parts = name.Values;
-        if (parts.Count == 1 && _cteScope.Contains(Name(parts[0]), _foldsUnquoted ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase))
+        if (parts.Count == 1 && _cteScope.Contains(Name(parts[0]), _postgres ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase))
         {
             return new M.CteSource(Name(parts[0]), alias);
         }
@@ -306,9 +308,9 @@ internal sealed class AstMapper(string providerId)
         ? [.. ConcatParts(b.Left), Expr(b.Right)]
         : [Expr(e)];
 
-    // LOWER(x) LIKE LOWER(p) is how the generator writes a case-insensitive LIKE where there is no ILIKE.
+    // LOWER(x) LIKE LOWER(p) is how the generator writes a case-insensitive LIKE where there is no ILIKE (not PostgreSQL).
     private M.Expr Like(Ast.Expression value, Ast.Expression pattern, bool negated) =>
-        LowerArgument(value) is { } v && LowerArgument(pattern) is { } p
+        !_postgres && LowerArgument(value) is { } v && LowerArgument(pattern) is { } p
             ? new M.Like(Expr(v), Expr(p), true, negated)
             : new M.Like(Expr(value), Expr(pattern), false, negated);
 
@@ -329,7 +331,11 @@ internal sealed class AstMapper(string providerId)
         }
         var args = (list.Args ?? []).Select(Argument).ToArray();
         var distinct = list.DuplicateTreatment is Ast.DuplicateTreatment.Distinct;
-        if (_mysql && f.Over is null && !distinct && name.Value.Equals("CONCAT", StringComparison.OrdinalIgnoreCase))
+        if (name.Value.Equals("VALUES", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Refused("a VALUES list read as a function call");
+        }
+        if (_mysql && f.Over is null && !distinct && args.Length >= 2 && name.Value.Equals("CONCAT", StringComparison.OrdinalIgnoreCase))
         {
             return new M.Concat(args);
         }
@@ -338,7 +344,7 @@ internal sealed class AstMapper(string providerId)
         {
             null => call,
             Ast.WindowType.WindowSpecType spec => new M.WindowCall(call, WindowSpec(spec.Spec)),
-            Ast.WindowType.NamedWindow named => new M.WindowCall(call, new M.WindowSpec(named.Name.Value, [], [], null)),
+            Ast.WindowType.NamedWindow named => new M.WindowCall(call, new M.WindowSpec(Name(named.Name), [], [], null)),
             _ => throw new Unrepresentable("this window"),
         };
     }
@@ -352,7 +358,7 @@ internal sealed class AstMapper(string providerId)
     };
 
     private M.WindowSpec WindowSpec(Ast.WindowSpec spec) => new(
-        spec.WindowName?.Value,
+        spec.WindowName is null ? null : Name(spec.WindowName),
         (spec.PartitionBy ?? []).Select(Expr).ToArray(),
         OrderItems(spec.OrderBy ?? [], false),
         spec.WindowFrame is null ? null : Frame(spec.WindowFrame));
@@ -374,8 +380,8 @@ internal sealed class AstMapper(string providerId)
         Ast.WindowFrameBound.CurrentRow => new M.FrameBound(M.BoundKind.CurrentRow, null),
         Ast.WindowFrameBound.Preceding { Expression: null } => new M.FrameBound(M.BoundKind.UnboundedPreceding, null),
         Ast.WindowFrameBound.Following { Expression: null } => new M.FrameBound(M.BoundKind.UnboundedFollowing, null),
-        Ast.WindowFrameBound.Preceding { Expression: { } offset } => new M.FrameBound(M.BoundKind.Preceding, Count(offset)),
-        Ast.WindowFrameBound.Following { Expression: { } offset } => new M.FrameBound(M.BoundKind.Following, Count(offset)),
+        Ast.WindowFrameBound.Preceding { Expression: { } offset } => new M.FrameBound(M.BoundKind.Preceding, WholeNumber(offset) ?? throw new Unrepresentable("a frame offset")),
+        Ast.WindowFrameBound.Following { Expression: { } offset } => new M.FrameBound(M.BoundKind.Following, WholeNumber(offset) ?? throw new Unrepresentable("a frame offset")),
         _ => throw new Unrepresentable("this frame bound"),
     };
 
@@ -406,10 +412,12 @@ internal sealed class AstMapper(string providerId)
         _ => throw new Unrepresentable("this operator"),
     };
 
-    // PostgreSQL folds unquoted names to lower case; the model holds the name the server sees.
+    // PostgreSQL folds unquoted names to lower case, ASCII letters only; the model holds the name the server sees.
     private string Name(Ast.Ident ident) =>
-        _foldsUnquoted && ident.QuoteStyle is null ? ident.Value.ToLowerInvariant() : ident.Value;
+        _postgres && ident.QuoteStyle is null ? string.Concat(ident.Value.Select(ch => ch is >= 'A' and <= 'Z' ? (char)(ch + 32) : ch)) : ident.Value;
 
+    // A Fragment is only safe when the parser ranks its operator the way the server does; otherwise refuse
+    // (Refused here, or a ScriptScanner finding for tokens the parser misreads).
     private M.Fragment Fragment(IWriteSql node)
     {
         FragmentCount++;

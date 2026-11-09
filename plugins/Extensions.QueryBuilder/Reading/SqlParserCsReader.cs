@@ -48,7 +48,7 @@ internal sealed class SqlParserCsReader(string providerId) : ISqlReader
             var outcome = mapper.FragmentCount > 0 ? ReadOutcome.ReadWithFragments : ReadOutcome.Read;
             return new ReadResult(outcome, new Model.QueryStatement(query), [], mapper.FragmentCount, scan.CommentCount);
         }
-        catch (Unrepresentable e)
+        catch (Exception e) when (e is Unrepresentable or Refused)
         {
             return CannotShow(scan, new ReadReason("cannot-represent", $"The builder has no place for {e.Message}.", scan.FirstLine));
         }

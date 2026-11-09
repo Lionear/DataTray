@@ -1,5 +1,6 @@
 using DataTray.Extensions.QueryBuilder.Model;
 using DataTray.Extensions.QueryBuilder.Reading;
+using static DataTray.Extensions.QueryBuilder.Tests.Generation.Build;
 
 namespace DataTray.Extensions.QueryBuilder.Tests.Reading;
 
@@ -9,7 +10,7 @@ public class SqlReaderTests
     {
         { "postgres", "SELECT 1;\nSELECT 2;", [("multiple-statements", 2)] },
         { "postgres", "BEGIN;\nSELECT 1;\nCOMMIT;", [("transaction", 1), ("multiple-statements", 2), ("transaction", 3)] },
-        { "mysql", "SET @x = 1;\n\nSELECT @x;", [("set-variable", 1), ("multiple-statements", 3)] },
+        { "mysql", "SET @x = 1;\n\nSELECT @x;", [("set-variable", 1), ("variable", 1), ("multiple-statements", 3), ("variable", 3)] },
         { "mysql", "DECLARE x INT;", [("declare", 1)] },
         { "mysql", "# setup\nCALL refresh();", [("procedure-call", 2)] },
         { "mysql", "START TRANSACTION;", [("transaction", 1)] },
@@ -26,6 +27,29 @@ public class SqlReaderTests
         { "postgres", "  ", [("empty", 1)] },
         { "postgres", "\nSELECT DISTINCT ON (a) a FROM t;", [("cannot-represent", 2)] },
         { "postgres", "SELECT 1\nWHERE a = E'x\\n';", [("escape-string", 2)] },
+        { "mysql", "SELECT /*! 1 + */ 2;", [("mysql-executable-comment", 1)] },
+        { "mysql", "SELECT\n/*+ NO_ICP(t) */ a FROM t;", [("mysql-executable-comment", 2)] },
+        { "mysql", "SELECT 1 --1\n;", [("mysql-double-dash", 1)] },
+        { "mysql", "SELECT 1 WHERE a LIKE '50\\%';", [("mysql-like-escape", 1)] },
+        { "postgres", "SELECT 'a'\n'b';", [("adjacent-strings", 2)] },
+        { "sqlite", "SELECT 'a' /* x */ 'b';", [("adjacent-strings", 1)] },
+        { "postgres", "(SELECT a FROM t FETCH FIRST 1 ROWS ONLY)\nUNION\nSELECT a FROM u;", [("cannot-represent", 1)] },
+        { "postgres", "SELECT a FROM u\nUNION\n(SELECT a FROM t FOR UPDATE);", [("cannot-represent", 1)] },
+        { "postgres", "SELECT x.a FROM ((SELECT a FROM t FETCH FIRST 1 ROWS ONLY)) AS x;", [("cannot-represent", 1)] },
+        { "mysql", "SELECT a || b FROM t;", [("mysql-operator", 1)] },
+        { "mysql", "SELECT a XOR b FROM t;", [("mysql-operator", 1)] },
+        { "postgres", "SELECT * FROM ONLY t;", [("only", 1)] },
+        { "postgres", "SELECT * FROM a\nJOIN ONLY b ON TRUE;", [("only", 2)] },
+        { "postgres", "SELECT U&'d\\0061t';", [("prefixed-string", 1)] },
+        { "postgres", "SELECT B'101';", [("prefixed-string", 1)] },
+        { "mysql", "SELECT b'1';", [("prefixed-string", 1)] },
+        { "mysql", "SELECT X'4D';", [("prefixed-string", 1)] },
+        { "mysql", "SELECT _utf8mb4'a';", [("prefixed-string", 1)] },
+        { "mysql", "SELECT DISTINCTROW a FROM t;", [("mysql-modifier", 1)] },
+        { "mysql", "SELECT SQL_CALC_FOUND_ROWS a FROM t;", [("mysql-modifier", 1)] },
+        { "mysql", "SELECT @@version;", [("variable", 1)] },
+        { "postgres", "SELECT 1 WHERE a IN (VALUES (1), (2));", [("cannot-represent", 1)] },
+        { "sqlite", "SELECT a::int FROM t;", [("sqlite-cast", 1)] },
     };
 
     [Theory, MemberData(nameof(UnshowableCases))]
@@ -38,19 +62,37 @@ public class SqlReaderTests
         Assert.Equal(expected, result.Reasons.Select(r => (r.Code, r.Line)).ToArray());
     }
 
-    public static TheoryData<string, string> SingleStatementCases() => new()
+    public static TheoryData<string, string, Statement> SingleStatementCases() => new()
     {
-        { "postgres", "SELECT ';' AS \"a;b\" -- c;d\n;" },
-        { "mysql", "SELECT 'it\\'s;' AS `a;b` # c;d\n;\n" },
-        { "sqlite", "SELECT [a;b] FROM t /* ; */;" },
+        { "postgres", "SELECT ';' AS \"a;b\" -- c;d\n;", new QueryStatement(Query(null, [], new SelectItem(Str(";"), "a;b"))) },
+        { "mysql", "SELECT 'it\\'s;' AS `a;b` # c;d\n;\n", new QueryStatement(Query(null, [], new SelectItem(Str("it's;"), "a;b"))) },
+        { "sqlite", "SELECT [a;b] FROM t /* ; */;", new QueryStatement(Query(null, [new TableSource(new TableName(null, "t"), null)], new SelectItem(Col("a;b"), null))) },
     };
 
     [Theory, MemberData(nameof(SingleStatementCases))]
-    public void Read_SeparatorInCommentStringOrIdentifier_IsOneStatement(string provider, string sql)
+    public void Read_SeparatorInCommentStringOrIdentifier_IsOneStatement(string provider, string sql, Statement expected)
     {
         var result = SqlReaders.For(provider).Read(sql);
 
         Assert.Equal(ReadOutcome.Read, result.Outcome);
+        Assert.Equal(expected, result.Statement);
+    }
+
+    public static TheoryData<string, string, Expr> ExpressionCases() => new()
+    {
+        { "postgres", "SELECT ÉA", Col("Éa") },
+        { "mysql", "SELECT CONCAT(a)", new FunctionCall("CONCAT", [Col("a")], false) },
+        { "postgres", "SELECT LOWER(a) LIKE LOWER('x')", new Like(new FunctionCall("LOWER", [Col("a")], false), new FunctionCall("LOWER", [Str("x")], false), false, false) },
+        { "postgres", "SELECT SUM(a) OVER W FROM t WINDOW W AS (ORDER BY a)", new WindowCall(new FunctionCall("SUM", [Col("a")], false), new WindowSpec("w", [], [], null)) },
+    };
+
+    [Theory, MemberData(nameof(ExpressionCases))]
+    public void Read_Expression_ReadsAsTheServerMeansIt(string provider, string sql, Expr expected)
+    {
+        var result = SqlReaders.For(provider).Read(sql);
+
+        var select = Assert.IsType<Select>(Assert.IsType<QueryStatement>(result.Statement).Query.Body);
+        Assert.Equal(expected, select.Items[0].Expr);
     }
 
     public static TheoryData<string, string, int> CommentCases() => new()
@@ -82,7 +124,6 @@ public class SqlReaderTests
 
     public static TheoryData<string, string> FragmentCases() => new()
     {
-        { "mysql", "SELECT a || b FROM t;" },
         { "postgres", "SELECT * FROM t ORDER BY a NULLS FIRST;" },
         { "sqlite", "SELECT CURRENT_TIMESTAMP;" },
         { "postgres", "SELECT * FROM generate_series(1, 3);" },
