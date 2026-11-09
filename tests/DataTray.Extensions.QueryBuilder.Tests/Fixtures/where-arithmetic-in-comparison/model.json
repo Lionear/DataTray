@@ -1,0 +1,58 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Gt",
+        "left": {
+          "$type": "Binary",
+          "op": "Add",
+          "left": {
+            "$type": "ColumnRef",
+            "name": "HIndex"
+          },
+          "right": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "2"
+          }
+        },
+        "right": {
+          "$type": "Binary",
+          "op": "Multiply",
+          "left": {
+            "$type": "ColumnRef",
+            "name": "Salary"
+          },
+          "right": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "3"
+          }
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

@@ -1,0 +1,4 @@
+SELECT [Name],
+       SUM([Salary]) OVER (w ORDER BY [Id] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS [Running]
+FROM [Researcher]
+WINDOW w AS (PARTITION BY [InstitutionId]);

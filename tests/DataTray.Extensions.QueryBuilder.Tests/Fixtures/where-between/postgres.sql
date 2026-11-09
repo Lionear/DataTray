@@ -1,0 +1,3 @@
+SELECT "Id"
+FROM "Researcher"
+WHERE "HIndex" BETWEEN 5 AND 20;

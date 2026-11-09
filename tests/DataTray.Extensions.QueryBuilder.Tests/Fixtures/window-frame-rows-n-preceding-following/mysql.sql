@@ -1,0 +1,3 @@
+SELECT `Name`,
+       AVG(`Salary`) OVER (ORDER BY `Id` ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS `W`
+FROM `Researcher`;

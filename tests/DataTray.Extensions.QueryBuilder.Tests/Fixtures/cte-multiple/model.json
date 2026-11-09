@@ -1,0 +1,131 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "with": {
+      "recursive": false,
+      "ctes": [
+        {
+          "name": "A",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "InstitutionId"
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Researcher"
+                  }
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        },
+        {
+          "name": "B",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Id"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Country"
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Institution"
+                  }
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        }
+      ]
+    },
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "a",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "b",
+            "name": "Country"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "CteSource",
+            "name": "A",
+            "alias": "a"
+          },
+          "type": "Inner",
+          "right": {
+            "$type": "CteSource",
+            "name": "B",
+            "alias": "b"
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "qualifier": "a",
+              "name": "InstitutionId"
+            },
+            "right": {
+              "$type": "ColumnRef",
+              "qualifier": "b",
+              "name": "Id"
+            }
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

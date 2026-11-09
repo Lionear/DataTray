@@ -1,0 +1,166 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "with": {
+      "recursive": true,
+      "ctes": [
+        {
+          "name": "Chain",
+          "columns": [
+            "Id",
+            "Name",
+            "Depth"
+          ],
+          "query": {
+            "body": {
+              "$type": "SetOperation",
+              "left": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "name": "Id"
+                    }
+                  },
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "name": "Name"
+                    }
+                  },
+                  {
+                    "expr": {
+                      "$type": "Literal",
+                      "kind": "Number",
+                      "text": "0"
+                    }
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "TableSource",
+                    "name": {
+                      "name": "Researcher"
+                    }
+                  }
+                ],
+                "where": {
+                  "$type": "IsNull",
+                  "value": {
+                    "$type": "ColumnRef",
+                    "name": "AdvisorId"
+                  },
+                  "not": false
+                },
+                "groupBy": [],
+                "windows": []
+              },
+              "op": "Union",
+              "all": true,
+              "right": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "qualifier": "r",
+                      "name": "Id"
+                    }
+                  },
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "qualifier": "r",
+                      "name": "Name"
+                    }
+                  },
+                  {
+                    "expr": {
+                      "$type": "Binary",
+                      "op": "Add",
+                      "left": {
+                        "$type": "ColumnRef",
+                        "qualifier": "c",
+                        "name": "Depth"
+                      },
+                      "right": {
+                        "$type": "Literal",
+                        "kind": "Number",
+                        "text": "1"
+                      }
+                    }
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "JoinSource",
+                    "left": {
+                      "$type": "TableSource",
+                      "name": {
+                        "name": "Researcher"
+                      },
+                      "alias": "r"
+                    },
+                    "type": "Inner",
+                    "right": {
+                      "$type": "CteSource",
+                      "name": "Chain",
+                      "alias": "c"
+                    },
+                    "on": {
+                      "$type": "Binary",
+                      "op": "Eq",
+                      "left": {
+                        "$type": "ColumnRef",
+                        "qualifier": "r",
+                        "name": "AdvisorId"
+                      },
+                      "right": {
+                        "$type": "ColumnRef",
+                        "qualifier": "c",
+                        "name": "Id"
+                      }
+                    }
+                  }
+                ],
+                "groupBy": [],
+                "windows": []
+              }
+            },
+            "orderBy": []
+          }
+        }
+      ]
+    },
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Depth"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "CteSource",
+          "name": "Chain"
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

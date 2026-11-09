@@ -1,0 +1,49 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Lt",
+        "left": {
+          "$type": "Unary",
+          "op": "Negate",
+          "operand": {
+            "$type": "ColumnRef",
+            "name": "Salary"
+          }
+        },
+        "right": {
+          "$type": "Unary",
+          "op": "Negate",
+          "operand": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "5"
+          }
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

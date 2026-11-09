@@ -1,0 +1,100 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "InstitutionId"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [
+        {
+          "$type": "ColumnRef",
+          "name": "InstitutionId"
+        }
+      ],
+      "having": {
+        "$type": "Binary",
+        "op": "Or",
+        "left": {
+          "$type": "Binary",
+          "op": "Gt",
+          "left": {
+            "$type": "FunctionCall",
+            "name": "COUNT",
+            "args": [
+              {
+                "$type": "Star"
+              }
+            ],
+            "distinct": false
+          },
+          "right": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "5"
+          }
+        },
+        "right": {
+          "$type": "Binary",
+          "op": "And",
+          "left": {
+            "$type": "Binary",
+            "op": "Gt",
+            "left": {
+              "$type": "FunctionCall",
+              "name": "MAX",
+              "args": [
+                {
+                  "$type": "ColumnRef",
+                  "name": "HIndex"
+                }
+              ],
+              "distinct": false
+            },
+            "right": {
+              "$type": "Literal",
+              "kind": "Number",
+              "text": "50"
+            }
+          },
+          "right": {
+            "$type": "Binary",
+            "op": "Lt",
+            "left": {
+              "$type": "FunctionCall",
+              "name": "MIN",
+              "args": [
+                {
+                  "$type": "ColumnRef",
+                  "name": "HIndex"
+                }
+              ],
+              "distinct": false
+            },
+            "right": {
+              "$type": "Literal",
+              "kind": "Number",
+              "text": "5"
+            }
+          }
+        }
+      },
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

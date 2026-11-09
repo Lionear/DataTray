@@ -1,0 +1,4 @@
+SELECT "Name"
+FROM "Researcher"
+WHERE CASE WHEN "Active" = 1 THEN 1 ELSE 0 END = 1
+ORDER BY CASE WHEN "Active" = 1 THEN 0 ELSE 1 END;

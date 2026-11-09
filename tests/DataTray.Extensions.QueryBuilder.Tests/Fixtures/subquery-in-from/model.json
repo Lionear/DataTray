@@ -1,0 +1,92 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "t",
+            "name": "Country"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "t",
+            "name": "N"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "SubquerySource",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Country"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "FunctionCall",
+                    "name": "COUNT",
+                    "args": [
+                      {
+                        "$type": "Star"
+                      }
+                    ],
+                    "distinct": false
+                  },
+                  "alias": "N"
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Institution"
+                  }
+                }
+              ],
+              "groupBy": [
+                {
+                  "$type": "ColumnRef",
+                  "name": "Country"
+                }
+              ],
+              "windows": []
+            },
+            "orderBy": []
+          },
+          "alias": "t",
+          "lateral": false
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Gt",
+        "left": {
+          "$type": "ColumnRef",
+          "qualifier": "t",
+          "name": "N"
+        },
+        "right": {
+          "$type": "Literal",
+          "kind": "Number",
+          "text": "1"
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "ValuesBody",
+      "rows": [
+        [
+          {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "1"
+          },
+          {
+            "$type": "Literal",
+            "kind": "String",
+            "text": "a"
+          }
+        ]
+      ]
+    },
+    "orderBy": []
+  }
+}

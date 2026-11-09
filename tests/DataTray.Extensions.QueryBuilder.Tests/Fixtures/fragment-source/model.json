@@ -1,0 +1,27 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "f",
+            "name": "n"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "FragmentSource",
+          "sql": "(SELECT 1 AS n) f"
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "SetOperation",
+      "left": {
+        "$type": "Select",
+        "distinct": false,
+        "items": [
+          {
+            "expr": {
+              "$type": "ColumnRef",
+              "name": "Name"
+            }
+          }
+        ],
+        "from": [
+          {
+            "$type": "TableSource",
+            "name": {
+              "name": "Researcher"
+            }
+          }
+        ],
+        "groupBy": [],
+        "windows": []
+      },
+      "op": "Union",
+      "all": false,
+      "right": {
+        "$type": "Select",
+        "distinct": false,
+        "items": [
+          {
+            "expr": {
+              "$type": "ColumnRef",
+              "name": "Name"
+            }
+          }
+        ],
+        "from": [
+          {
+            "$type": "TableSource",
+            "name": {
+              "name": "Institution"
+            }
+          }
+        ],
+        "groupBy": [],
+        "windows": []
+      }
+    },
+    "orderBy": []
+  }
+}

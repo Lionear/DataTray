@@ -1,0 +1,77 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "InstitutionId"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Active"
+          }
+        },
+        {
+          "expr": {
+            "$type": "FunctionCall",
+            "name": "SUM",
+            "args": [
+              {
+                "$type": "ColumnRef",
+                "name": "Salary"
+              }
+            ],
+            "distinct": false
+          },
+          "alias": "Total"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [
+        {
+          "$type": "ColumnRef",
+          "name": "InstitutionId"
+        },
+        {
+          "$type": "ColumnRef",
+          "name": "Active"
+        }
+      ],
+      "having": {
+        "$type": "Binary",
+        "op": "Gt",
+        "left": {
+          "$type": "FunctionCall",
+          "name": "SUM",
+          "args": [
+            {
+              "$type": "ColumnRef",
+              "name": "Salary"
+            }
+          ],
+          "distinct": false
+        },
+        "right": {
+          "$type": "Literal",
+          "kind": "Number",
+          "text": "1000"
+        }
+      },
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

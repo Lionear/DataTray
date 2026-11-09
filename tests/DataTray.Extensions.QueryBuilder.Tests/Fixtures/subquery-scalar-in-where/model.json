@@ -1,0 +1,71 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Gt",
+        "left": {
+          "$type": "ColumnRef",
+          "name": "HIndex"
+        },
+        "right": {
+          "$type": "ScalarSubquery",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "FunctionCall",
+                    "name": "AVG",
+                    "args": [
+                      {
+                        "$type": "ColumnRef",
+                        "name": "HIndex"
+                      }
+                    ],
+                    "distinct": false
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Researcher"
+                  }
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

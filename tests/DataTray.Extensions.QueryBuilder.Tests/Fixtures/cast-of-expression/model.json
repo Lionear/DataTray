@@ -1,0 +1,41 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Cast",
+            "value": {
+              "$type": "Binary",
+              "op": "Add",
+              "left": {
+                "$type": "ColumnRef",
+                "name": "HIndex"
+              },
+              "right": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "1"
+              }
+            },
+            "typeName": "VARCHAR(5)"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

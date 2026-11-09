@@ -1,0 +1,53 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "InList",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "HIndex"
+        },
+        "items": [
+          {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "1"
+          },
+          {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "2"
+          },
+          {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "3"
+          }
+        ],
+        "not": false
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

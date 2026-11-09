@@ -1,0 +1,67 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "WindowCall",
+            "function": {
+              "name": "AVG",
+              "args": [
+                {
+                  "$type": "ColumnRef",
+                  "name": "Salary"
+                }
+              ],
+              "distinct": false
+            },
+            "over": {
+              "partitionBy": [],
+              "orderBy": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Id"
+                  },
+                  "descending": false
+                }
+              ],
+              "frame": {
+                "unit": "Rows",
+                "start": {
+                  "kind": "Preceding",
+                  "offset": 2
+                },
+                "end": {
+                  "kind": "Following",
+                  "offset": 2
+                }
+              }
+            }
+          },
+          "alias": "W"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

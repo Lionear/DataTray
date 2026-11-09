@@ -1,0 +1,74 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "InSubquery",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "InstitutionId"
+        },
+        "query": {
+          "body": {
+            "$type": "Select",
+            "distinct": false,
+            "items": [
+              {
+                "expr": {
+                  "$type": "ColumnRef",
+                  "name": "Id"
+                }
+              }
+            ],
+            "from": [
+              {
+                "$type": "TableSource",
+                "name": {
+                  "name": "Institution"
+                }
+              }
+            ],
+            "where": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "name": "Country"
+              },
+              "right": {
+                "$type": "Literal",
+                "kind": "String",
+                "text": "NL"
+              }
+            },
+            "groupBy": [],
+            "windows": []
+          },
+          "orderBy": []
+        },
+        "not": false
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

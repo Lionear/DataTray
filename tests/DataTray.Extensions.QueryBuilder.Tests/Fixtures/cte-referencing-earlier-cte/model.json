@@ -1,0 +1,104 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "with": {
+      "recursive": false,
+      "ctes": [
+        {
+          "name": "A",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Researcher"
+                  }
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        },
+        {
+          "name": "B",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "CteSource",
+                  "name": "A"
+                }
+              ],
+              "where": {
+                "$type": "Binary",
+                "op": "Gt",
+                "left": {
+                  "$type": "ColumnRef",
+                  "name": "HIndex"
+                },
+                "right": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "5"
+                }
+              },
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        }
+      ]
+    },
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "CteSource",
+          "name": "B"
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

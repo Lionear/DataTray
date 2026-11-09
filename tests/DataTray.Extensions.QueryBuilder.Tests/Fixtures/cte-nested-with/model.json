@@ -1,0 +1,90 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "with": {
+      "recursive": false,
+      "ctes": [
+        {
+          "name": "Outer",
+          "query": {
+            "with": {
+              "recursive": false,
+              "ctes": [
+                {
+                  "name": "Inner",
+                  "query": {
+                    "body": {
+                      "$type": "Select",
+                      "distinct": false,
+                      "items": [
+                        {
+                          "expr": {
+                            "$type": "ColumnRef",
+                            "name": "Name"
+                          }
+                        }
+                      ],
+                      "from": [
+                        {
+                          "$type": "TableSource",
+                          "name": {
+                            "name": "Researcher"
+                          }
+                        }
+                      ],
+                      "groupBy": [],
+                      "windows": []
+                    },
+                    "orderBy": []
+                  }
+                }
+              ]
+            },
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "CteSource",
+                  "name": "Inner"
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        }
+      ]
+    },
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "CteSource",
+          "name": "Outer"
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

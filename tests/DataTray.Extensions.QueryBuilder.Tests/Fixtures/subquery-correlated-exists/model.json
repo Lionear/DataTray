@@ -1,0 +1,93 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "r",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          },
+          "alias": "r"
+        }
+      ],
+      "where": {
+        "$type": "Exists",
+        "query": {
+          "body": {
+            "$type": "Select",
+            "distinct": false,
+            "items": [
+              {
+                "expr": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "1"
+                }
+              }
+            ],
+            "from": [
+              {
+                "$type": "TableSource",
+                "name": {
+                  "name": "PaperAuthor"
+                },
+                "alias": "pa"
+              }
+            ],
+            "where": {
+              "$type": "Binary",
+              "op": "And",
+              "left": {
+                "$type": "Binary",
+                "op": "Eq",
+                "left": {
+                  "$type": "ColumnRef",
+                  "qualifier": "pa",
+                  "name": "ResearcherId"
+                },
+                "right": {
+                  "$type": "ColumnRef",
+                  "qualifier": "r",
+                  "name": "Id"
+                }
+              },
+              "right": {
+                "$type": "Binary",
+                "op": "Eq",
+                "left": {
+                  "$type": "ColumnRef",
+                  "qualifier": "pa",
+                  "name": "Position"
+                },
+                "right": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "1"
+                }
+              }
+            },
+            "groupBy": [],
+            "windows": []
+          },
+          "orderBy": []
+        },
+        "not": false
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

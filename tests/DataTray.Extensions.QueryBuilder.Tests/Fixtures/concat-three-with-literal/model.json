@@ -1,0 +1,42 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Concat",
+            "parts": [
+              {
+                "$type": "ColumnRef",
+                "name": "Name"
+              },
+              {
+                "$type": "Literal",
+                "kind": "String",
+                "text": " \u003C"
+              },
+              {
+                "$type": "ColumnRef",
+                "name": "Email"
+              }
+            ]
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

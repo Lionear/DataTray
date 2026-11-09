@@ -1,0 +1,94 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "InSubquery",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "InstitutionId"
+        },
+        "query": {
+          "body": {
+            "$type": "Select",
+            "distinct": false,
+            "items": [
+              {
+                "expr": {
+                  "$type": "ColumnRef",
+                  "name": "Id"
+                }
+              }
+            ],
+            "from": [
+              {
+                "$type": "TableSource",
+                "name": {
+                  "name": "Institution"
+                }
+              }
+            ],
+            "where": {
+              "$type": "InSubquery",
+              "value": {
+                "$type": "ColumnRef",
+                "name": "Id"
+              },
+              "query": {
+                "body": {
+                  "$type": "Select",
+                  "distinct": false,
+                  "items": [
+                    {
+                      "expr": {
+                        "$type": "ColumnRef",
+                        "name": "InstitutionId"
+                      }
+                    }
+                  ],
+                  "from": [
+                    {
+                      "$type": "TableSource",
+                      "name": {
+                        "name": "Department"
+                      }
+                    }
+                  ],
+                  "groupBy": [],
+                  "windows": []
+                },
+                "orderBy": []
+              },
+              "not": false
+            },
+            "groupBy": [],
+            "windows": []
+          },
+          "orderBy": []
+        },
+        "not": false
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

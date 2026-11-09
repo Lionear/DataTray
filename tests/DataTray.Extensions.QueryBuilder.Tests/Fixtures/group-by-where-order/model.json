@@ -1,0 +1,75 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Year"
+          }
+        },
+        {
+          "expr": {
+            "$type": "FunctionCall",
+            "name": "SUM",
+            "args": [
+              {
+                "$type": "ColumnRef",
+                "name": "Citations"
+              }
+            ],
+            "distinct": false
+          },
+          "alias": "C"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Paper"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Gt",
+        "left": {
+          "$type": "ColumnRef",
+          "name": "Year"
+        },
+        "right": {
+          "$type": "Literal",
+          "kind": "Number",
+          "text": "2000"
+        }
+      },
+      "groupBy": [
+        {
+          "$type": "ColumnRef",
+          "name": "Year"
+        }
+      ],
+      "windows": []
+    },
+    "orderBy": [
+      {
+        "expr": {
+          "$type": "FunctionCall",
+          "name": "SUM",
+          "args": [
+            {
+              "$type": "ColumnRef",
+              "name": "Citations"
+            }
+          ],
+          "distinct": false
+        },
+        "descending": true
+      }
+    ]
+  }
+}

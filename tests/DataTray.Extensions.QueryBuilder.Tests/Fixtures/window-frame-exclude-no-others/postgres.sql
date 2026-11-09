@@ -1,0 +1,3 @@
+SELECT "Name",
+       SUM("Salary") OVER (ORDER BY "Id" GROUPS CURRENT ROW EXCLUDE NO OTHERS) AS "W"
+FROM "Researcher";

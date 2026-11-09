@@ -1,0 +1,65 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Binary",
+            "op": "Add",
+            "left": {
+              "$type": "ColumnRef",
+              "name": "Year"
+            },
+            "right": {
+              "$type": "Literal",
+              "kind": "Number",
+              "text": "0"
+            }
+          },
+          "alias": "Y"
+        },
+        {
+          "expr": {
+            "$type": "FunctionCall",
+            "name": "COUNT",
+            "args": [
+              {
+                "$type": "Star"
+              }
+            ],
+            "distinct": false
+          },
+          "alias": "N"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Paper"
+          }
+        }
+      ],
+      "groupBy": [
+        {
+          "$type": "Binary",
+          "op": "Add",
+          "left": {
+            "$type": "ColumnRef",
+            "name": "Year"
+          },
+          "right": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "0"
+          }
+        }
+      ],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

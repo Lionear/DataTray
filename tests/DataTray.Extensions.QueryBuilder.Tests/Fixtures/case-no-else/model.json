@@ -1,0 +1,44 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Case",
+            "whens": [
+              {
+                "when": {
+                  "$type": "IsNull",
+                  "value": {
+                    "$type": "ColumnRef",
+                    "name": "AdvisorId"
+                  },
+                  "not": false
+                },
+                "then": {
+                  "$type": "Literal",
+                  "kind": "String",
+                  "text": "none"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

@@ -1,0 +1,2 @@
+SELECT CASE WHEN "HIndex" > 1 THEN CASE WHEN "Salary" > 100 THEN 2 ELSE 1 END ELSE 0 END
+FROM "Researcher";

@@ -1,0 +1,38 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Concat",
+            "parts": [
+              {
+                "$type": "ColumnRef",
+                "name": "Name"
+              },
+              {
+                "$type": "ColumnRef",
+                "name": "Email"
+              }
+            ]
+          },
+          "alias": "Both"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

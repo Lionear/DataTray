@@ -1,0 +1,95 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "t",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "SubquerySource",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "WindowCall",
+                    "function": {
+                      "name": "ROW_NUMBER",
+                      "args": [],
+                      "distinct": false
+                    },
+                    "over": {
+                      "partitionBy": [
+                        {
+                          "$type": "ColumnRef",
+                          "name": "InstitutionId"
+                        }
+                      ],
+                      "orderBy": [
+                        {
+                          "expr": {
+                            "$type": "ColumnRef",
+                            "name": "HIndex"
+                          },
+                          "descending": true
+                        }
+                      ]
+                    }
+                  },
+                  "alias": "rn"
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Researcher"
+                  }
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          },
+          "alias": "t",
+          "lateral": false
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Eq",
+        "left": {
+          "$type": "ColumnRef",
+          "qualifier": "t",
+          "name": "rn"
+        },
+        "right": {
+          "$type": "Literal",
+          "kind": "Number",
+          "text": "1"
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

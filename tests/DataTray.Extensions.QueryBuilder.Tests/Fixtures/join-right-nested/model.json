@@ -1,0 +1,80 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "r",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Institution"
+            },
+            "alias": "i"
+          },
+          "type": "Inner",
+          "right": {
+            "$type": "JoinSource",
+            "left": {
+              "$type": "TableSource",
+              "name": {
+                "name": "Researcher"
+              },
+              "alias": "r"
+            },
+            "type": "Inner",
+            "right": {
+              "$type": "TableSource",
+              "name": {
+                "name": "Department"
+              },
+              "alias": "d"
+            },
+            "on": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "qualifier": "r",
+                "name": "InstitutionId"
+              },
+              "right": {
+                "$type": "ColumnRef",
+                "qualifier": "d",
+                "name": "InstitutionId"
+              }
+            }
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "qualifier": "i",
+              "name": "Id"
+            },
+            "right": {
+              "$type": "ColumnRef",
+              "qualifier": "d",
+              "name": "InstitutionId"
+            }
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

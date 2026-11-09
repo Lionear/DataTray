@@ -1,0 +1,65 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "WindowCall",
+            "function": {
+              "name": "SUM",
+              "args": [
+                {
+                  "$type": "ColumnRef",
+                  "name": "Salary"
+                }
+              ],
+              "distinct": false
+            },
+            "over": {
+              "partitionBy": [
+                {
+                  "$type": "ColumnRef",
+                  "name": "InstitutionId"
+                },
+                {
+                  "$type": "ColumnRef",
+                  "name": "Active"
+                }
+              ],
+              "orderBy": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Id"
+                  },
+                  "descending": false
+                }
+              ]
+            }
+          },
+          "alias": "W"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

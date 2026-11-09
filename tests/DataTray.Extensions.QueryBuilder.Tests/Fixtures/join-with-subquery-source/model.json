@@ -1,0 +1,103 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "r",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "t",
+            "name": "N"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Researcher"
+            },
+            "alias": "r"
+          },
+          "type": "Inner",
+          "right": {
+            "$type": "SubquerySource",
+            "query": {
+              "body": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "name": "ResearcherId"
+                    }
+                  },
+                  {
+                    "expr": {
+                      "$type": "FunctionCall",
+                      "name": "COUNT",
+                      "args": [
+                        {
+                          "$type": "Star"
+                        }
+                      ],
+                      "distinct": false
+                    },
+                    "alias": "N"
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "TableSource",
+                    "name": {
+                      "name": "Grant"
+                    }
+                  }
+                ],
+                "groupBy": [
+                  {
+                    "$type": "ColumnRef",
+                    "name": "ResearcherId"
+                  }
+                ],
+                "windows": []
+              },
+              "orderBy": []
+            },
+            "alias": "t",
+            "lateral": false
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "qualifier": "r",
+              "name": "Id"
+            },
+            "right": {
+              "$type": "ColumnRef",
+              "qualifier": "t",
+              "name": "ResearcherId"
+            }
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

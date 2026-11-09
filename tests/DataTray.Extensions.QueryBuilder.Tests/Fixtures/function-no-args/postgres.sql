@@ -1,0 +1,1 @@
+SELECT ABS(-1) AS "A";

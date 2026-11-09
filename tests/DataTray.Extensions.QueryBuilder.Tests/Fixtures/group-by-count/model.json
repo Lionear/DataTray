@@ -1,0 +1,46 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "InstitutionId"
+          }
+        },
+        {
+          "expr": {
+            "$type": "FunctionCall",
+            "name": "COUNT",
+            "args": [
+              {
+                "$type": "Star"
+              }
+            ],
+            "distinct": false
+          },
+          "alias": "N"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [
+        {
+          "$type": "ColumnRef",
+          "name": "InstitutionId"
+        }
+      ],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

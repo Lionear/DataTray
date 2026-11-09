@@ -1,0 +1,3 @@
+SELECT `Name`,
+       SUM(`Salary`) OVER (ORDER BY `Id` RANGE BETWEEN 5 PRECEDING AND CURRENT ROW) AS `W`
+FROM `Researcher`;

@@ -1,0 +1,92 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "InSubquery",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "Id"
+        },
+        "query": {
+          "with": {
+            "recursive": false,
+            "ctes": [
+              {
+                "name": "X",
+                "query": {
+                  "body": {
+                    "$type": "Select",
+                    "distinct": false,
+                    "items": [
+                      {
+                        "expr": {
+                          "$type": "ColumnRef",
+                          "name": "Id"
+                        }
+                      }
+                    ],
+                    "from": [
+                      {
+                        "$type": "TableSource",
+                        "name": {
+                          "name": "Researcher"
+                        }
+                      }
+                    ],
+                    "groupBy": [],
+                    "windows": []
+                  },
+                  "orderBy": []
+                }
+              }
+            ]
+          },
+          "body": {
+            "$type": "Select",
+            "distinct": false,
+            "items": [
+              {
+                "expr": {
+                  "$type": "ColumnRef",
+                  "name": "Id"
+                }
+              }
+            ],
+            "from": [
+              {
+                "$type": "CteSource",
+                "name": "X"
+              }
+            ],
+            "groupBy": [],
+            "windows": []
+          },
+          "orderBy": []
+        },
+        "not": false
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Quantified",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "HIndex"
+        },
+        "comparison": "GtEq",
+        "quantifier": "All",
+        "query": {
+          "body": {
+            "$type": "Select",
+            "distinct": false,
+            "items": [
+              {
+                "expr": {
+                  "$type": "ColumnRef",
+                  "name": "HIndex"
+                }
+              }
+            ],
+            "from": [
+              {
+                "$type": "TableSource",
+                "name": {
+                  "name": "Researcher"
+                }
+              }
+            ],
+            "where": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "name": "InstitutionId"
+              },
+              "right": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "1"
+              }
+            },
+            "groupBy": [],
+            "windows": []
+          },
+          "orderBy": []
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

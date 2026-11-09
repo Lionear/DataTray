@@ -1,0 +1,84 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "i",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "x",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Institution"
+            },
+            "alias": "i"
+          },
+          "type": "OuterApply",
+          "right": {
+            "$type": "SubquerySource",
+            "query": {
+              "body": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "name": "Name"
+                    }
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "TableSource",
+                    "name": {
+                      "name": "Researcher"
+                    }
+                  }
+                ],
+                "where": {
+                  "$type": "Binary",
+                  "op": "Eq",
+                  "left": {
+                    "$type": "ColumnRef",
+                    "name": "InstitutionId"
+                  },
+                  "right": {
+                    "$type": "ColumnRef",
+                    "qualifier": "i",
+                    "name": "Id"
+                  }
+                },
+                "groupBy": [],
+                "windows": []
+              },
+              "orderBy": []
+            },
+            "alias": "x",
+            "lateral": false
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

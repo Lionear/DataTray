@@ -1,0 +1,75 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Case",
+            "whens": [
+              {
+                "when": {
+                  "$type": "Binary",
+                  "op": "Gt",
+                  "left": {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  },
+                  "right": {
+                    "$type": "Literal",
+                    "kind": "Number",
+                    "text": "30"
+                  }
+                },
+                "then": {
+                  "$type": "Literal",
+                  "kind": "String",
+                  "text": "high"
+                }
+              },
+              {
+                "when": {
+                  "$type": "Binary",
+                  "op": "Gt",
+                  "left": {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  },
+                  "right": {
+                    "$type": "Literal",
+                    "kind": "Number",
+                    "text": "10"
+                  }
+                },
+                "then": {
+                  "$type": "Literal",
+                  "kind": "String",
+                  "text": "mid"
+                }
+              }
+            ],
+            "else": {
+              "$type": "Literal",
+              "kind": "String",
+              "text": "low"
+            }
+          },
+          "alias": "Level"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}
