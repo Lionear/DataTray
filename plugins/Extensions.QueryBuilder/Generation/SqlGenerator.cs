@@ -29,7 +29,7 @@ public sealed partial class SqlGenerator
         }
 
         var generator = new SqlGenerator(dialect);
-        generator.WriteQuery(query.Query);
+        generator.WriteQuery(query.Query, false);
         generator._w.Write(";");
         return generator._problems.Count > 0
             ? new GenerationResult(null, generator._problems)
@@ -46,33 +46,180 @@ public sealed partial class SqlGenerator
     [GeneratedRegex(@"^[a-z_][a-z0-9_]*\z")]
     private static partial Regex LowerCaseName();
 
-    // Extension point for the rest of the query (WITH, ORDER BY, limits, set operations, VALUES, GROUP BY,
-    // HAVING, WINDOW): until written, each is a problem so nothing is silently dropped.
-    private void WriteQuery(Query query)
+    // Nested = inside parentheses (subquery, derived table, CTE, set-operation branch); inSubquery = the
+    // query of an IN/ANY/ALL predicate, where MySQL refuses a limit.
+    private void WriteQuery(Query query, bool nested, bool inSubquery = false)
     {
-        if (query.With is not null || query.OrderBy.Count > 0 || query.Limit is not null)
+        if (query.With is { } with)
         {
-            Problem("not-yet-supported", "WITH, ORDER BY and row limits are not generated yet.", query);
+            if (nested && !_can.NestedWith)
+            {
+                Problem("nested-with", $"{_dialect.Id} does not allow WITH inside a subquery.", query);
+            }
+
+            WriteWith(with);
         }
 
-        if (query.Body is Select select)
+        if (nested && _can.OrderByInSubqueryNeedsLimit && query.OrderBy.Count > 0 && query.Limit is null)
         {
-            WriteSelect(select);
+            Problem("order-by-needs-limit", $"{_dialect.Id} only allows ORDER BY in a subquery or CTE together with a row limit.", query);
+        }
+
+        if (inSubquery && !_can.LimitInInSubquery && query.Limit is not null)
+        {
+            Problem("limit-in-in-subquery", $"{_dialect.Id} does not allow a row limit in an IN, ANY or ALL subquery.", query);
+        }
+
+        if (query.Limit is { } limit && (limit.Count < 0 || limit.Offset < 0))
+        {
+            Problem("invalid-limit", "A row limit and offset cannot be negative.", limit);
+        }
+
+        // SQL Server: TOP only on a plain SELECT without offset; everything else takes OFFSET/FETCH.
+        var top = _can.LimitStyle == LimitStyle.Top && query.Body is Select && query.Limit is { Offset: null } ? query.Limit : null;
+        WriteBody(query.Body, top);
+        if (query.OrderBy.Count > 0)
+        {
+            _w.NewLine();
+            WriteOrderBy(query.OrderBy);
+        }
+
+        if (query.Limit is not { } rowLimit || top is not null)
+        {
+            return;
+        }
+
+        _w.NewLine();
+        if (_can.LimitStyle == LimitStyle.Top)
+        {
+            if (query.OrderBy.Count == 0)
+            {
+                Problem("offset-needs-order-by", $"{_dialect.Id} needs an ORDER BY for OFFSET/FETCH.", query);
+            }
+
+            _w.Write($"OFFSET {rowLimit.Offset ?? 0} ROWS FETCH NEXT {rowLimit.Count} ROWS ONLY");
         }
         else
         {
-            Problem("not-yet-supported", "Set operations, VALUES and nested query bodies are not generated yet.", query.Body);
+            _w.Write($"LIMIT {rowLimit.Count}" + (rowLimit.Offset is { } offset ? $" OFFSET {offset}" : string.Empty));
         }
     }
 
-    private void WriteSelect(Select select)
+    private void WriteWith(With with)
     {
-        if (select.GroupBy.Count > 0 || select.Having is not null || select.Windows.Count > 0)
+        _w.Write(with.Recursive && _can.RecursiveKeyword ? "WITH RECURSIVE " : "WITH ");
+        for (var i = 0; i < with.Ctes.Count; i++)
         {
-            Problem("not-yet-supported", "GROUP BY, HAVING and WINDOW are not generated yet.", select);
+            var cte = with.Ctes[i];
+            if (i > 0)
+            {
+                _w.Write(",");
+                _w.NewLine();
+            }
+
+            _w.Write(_dialect.QuoteIdentifier(cte.Name));
+            if (cte.Columns is { } columns)
+            {
+                _w.Write(" (" + string.Join(", ", columns.Select(_dialect.QuoteIdentifier)) + ")");
+            }
+
+            _w.Write(" AS ");
+            _w.Nested(() => WriteQuery(cte.Query, true));
         }
 
-        var head = select.Distinct ? "SELECT DISTINCT " : "SELECT ";
+        _w.NewLine();
+    }
+
+    private void WriteBody(QueryBody body, RowLimit? top)
+    {
+        switch (body)
+        {
+            case Select select:
+                WriteSelect(select, top);
+                break;
+            case SetOperation op:
+                WriteSetOperation(op);
+                break;
+            case ValuesBody values:
+                WriteValues(values);
+                break;
+            case NestedQuery nested:
+                WriteParenthesized(() => WriteQuery(nested.Query, true), nested);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(body), body, null);
+        }
+    }
+
+    // Left-deep chains print flat. A right operand that is itself a set operation is parenthesized, and so is a
+    // UNION/EXCEPT left of an INTERSECT where INTERSECT binds tighter.
+    private void WriteSetOperation(SetOperation op)
+    {
+        if (op.Op != SetOp.Union && !_can.IntersectExcept)
+        {
+            Problem("intersect-except", $"{_dialect.Id} does not support INTERSECT or EXCEPT (at this server version).", op);
+        }
+        else if (op.Op != SetOp.Union && op.All && !_can.IntersectExceptAll)
+        {
+            Problem("intersect-except-all", $"{_dialect.Id} does not support INTERSECT ALL or EXCEPT ALL (at this server version).", op);
+        }
+
+        var wrapLeft = _can.IntersectBindsTighter && op.Op == SetOp.Intersect && op.Left is SetOperation { Op: not SetOp.Intersect };
+        WriteOperand(op.Left, wrapLeft);
+        _w.NewLine();
+        _w.Write(op.Op.ToString().ToUpperInvariant() + (op.All ? " ALL" : string.Empty));
+        _w.NewLine();
+        WriteOperand(op.Right, op.Right is SetOperation);
+    }
+
+    private void WriteOperand(QueryBody body, bool wrap)
+    {
+        if (wrap)
+        {
+            WriteParenthesized(() => WriteBody(body, null), body);
+        }
+        else
+        {
+            WriteBody(body, null);
+        }
+    }
+
+    private void WriteParenthesized(Action body, QueryBody node)
+    {
+        if (!_can.ParenthesizedSetOperands)
+        {
+            Problem("parenthesized-query", $"{_dialect.Id} cannot put a query in parentheses here.", node);
+        }
+
+        _w.Nested(body);
+    }
+
+    private void WriteValues(ValuesBody values)
+    {
+        if (_can.Values == ValuesStyle.None)
+        {
+            Problem("values", $"{_dialect.Id} does not support a VALUES query (at this server version).", values);
+        }
+
+        const string head = "VALUES ";
+        _w.Write(head);
+        for (var i = 0; i < values.Rows.Count; i++)
+        {
+            if (i > 0)
+            {
+                _w.Write(",");
+                _w.NewLine(head.Length);
+            }
+
+            _w.Write(_can.Values == ValuesStyle.Row ? "ROW(" : "(");
+            WriteList(values.Rows[i]);
+            _w.Write(")");
+        }
+    }
+
+    private void WriteSelect(Select select, RowLimit? top)
+    {
+        var head = (select.Distinct ? "SELECT DISTINCT " : "SELECT ") + (top is null ? string.Empty : $"TOP ({top.Count}) ");
         _w.Write(head);
         for (var i = 0; i < select.Items.Count; i++)
         {
@@ -111,6 +258,32 @@ public sealed partial class SqlGenerator
             _w.Write("WHERE ");
             WriteExpr(select.Where, 0, true);
         }
+
+        if (select.GroupBy.Count > 0)
+        {
+            _w.NewLine();
+            _w.Write("GROUP BY ");
+            WriteList(select.GroupBy);
+        }
+
+        if (select.Having is not null)
+        {
+            _w.NewLine();
+            _w.Write("HAVING ");
+            WriteExpr(select.Having, 0, true);
+        }
+
+        if (select.Windows.Count > 0)
+        {
+            _w.NewLine();
+            _w.Write("WINDOW ");
+            for (var i = 0; i < select.Windows.Count; i++)
+            {
+                Require(_can.NamedWindow, "named-window", "named windows", select.Windows[i]);
+                _w.Write((i > 0 ? ", " : string.Empty) + Alias(select.Windows[i].Name) + " AS ");
+                WriteWindowSpec(select.Windows[i].Spec);
+            }
+        }
     }
 
     private void WriteSource(Source source, bool inline)
@@ -133,7 +306,7 @@ public sealed partial class SqlGenerator
                     _w.Write("LATERAL ");
                 }
 
-                _w.Nested(() => WriteQuery(s.Query));
+                _w.Nested(() => WriteQuery(s.Query, true));
                 _w.Write(AliasClause(s.Alias));
                 break;
             case JoinSource j:
@@ -307,11 +480,11 @@ public sealed partial class SqlGenerator
             case InSubquery i:
                 WriteExpr(i.Value, operand);
                 _w.Write(i.Not ? " NOT IN " : " IN ");
-                _w.Nested(() => WriteQuery(i.Query));
+                _w.Nested(() => WriteQuery(i.Query, true, true));
                 break;
             case Exists e:
                 _w.Write(e.Not ? "NOT EXISTS " : "EXISTS ");
-                _w.Nested(() => WriteQuery(e.Query));
+                _w.Nested(() => WriteQuery(e.Query, true));
                 break;
             case Quantified q:
                 Require(_can.QuantifiedSubquery, "quantified-subquery", "ANY/ALL subqueries", q);
@@ -322,10 +495,10 @@ public sealed partial class SqlGenerator
 
                 WriteExpr(q.Value, operand);
                 _w.Write($" {Operator(q.Comparison)} {(q.Quantifier == Quantifier.All ? "ALL" : "ANY")} ");
-                _w.Nested(() => WriteQuery(q.Query));
+                _w.Nested(() => WriteQuery(q.Query, true, true));
                 break;
             case ScalarSubquery s:
-                _w.Nested(() => WriteQuery(s.Query));
+                _w.Nested(() => WriteQuery(s.Query, true));
                 break;
             case FunctionCall f:
                 WriteCall(f);
@@ -490,7 +663,13 @@ public sealed partial class SqlGenerator
             return;
         }
 
-        _w.Write(" OVER (");
+        _w.Write(" OVER ");
+        WriteWindowSpec(spec);
+    }
+
+    private void WriteWindowSpec(WindowSpec spec)
+    {
+        _w.Write("(");
         var separator = string.Empty;
         if (spec.BaseWindow is { } baseWindow)
         {

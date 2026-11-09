@@ -42,6 +42,14 @@ public sealed record DialectCapabilities
 
     public bool UnquotedFoldsToLower { get; init; }
 
+    public bool NestedWith { get; init; }
+
+    public bool ParenthesizedSetOperands { get; init; }
+
+    public bool IntersectBindsTighter { get; init; }
+
+    public ValuesStyle Values { get; init; }
+
     public LimitStyle LimitStyle { get; init; }
 
     public ConcatStyle ConcatStyle { get; init; }

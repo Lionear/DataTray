@@ -87,25 +87,6 @@ public class SubqueryGenerationTests
         Assert.Equal("SELECT DISTINCT \"a\",\n                \"b\";", Generate("postgres", null, query).Sql);
     }
 
-    public static TheoryData<Query> LaterQueryParts() => new()
-    {
-        new Query(null, new Select(false, [new SelectItem(Col("a"), null)], [], null, [], null, []), [new OrderItem(Col("a"), false)], null),
-        new Query(null, new Select(false, [new SelectItem(Col("a"), null)], [], null, [], null, []), [], new RowLimit(5, null)),
-        new Query(new With(false, [new Cte("c", null, Query(Num("1")))]), new Select(false, [new SelectItem(Col("a"), null)], [], null, [], null, []), [], null),
-        new Query(null, new Select(false, [new SelectItem(Col("a"), null)], [], null, [Col("a")], null, []), [], null),
-        new Query(null, new Select(false, [new SelectItem(Col("a"), null)], [], null, [], Col("a"), []), [], null),
-        new Query(null, new SetOperation(new Select(false, [new SelectItem(Col("a"), null)], [], null, [], null, []), SetOp.Union, false, new Select(false, [new SelectItem(Col("a"), null)], [], null, [], null, [])), [], null),
-    };
-
-    [Theory, MemberData(nameof(LaterQueryParts))]
-    public void Generate_QueryPartNotYetWritten_IsAProblem(Query query)
-    {
-        var result = Generate("postgres", null, query);
-
-        Assert.Null(result.Sql);
-        Assert.Equal(["not-yet-supported"], Codes(result));
-    }
-
     public static TheoryData<Statement> DmlStatements() => new()
     {
         new DeleteStatement(null, new TableName("dbo", "t"), null, [], null, null),
