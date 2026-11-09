@@ -589,6 +589,9 @@ public sealed partial class SqlGenerator
             case LiteralKind.String:
                 _w.Write(_dialect.StringLiteral(literal.Text));
                 break;
+            case LiteralKind.NarrowString:
+                _w.Write(_dialect.StringLiteral(literal.Text, narrow: true));
+                break;
             case LiteralKind.Number:
                 if (!NumberText().IsMatch(literal.Text))
                 {

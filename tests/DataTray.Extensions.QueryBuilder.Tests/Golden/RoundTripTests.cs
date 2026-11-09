@@ -5,13 +5,14 @@ namespace DataTray.Extensions.QueryBuilder.Tests.Golden;
 
 public class RoundTripTests
 {
+    // literal-narrow-string: only T-SQL tells '…' from N'…'; elsewhere both read as String.
     // EXCLUDE: SqlParserCS 0.6.5 can't parse it. fragment-*: the fixture keeps as text what the reader understands.
     // where-negate / set-right-nested: Negate(5) and -5, a NestedQuery and a bare set operand print the same; the reader
     // reads the signed literal and the bare operand.
     private static readonly string[] KnownGaps =
     [
         "window-frame-exclude-current-row", "window-frame-exclude-group", "window-frame-exclude-no-others", "window-frame-exclude-ties",
-        "fragment-source", "fragment-in-where", "where-negate", "set-right-nested",
+        "fragment-source", "fragment-in-where", "where-negate", "set-right-nested", "literal-narrow-string",
     ];
 
     // where-boolean-*: SQL Server has no booleans, so `[Active] = 1` is the number 1. fragment-*, where-negate and

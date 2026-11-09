@@ -8,7 +8,8 @@ public interface IDialect
 
     string QuoteIdentifier(string name);
 
-    string StringLiteral(string value);
+    // Narrow drops the SQL Server N prefix ('…' is varchar there); the other dialects have none.
+    string StringLiteral(string value, bool narrow = false);
 
     string BooleanLiteral(bool value);
 }

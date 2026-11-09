@@ -282,8 +282,7 @@ internal sealed class ScriptDomMapper(string sql)
         ColumnReferenceExpression { ColumnType: ColumnType.Wildcard, MultiPartIdentifier: null } => new M.Star(null),
         ColumnReferenceExpression { ColumnType: ColumnType.Wildcard, MultiPartIdentifier.Identifiers: [var q] } => new M.Star(q.Value),
         IntegerLiteral or NumericLiteral or RealLiteral => new M.Literal(M.LiteralKind.Number, ((Literal)e).Value),
-        // '…' without N is varchar in the database's code page; the model's string is written as N'…', so keep the text.
-        StringLiteral { IsNational: true } s => new M.Literal(M.LiteralKind.String, s.Value),
+        StringLiteral s => new M.Literal(s.IsNational ? M.LiteralKind.String : M.LiteralKind.NarrowString, s.Value),
         NullLiteral => new M.Literal(M.LiteralKind.Null, "NULL"),
         ParenthesisExpression p => Map(p.Expression),
         BooleanParenthesisExpression p => Map(p.Expression),

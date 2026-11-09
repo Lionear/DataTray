@@ -116,7 +116,7 @@ public class SqlReaderTests
         { "postgres", "SELECT LOWER(a) LIKE LOWER('x')", new Like(new FunctionCall("LOWER", [Col("a")], false), new FunctionCall("LOWER", [Str("x")], false), false, false) },
         { "postgres", "SELECT SUM(a) OVER W FROM t WINDOW W AS (ORDER BY a)", new WindowCall(new FunctionCall("SUM", [Col("a")], false), new WindowSpec("w", [], [], null)) },
         { "sqlserver", "SELECT N'it''s'", Str("it's") },
-        { "sqlserver", "SELECT 'abc'", new Fragment("'abc'") },
+        { "sqlserver", "SELECT 'it''s'", new Literal(LiteralKind.NarrowString, "it's") },
         { "sqlserver", "SELECT [a] + N'x'", Bin(BinaryOp.Add, Col("a"), Str("x")) },
         { "sqlserver", "SELECT CONCAT([a], [b])", new Concat([Col("a"), Col("b")]) },
         { "sqlserver", "SELECT Coalesce([a], 0)", new FunctionCall("Coalesce", [Col("a"), Num("0")], false) },

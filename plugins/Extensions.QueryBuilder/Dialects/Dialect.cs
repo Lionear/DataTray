@@ -14,10 +14,10 @@ internal sealed record Dialect(
         return QuoteOpen + name.Replace(QuoteClose.ToString(), new string(QuoteClose, 2)) + QuoteClose;
     }
 
-    public string StringLiteral(string value)
+    public string StringLiteral(string value, bool narrow = false)
     {
         var text = EscapeBackslash ? value.Replace("\\", "\\\\") : value;
-        return StringPrefix + "'" + text.Replace("'", "''") + "'";
+        return (narrow ? string.Empty : StringPrefix) + "'" + text.Replace("'", "''") + "'";
     }
 
     public string BooleanLiteral(bool value)
