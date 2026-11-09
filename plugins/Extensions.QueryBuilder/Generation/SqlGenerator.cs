@@ -47,7 +47,7 @@ public sealed partial class SqlGenerator
     private static partial Regex LowerCaseName();
 
     // Nested = inside parentheses (subquery, derived table, CTE, set-operation branch); inSubquery = the
-    // query of an IN/ANY/ALL predicate, where MySQL refuses a limit.
+    // query of an IN/ANY/ALL predicate or a branch of it, where MySQL refuses a limit.
     private void WriteQuery(Query query, bool nested, bool inSubquery = false)
     {
         if (query.With is { } with)
@@ -77,7 +77,7 @@ public sealed partial class SqlGenerator
 
         // SQL Server: TOP only on a plain SELECT without offset; everything else takes OFFSET/FETCH.
         var top = _can.LimitStyle == LimitStyle.Top && query.Body is Select && query.Limit is { Offset: null } ? query.Limit : null;
-        WriteBody(query.Body, top);
+        WriteBody(query.Body, top, inSubquery);
         if (query.OrderBy.Count > 0)
         {
             _w.NewLine();
@@ -130,7 +130,7 @@ public sealed partial class SqlGenerator
         _w.NewLine();
     }
 
-    private void WriteBody(QueryBody body, RowLimit? top)
+    private void WriteBody(QueryBody body, RowLimit? top, bool inSubquery)
     {
         switch (body)
         {
@@ -138,13 +138,13 @@ public sealed partial class SqlGenerator
                 WriteSelect(select, top);
                 break;
             case SetOperation op:
-                WriteSetOperation(op);
+                WriteSetOperation(op, inSubquery);
                 break;
             case ValuesBody values:
                 WriteValues(values);
                 break;
             case NestedQuery nested:
-                WriteParenthesized(() => WriteQuery(nested.Query, true), nested);
+                WriteParenthesized(() => WriteQuery(nested.Query, true, inSubquery), nested);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(body), body, null);
@@ -153,7 +153,7 @@ public sealed partial class SqlGenerator
 
     // Left-deep chains print flat. A right operand that is itself a set operation is parenthesized, and so is a
     // UNION/EXCEPT left of an INTERSECT where INTERSECT binds tighter.
-    private void WriteSetOperation(SetOperation op)
+    private void WriteSetOperation(SetOperation op, bool inSubquery)
     {
         if (op.Op != SetOp.Union && !_can.IntersectExcept)
         {
@@ -165,22 +165,22 @@ public sealed partial class SqlGenerator
         }
 
         var wrapLeft = _can.IntersectBindsTighter && op.Op == SetOp.Intersect && op.Left is SetOperation { Op: not SetOp.Intersect };
-        WriteOperand(op.Left, wrapLeft);
+        WriteOperand(op.Left, wrapLeft, inSubquery);
         _w.NewLine();
         _w.Write(op.Op.ToString().ToUpperInvariant() + (op.All ? " ALL" : string.Empty));
         _w.NewLine();
-        WriteOperand(op.Right, op.Right is SetOperation);
+        WriteOperand(op.Right, op.Right is SetOperation, inSubquery);
     }
 
-    private void WriteOperand(QueryBody body, bool wrap)
+    private void WriteOperand(QueryBody body, bool wrap, bool inSubquery)
     {
         if (wrap)
         {
-            WriteParenthesized(() => WriteBody(body, null), body);
+            WriteParenthesized(() => WriteBody(body, null, inSubquery), body);
         }
         else
         {
-            WriteBody(body, null);
+            WriteBody(body, null, inSubquery);
         }
     }
 
@@ -201,6 +201,11 @@ public sealed partial class SqlGenerator
             Problem("values", $"{_dialect.Id} does not support a VALUES query (at this server version).", values);
         }
 
+        if (values.Rows.Count == 0 || values.Rows.Any(row => row.Count == 0))
+        {
+            Problem("empty-values", "VALUES needs at least one row, and every row at least one value.", values);
+        }
+
         const string head = "VALUES ";
         _w.Write(head);
         for (var i = 0; i < values.Rows.Count; i++)
@@ -219,6 +224,11 @@ public sealed partial class SqlGenerator
 
     private void WriteSelect(Select select, RowLimit? top)
     {
+        if (select.Items.Count == 0)
+        {
+            Problem("empty-select", "A SELECT needs at least one item.", select);
+        }
+
         var head = (select.Distinct ? "SELECT DISTINCT " : "SELECT ") + (top is null ? string.Empty : $"TOP ({top.Count}) ");
         _w.Write(head);
         for (var i = 0; i < select.Items.Count; i++)

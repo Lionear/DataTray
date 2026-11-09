@@ -82,7 +82,7 @@ public static class SqlDialects
         IntersectExcept = ServerVersion.AtLeast(v, 8, 0, 31),
         IntersectExceptAll = ServerVersion.AtLeast(v, 8, 0, 31),
         NestedWith = true,
-        ParenthesizedSetOperands = true,
+        ParenthesizedSetOperands = ServerVersion.AtLeast(v, 8, 0, 31),
         IntersectBindsTighter = true,
         Values = ServerVersion.AtLeast(v, 8, 0, 19) ? ValuesStyle.Row : ValuesStyle.None,
         BooleanLiterals = true,

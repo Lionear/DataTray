@@ -202,7 +202,7 @@ public class QueryGenerationTests
             "SELECT `a`\nFROM `dbo`.`T`\nINTERSECT ALL\nSELECT `b`\nFROM `dbo`.`U`;"
         },
         {
-            "mysql", null,
+            "mysql", "8.0.31",
             Q(Set(new NestedQuery(Q(A, [ByA], Limit(1, null))), SetOp.Union, false, B)),
             "(\n  SELECT `a`\n  FROM `dbo`.`T`\n  ORDER BY `a`\n  LIMIT 1\n)\nUNION\nSELECT `b`\nFROM `dbo`.`U`;"
         },
@@ -256,6 +256,13 @@ public class QueryGenerationTests
         { "sqlite", null, Q(Set(new NestedQuery(Q(A, [ByA], Limit(1, null))), SetOp.Union, false, B)), "parenthesized-query" },
         { "sqlserver", null, Q(Values([Num("1")])), "values" },
         { "mysql", "8.0.18", Q(Values([Num("1")])), "values" },
+        { "mysql", "8.4.0", Where(new InSubquery(Col("a"), Q(Set(new NestedQuery(Q(A, [], Limit(1, null))), SetOp.Union, false, B)), false)), "limit-in-in-subquery" },
+        { "mysql", "8.4.0", Where(new Quantified(Col("a"), BinaryOp.Eq, Quantifier.Any, Q(new NestedQuery(Q(B, [], Limit(1, null)))))), "limit-in-in-subquery" },
+        { "mysql", "8.0.30", Q(Set(A, SetOp.Union, false, Set(B, SetOp.Union, false, C))), "parenthesized-query" },
+        { "mysql", null, Q(Set(new NestedQuery(Q(A, [ByA], Limit(1, null))), SetOp.Union, false, B)), "parenthesized-query" },
+        { "postgres", null, Q(new Select(false, [], [Table("T", null)], null, [], null, [])), "empty-select" },
+        { "postgres", null, Q(Values()), "empty-values" },
+        { "sqlite", null, Q(Values([Num("1")], [])), "empty-values" },
         { "postgres", null, Q(A, [], Limit(-1, null)), "invalid-limit" },
         { "postgres", null, Q(A, [], Limit(5, -1)), "invalid-limit" },
     };
