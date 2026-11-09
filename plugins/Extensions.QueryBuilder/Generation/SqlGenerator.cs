@@ -14,6 +14,7 @@ public sealed partial class SqlGenerator
     private readonly DialectCapabilities _can;
     private readonly SqlWriter _w = new();
     private readonly List<GenerationProblem> _problems = [];
+    private bool _namedWindowReported;
 
     private SqlGenerator(IDialect dialect)
     {
@@ -50,6 +51,18 @@ public sealed partial class SqlGenerator
     // query of an IN/ANY/ALL predicate or a branch of it, where MySQL refuses a limit.
     private void WriteQuery(Query query, bool nested, bool inSubquery = false)
     {
+        // Inside a subquery's own parentheses a NestedQuery body would add a second pair; write it once instead.
+        if (nested && query is { With: null, Body: NestedQuery inner })
+        {
+            if (query.OrderBy.Count == 0 && query.Limit is null)
+            {
+                WriteQuery(inner.Query, true, inSubquery);
+                return;
+            }
+
+            Problem("nested-query-body", "A parenthesized query with its own ORDER BY or limit cannot have another ORDER BY or limit here.", query);
+        }
+
         if (query.With is { } with)
         {
             if (nested && !_can.NestedWith)
@@ -97,6 +110,11 @@ public sealed partial class SqlGenerator
                 Problem("offset-needs-order-by", $"{_dialect.Id} needs an ORDER BY for OFFSET/FETCH.", query);
             }
 
+            if (rowLimit.Count == 0)
+            {
+                Problem("invalid-limit", $"{_dialect.Id} cannot FETCH zero rows.", rowLimit);
+            }
+
             _w.Write($"OFFSET {rowLimit.Offset ?? 0} ROWS FETCH NEXT {rowLimit.Count} ROWS ONLY");
         }
         else
@@ -107,6 +125,11 @@ public sealed partial class SqlGenerator
 
     private void WriteWith(With with)
     {
+        if (with.Ctes.Count == 0)
+        {
+            Problem("empty-with", "WITH needs at least one common table expression.", with);
+        }
+
         _w.Write(with.Recursive && _can.RecursiveKeyword ? "WITH RECURSIVE " : "WITH ");
         for (var i = 0; i < with.Ctes.Count; i++)
         {
@@ -120,6 +143,11 @@ public sealed partial class SqlGenerator
             _w.Write(_dialect.QuoteIdentifier(cte.Name));
             if (cte.Columns is { } columns)
             {
+                if (columns.Count == 0)
+                {
+                    Problem("empty-cte-columns", "A CTE column list cannot be empty.", cte);
+                }
+
                 _w.Write(" (" + string.Join(", ", columns.Select(_dialect.QuoteIdentifier)) + ")");
             }
 
@@ -174,6 +202,11 @@ public sealed partial class SqlGenerator
 
     private void WriteOperand(QueryBody body, bool wrap, bool inSubquery)
     {
+        if (body is NestedQuery { Query.OrderBy.Count: > 0 } && !_can.OrderByInSetOperand)
+        {
+            Problem("order-by-in-set-operand", $"{_dialect.Id} does not allow ORDER BY inside a set-operation branch.", body);
+        }
+
         if (wrap)
         {
             WriteParenthesized(() => WriteBody(body, null, inSubquery), body);
@@ -223,6 +256,14 @@ public sealed partial class SqlGenerator
     }
 
     private void WriteSelect(Select select, RowLimit? top)
+    {
+        var outerReported = _namedWindowReported;
+        _namedWindowReported = false;
+        WriteSelectClauses(select, top);
+        _namedWindowReported = outerReported;
+    }
+
+    private void WriteSelectClauses(Select select, RowLimit? top)
     {
         if (select.Items.Count == 0)
         {
@@ -289,7 +330,7 @@ public sealed partial class SqlGenerator
             _w.Write("WINDOW ");
             for (var i = 0; i < select.Windows.Count; i++)
             {
-                Require(_can.NamedWindow, "named-window", "named windows", select.Windows[i]);
+                RequireNamedWindow(select.Windows[i]);
                 _w.Write((i > 0 ? ", " : string.Empty) + Alias(select.Windows[i].Name) + " AS ");
                 WriteWindowSpec(select.Windows[i].Spec);
             }
@@ -664,7 +705,7 @@ public sealed partial class SqlGenerator
         var spec = call.Over;
         if (spec.BaseWindow is not null)
         {
-            Require(_can.NamedWindow, "named-window", "named windows", call);
+            RequireNamedWindow(call);
         }
 
         if (spec is { BaseWindow: { } name, PartitionBy.Count: 0, OrderBy.Count: 0, Frame: null })
@@ -834,6 +875,16 @@ public sealed partial class SqlGenerator
     {
         var simple = _can.UnquotedFoldsToLower ? LowerCaseName().IsMatch(alias) : SimpleName().IsMatch(alias);
         return simple && !ReservedWords.Contains(alias) ? alias : _dialect.QuoteIdentifier(alias);
+    }
+
+    // Reported once per SELECT, however many definitions and OVER references it has.
+    private void RequireNamedWindow(object node)
+    {
+        if (!_namedWindowReported)
+        {
+            Require(_can.NamedWindow, "named-window", "named windows", node);
+            _namedWindowReported = !_can.NamedWindow;
+        }
     }
 
     private void Require(bool supported, string code, string feature, object node)

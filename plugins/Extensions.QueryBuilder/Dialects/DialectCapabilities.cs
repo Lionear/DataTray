@@ -44,6 +44,8 @@ public sealed record DialectCapabilities
 
     public bool NestedWith { get; init; }
 
+    public bool OrderByInSetOperand { get; init; }
+
     public bool ParenthesizedSetOperands { get; init; }
 
     public bool IntersectBindsTighter { get; init; }

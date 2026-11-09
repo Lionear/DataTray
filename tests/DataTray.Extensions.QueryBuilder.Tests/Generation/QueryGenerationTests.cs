@@ -80,8 +80,55 @@ public class QueryGenerationTests
         },
         {
             "sqlserver", null,
-            Q(Set(B, SetOp.Union, false, new NestedQuery(Q(A, [ByA], Limit(1, null))))),
-            "SELECT [b]\nFROM [dbo].[U]\nUNION\n(\n  SELECT TOP (1) [a]\n  FROM [dbo].[T]\n  ORDER BY [a]\n);"
+            Q(Set(B, SetOp.Union, false, new NestedQuery(Q(A, [], Limit(1, null))))),
+            "SELECT [b]\nFROM [dbo].[U]\nUNION\n(\n  SELECT TOP (1) [a]\n  FROM [dbo].[T]\n);"
+        },
+        {
+            "sqlserver", null,
+            Q(A, [], Limit(0, null)),
+            "SELECT TOP (0) [a]\nFROM [dbo].[T];"
+        },
+
+        // A NestedQuery as the whole body of a subquery is written once inside the subquery's parentheses
+        {
+            "sqlserver", null,
+            Where(new InSubquery(Col("a"), Q(new NestedQuery(Q(A))), false)),
+            "SELECT 1\nWHERE [a] IN (\n  SELECT [a]\n  FROM [dbo].[T]\n);"
+        },
+        {
+            "sqlserver", null,
+            Where(new Exists(Q(new NestedQuery(Q(A))), false)),
+            "SELECT 1\nWHERE EXISTS (\n  SELECT [a]\n  FROM [dbo].[T]\n);"
+        },
+        {
+            "sqlserver", null,
+            Query(new ScalarSubquery(Q(new NestedQuery(Q(A))))),
+            "SELECT (\n  SELECT [a]\n  FROM [dbo].[T]\n);"
+        },
+        {
+            "sqlserver", null,
+            FromSubquery(Q(new NestedQuery(Q(A, [ByA], Limit(1, null))))),
+            "SELECT s.[a]\nFROM (\n  SELECT TOP (1) [a]\n  FROM [dbo].[T]\n  ORDER BY [a]\n) AS s;"
+        },
+        {
+            "postgres", null,
+            Where(new InSubquery(Col("a"), Q(new NestedQuery(Q(A, [ByA], Limit(1, null)))), false)),
+            "SELECT 1\nWHERE \"a\" IN (\n  SELECT \"a\"\n  FROM \"dbo\".\"T\"\n  ORDER BY \"a\"\n  LIMIT 1\n);"
+        },
+        {
+            "postgres", null,
+            Where(new Exists(Q(new NestedQuery(Q(A))), true)),
+            "SELECT 1\nWHERE NOT EXISTS (\n  SELECT \"a\"\n  FROM \"dbo\".\"T\"\n);"
+        },
+        {
+            "postgres", null,
+            Query(new ScalarSubquery(Q(new NestedQuery(Q(A))))),
+            "SELECT (\n  SELECT \"a\"\n  FROM \"dbo\".\"T\"\n);"
+        },
+        {
+            "postgres", null,
+            FromSubquery(Q(new NestedQuery(Q(A)))),
+            "SELECT s.\"a\"\nFROM (\n  SELECT \"a\"\n  FROM \"dbo\".\"T\"\n) AS s;"
         },
 
         // LIMIT dialects
@@ -239,7 +286,15 @@ public class QueryGenerationTests
         { "sqlserver", null, FromSubquery(Q(A, [ByA], null)), "order-by-needs-limit" },
         { "sqlserver", null, WithCte(false, Q(A, [ByA], null), Q(Sel(new CteSource("c", null), Col("a")))), "order-by-needs-limit" },
         { "sqlserver", null, Where(new Exists(Q(A, [ByA], null), false)), "order-by-needs-limit" },
-        { "sqlserver", null, Q(Set(new NestedQuery(Q(A, [ByA], null)), SetOp.Union, false, B)), "order-by-needs-limit" },
+        { "sqlserver", null, Q(new NestedQuery(Q(A, [ByA], null))), "order-by-needs-limit" },
+        { "sqlserver", null, Q(Set(B, SetOp.Union, false, new NestedQuery(Q(A, [ByA], Limit(1, null))))), "order-by-in-set-operand" },
+        { "sqlserver", null, Q(Set(new NestedQuery(Q(A, [ByA], Limit(1, 5))), SetOp.Union, false, B)), "order-by-in-set-operand" },
+        { "sqlserver", null, Where(new InSubquery(Col("a"), Q(new NestedQuery(Q(A)), [ByA], Limit(1, null)), false)), "nested-query-body" },
+        { "postgres", null, FromSubquery(Q(new NestedQuery(Q(A)), [], Limit(1, null))), "nested-query-body" },
+        { "sqlserver", null, Q(A, [ByA], Limit(0, 5)), "invalid-limit" },
+        { "postgres", null, new Query(new With(false, []), A, [], null), "empty-with" },
+        { "postgres", null, new Query(new With(false, [new Cte("c", [], Query(Num("1")))]), A, [], null), "empty-cte-columns" },
+        { "sqlserver", "15.0.2000", Q(WindowSelect("w", Window("w", null, [Col("a")], []), Window("v", null, [], [ByA]))), "named-window" },
         { "sqlserver", null, Q(A, [], Limit(5, 10)), "offset-needs-order-by" },
         { "sqlserver", null, Q(Set(A, SetOp.Union, false, B), [], Limit(5, null)), "offset-needs-order-by" },
         { "sqlserver", null, FromSubquery(WithCte(false, Query(Num("1")), Q(Sel(new CteSource("c", null), Col("a"))))), "nested-with" },
