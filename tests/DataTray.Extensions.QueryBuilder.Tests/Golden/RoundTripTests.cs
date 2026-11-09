@@ -14,9 +14,18 @@ public class RoundTripTests
         "fragment-source", "fragment-in-where", "where-negate", "set-right-nested",
     ];
 
+    // where-boolean-*: SQL Server has no booleans, so `[Active] = 1` is the number 1. fragment-*, where-negate and
+    // set-right-nested: as above. Everything else the generator writes for sqlserver reads back to its model.
+    private static readonly string[] SqlServerKnownGaps =
+    [
+        "where-boolean-literal", "where-boolean-false", "fragment-source", "fragment-in-where", "where-negate", "set-right-nested",
+    ];
+
     public static TheoryData<string, string> Cases() => FixtureCases.SqlCases(n => !KnownGaps.Contains(n), "postgres", "mysql", "sqlite");
 
-    [Theory, MemberData(nameof(Cases))]
+    public static TheoryData<string, string> SqlServerCases() => FixtureCases.SqlCases(n => !SqlServerKnownGaps.Contains(n), "sqlserver");
+
+    [Theory, MemberData(nameof(Cases)), MemberData(nameof(SqlServerCases))]
     public void RoundTrip_Golden_ReadsBackToItsModel(string dialect, string name)
     {
         var expected = QueryModelJson.Serialize(FixtureCases.Model(name));

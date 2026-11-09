@@ -50,6 +50,32 @@ public class SqlReaderTests
         { "mysql", "SELECT @@version;", [("variable", 1)] },
         { "postgres", "SELECT 1 WHERE a IN (VALUES (1), (2));", [("cannot-represent", 1)] },
         { "sqlite", "SELECT a::int FROM t;", [("sqlite-cast", 1)] },
+        { "sqlserver", "DECLARE @x INT;\nSELECT @x;", [("declare", 1), ("variable", 1), ("multiple-statements", 2), ("variable", 2)] },
+        { "sqlserver", "SET NOCOUNT ON;", [("set-variable", 1)] },
+        { "sqlserver", "SELECT 1\nGO\nSELECT 2", [("multiple-statements", 3)] },
+        { "sqlserver", "SELECT 1 SELECT 2", [("multiple-statements", 1)] },
+        { "sqlserver", "IF 1 = 1\n  SELECT 1;", [("control-flow", 1)] },
+        { "sqlserver", "WHILE 1 = 1 BREAK;", [("control-flow", 1)] },
+        { "sqlserver", "BEGIN TRY\n  SELECT 1;\nEND TRY\nBEGIN CATCH\nEND CATCH", [("control-flow", 1), ("multiple-statements", 3)] },
+        { "sqlserver", "BEGIN TRAN;\nSELECT 1;\nCOMMIT;", [("transaction", 1), ("multiple-statements", 2), ("transaction", 3)] },
+        { "sqlserver", "BEGIN DISTRIBUTED TRANSACTION;", [("transaction", 1)] },
+        { "sqlserver", "EXEC sp_who;", [("procedure-call", 1)] },
+        { "sqlserver", "/* a /* b */ ; */ CREATE TABLE t (a int);", [("ddl", 1)] },
+        { "sqlserver", "SELECT TOP (@n) a FROM t;", [("variable", 1)] },
+        { "sqlserver", "SELECT @v = a FROM t;", [("variable", 1)] },
+        { "sqlserver", "SELECT @@ROWCOUNT;", [("variable", 1)] },
+        { "sqlserver", "SELECT TOP 10 PERCENT a FROM t;", [("cannot-represent", 1)] },
+        { "sqlserver", "SELECT TOP (5) WITH TIES a FROM t ORDER BY a;", [("cannot-represent", 1)] },
+        { "sqlserver", "SELECT a FROM t\nFOR JSON PATH;", [("cannot-represent", 2)] },
+        { "sqlserver", "SELECT a FROM t\nFOR XML AUTO;", [("cannot-represent", 2)] },
+        { "sqlserver", "SELECT a\nINTO t2\nFROM t;", [("cannot-represent", 2)] },
+        { "sqlserver", "SELECT a FROM t\nOPTION (RECOMPILE);", [("cannot-represent", 2)] },
+        { "sqlserver", "SELECT a FROM t\nORDER BY a OFFSET 5 ROWS;", [("cannot-represent", 2)] },
+        { "sqlserver", "SELECT a FROM t\nGROUP BY a WITH ROLLUP;", [("cannot-represent", 2)] },
+        { "sqlserver", "INSERT INTO t VALUES (1);", [("dml-not-yet", 1)] },
+        { "sqlserver", ";WITH x AS (SELECT 1 AS a)\nDELETE FROM t;", [("dml-not-yet", 1)] },
+        { "sqlserver", "PRINT 1;", [("not-a-query", 1)] },
+        { "sqlserver", "SELECT 1\nFROM t WHERE;", [("parse-error", 2)] },
     };
 
     [Theory, MemberData(nameof(UnshowableCases))]
@@ -67,6 +93,11 @@ public class SqlReaderTests
         { "postgres", "SELECT ';' AS \"a;b\" -- c;d\n;", new QueryStatement(Query(null, [], new SelectItem(Str(";"), "a;b"))) },
         { "mysql", "SELECT 'it\\'s;' AS `a;b` # c;d\n;\n", new QueryStatement(Query(null, [], new SelectItem(Str("it's;"), "a;b"))) },
         { "sqlite", "SELECT [a;b] FROM t /* ; */;", new QueryStatement(Query(null, [new TableSource(new TableName(null, "t"), null)], new SelectItem(Col("a;b"), null))) },
+        { "sqlserver", "SELECT N';' AS \"a;\"\"b\" /* x /* ; */ ; */;", new QueryStatement(Query(null, [], new SelectItem(Str(";"), "a;\"b"))) },
+        { "sqlserver", "SELECT [a;]]b] FROM t -- ;\n;", new QueryStatement(Query(null, [new TableSource(new TableName(null, "t"), null)], new SelectItem(Col("a;]b"), null))) },
+        { "sqlserver", "SELECT n = [Name] FROM t;", new QueryStatement(Query(null, [new TableSource(new TableName(null, "t"), null)], new SelectItem(Col("Name"), "n"))) },
+        { "sqlserver", "SELECT TOP 5 [a] FROM t;", new QueryStatement(new Query(null, new Select(false, [new SelectItem(Col("a"), null)], [new TableSource(new TableName(null, "t"), null)], null, [], null, []), [], new RowLimit(5, null))) },
+        { "sqlserver", "SELECT TOP 1 [a] FROM t UNION SELECT [b] FROM u;", new QueryStatement(new Query(null, new SetOperation(new NestedQuery(new Query(null, new Select(false, [new SelectItem(Col("a"), null)], [new TableSource(new TableName(null, "t"), null)], null, [], null, []), [], new RowLimit(1, null))), SetOp.Union, false, new Select(false, [new SelectItem(Col("b"), null)], [new TableSource(new TableName(null, "u"), null)], null, [], null, [])), [], null)) },
     };
 
     [Theory, MemberData(nameof(SingleStatementCases))]
@@ -84,6 +115,19 @@ public class SqlReaderTests
         { "mysql", "SELECT CONCAT(a)", new FunctionCall("CONCAT", [Col("a")], false) },
         { "postgres", "SELECT LOWER(a) LIKE LOWER('x')", new Like(new FunctionCall("LOWER", [Col("a")], false), new FunctionCall("LOWER", [Str("x")], false), false, false) },
         { "postgres", "SELECT SUM(a) OVER W FROM t WINDOW W AS (ORDER BY a)", new WindowCall(new FunctionCall("SUM", [Col("a")], false), new WindowSpec("w", [], [], null)) },
+        { "sqlserver", "SELECT N'it''s'", Str("it's") },
+        { "sqlserver", "SELECT 'abc'", new Fragment("'abc'") },
+        { "sqlserver", "SELECT [a] + N'x'", Bin(BinaryOp.Add, Col("a"), Str("x")) },
+        { "sqlserver", "SELECT CONCAT([a], [b])", new Concat([Col("a"), Col("b")]) },
+        { "sqlserver", "SELECT Coalesce([a], 0)", new FunctionCall("Coalesce", [Col("a"), Num("0")], false) },
+        { "sqlserver", "SELECT IIF([a] = 1, 1, 0)", new Fragment("IIF([a] = 1, 1, 0)") },
+        { "sqlserver", "SELECT TRY_CAST([a] AS int)", new Fragment("TRY_CAST([a] AS int)") },
+        { "sqlserver", "SELECT CONVERT(varchar(10), [a], 120)", new Fragment("CONVERT(varchar(10), [a], 120)") },
+        { "sqlserver", "SELECT CAST([a] AS decimal(10, 2))", new Cast(Col("a"), "decimal(10, 2)") },
+        { "sqlserver", "SELECT -12.5", Num("-12.5") },
+        { "sqlserver", "SELECT [a] COLLATE Latin1_General_CI_AS", new Fragment("[a] COLLATE Latin1_General_CI_AS") },
+        { "sqlserver", "SELECT \"x\"\"y\"", Col("x\"y") },
+        { "sqlserver", "SELECT DATEADD(day, 1, [a])", new Fragment("DATEADD(day, 1, [a])") },
     };
 
     [Theory, MemberData(nameof(ExpressionCases))]
@@ -100,6 +144,7 @@ public class SqlReaderTests
         { "postgres", "-- a\nSELECT /* b */ 1 /* c */;", 3 },
         { "mysql", "# a\nSELECT 1 -- b\n;", 2 },
         { "sqlite", "SELECT '--x', '/*y*/';", 0 },
+        { "sqlserver", "-- a\nSELECT /* b /* c */ */ 1;", 2 },
     };
 
     [Theory, MemberData(nameof(CommentCases))]
@@ -127,6 +172,11 @@ public class SqlReaderTests
         { "postgres", "SELECT * FROM t ORDER BY a NULLS FIRST;" },
         { "sqlite", "SELECT CURRENT_TIMESTAMP;" },
         { "postgres", "SELECT * FROM generate_series(1, 3);" },
+        { "sqlserver", "SELECT CURRENT_TIMESTAMP;" },
+        { "sqlserver", "SELECT * FROM dbo.fn(1);" },
+        { "sqlserver", "SELECT * FROM a INNER LOOP JOIN b ON a.x = b.x;" },
+        { "sqlserver", "SELECT * FROM db.dbo.t;" },
+        { "sqlserver", "SELECT 1 WHERE [a] LIKE N'x!%' ESCAPE N'!';" },
     };
 
     [Theory, MemberData(nameof(FragmentCases))]
@@ -175,8 +225,33 @@ public class SqlReaderTests
     }
 
     [Fact]
-    public void For_SqlServer_IsNotSupportedYet()
+    public void Read_SqlServerTableHint_KeepsTheTableAsAFragmentVerbatim()
     {
-        Assert.Throws<NotSupportedException>(() => SqlReaders.For("sqlserver"));
+        var on = Bin(BinaryOp.Eq, Col("u", "id"), Col("t", "id"));
+        var from = new JoinSource(new FragmentSource("t AS x WITH (NOLOCK)"), JoinType.Inner, new TableSource(new TableName(null, "u"), null), on);
+        var expected = new QueryStatement(Query(null, [from], new SelectItem(Col("a"), null)));
+
+        var result = SqlReaders.For("sqlserver").Read("SELECT a FROM t AS x WITH (NOLOCK)\nINNER JOIN u ON u.id = t.id;");
+
+        Assert.Equal(ReadOutcome.ReadWithFragments, result.Outcome);
+        Assert.Equal(expected, result.Statement);
+    }
+
+    public static TheoryData<string, Expr> SqlServerPredicateCases() => new()
+    {
+        { "SELECT 1 WHERE 1 = 1", new Literal(LiteralKind.Boolean, "true") },
+        { "SELECT 1 WHERE (1 = 0)", new Literal(LiteralKind.Boolean, "false") },
+        { "SELECT 1 WHERE [a] = 1", Bin(BinaryOp.Eq, Col("a"), Num("1")) },
+        { "SELECT 1 WHERE NOT EXISTS (SELECT 1)", new Exists(Query(Num("1")), true) },
+        { "SELECT 1 WHERE [a] != 1", Bin(BinaryOp.NotEq, Col("a"), Num("1")) },
+    };
+
+    [Theory, MemberData(nameof(SqlServerPredicateCases))]
+    public void Read_SqlServerPredicate_ReadsAsTheGeneratorWritesIt(string sql, Expr expected)
+    {
+        var result = SqlReaders.For("sqlserver").Read(sql);
+
+        var select = Assert.IsType<Select>(Assert.IsType<QueryStatement>(result.Statement).Query.Body);
+        Assert.Equal(expected, select.Where);
     }
 }

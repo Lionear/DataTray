@@ -60,8 +60,7 @@ internal static class ScriptScanner
             }
             if (c == '/' && next == '*')
             {
-                var end = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                var stop = end >= 0 ? end + 2 : sql.Length;
+                var stop = sqlServer ? NestedCommentEnd(sql, i) : sql.IndexOf("*/", i + 2, StringComparison.Ordinal) is var end and >= 0 ? end + 2 : sql.Length;
                 if (mysql && i + 2 < sql.Length && sql[i + 2] is '!' or '+')
                 {
                     reasons.Add(new ReadReason("mysql-executable-comment", "MySQL runs /*! … */ and /*+ … */ comments; the builder would drop them.", line));
@@ -88,7 +87,7 @@ internal static class ScriptScanner
             string? word = null;
             ReadReason? finding = null;
             var isString = false;
-            if (c is '\'' || (c is '"' && !sqlServer) || (c is '`' && !sqlServer) || (c is '[' && providerId is "sqlserver" or "sqlite"))
+            if (c is '\'' || c is '"' || (c is '`' && !sqlServer) || (c is '[' && providerId is "sqlserver" or "sqlite"))
             {
                 var start = i;
                 var close = c == '[' ? ']' : c;
@@ -192,7 +191,7 @@ internal static class ScriptScanner
         "DECLARE" => Reason("declare", "Variable declarations can't be shown in the builder."),
         "SET" => Reason("set-variable", "SET statements can't be shown in the builder."),
         "IF" or "WHILE" => ControlFlow(),
-        "BEGIN" when !sqlServer || next is "TRAN" or "TRANSACTION" => Transaction(),
+        "BEGIN" when !sqlServer || next is "TRAN" or "TRANSACTION" or "DISTRIBUTED" => Transaction(),
         "BEGIN" => ControlFlow(),
         "START" when next is "TRANSACTION" => Transaction(),
         "COMMIT" or "ROLLBACK" or "SAVEPOINT" => Transaction(),
@@ -212,7 +211,7 @@ internal static class ScriptScanner
 
     private static ReadReason? WordFinding(string word, string prev, string providerId) => providerId switch
     {
-        "mysql" when word.StartsWith('@') => Reason("variable", "Variables can't be shown in the builder."),
+        "mysql" or "sqlserver" when word.StartsWith('@') => Reason("variable", "Variables can't be shown in the builder."),
         "mysql" when word == "XOR" => MySqlOperator(),
         "mysql" when MySqlModifiers.Contains(word) => Reason("mysql-modifier", "MySQL SELECT modifiers can't be shown in the builder."),
         "postgres" when word == "ONLY" && prev is "FROM" or "JOIN" or "," => Reason("only", "ONLY (skip inherited tables) can't be shown in the builder."),
@@ -273,6 +272,23 @@ internal static class ScriptScanner
             i++;
         }
         return i;
+    }
+
+    // T-SQL block comments nest: "/* a /* b */ c */" is one comment.
+    private static int NestedCommentEnd(string sql, int i)
+    {
+        var depth = 0;
+        while (i < sql.Length - 1)
+        {
+            var pair = sql.AsSpan(i, 2);
+            depth += pair is "/*" ? 1 : pair is "*/" ? -1 : 0;
+            i += pair is "/*" or "*/" ? 2 : 1;
+            if (depth == 0)
+            {
+                return i;
+            }
+        }
+        return sql.Length;
     }
 
     private static int LineEnd(string sql, int i) => sql.IndexOf('\n', i) is var end and >= 0 ? end : sql.Length;
