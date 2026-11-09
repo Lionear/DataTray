@@ -1,0 +1,47 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "FunctionCall",
+            "name": "Coalesce",
+            "args": [
+              {
+                "$type": "FunctionCall",
+                "name": "aBs",
+                "args": [
+                  {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  }
+                ],
+                "distinct": false
+              },
+              {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "0"
+              }
+            ],
+            "distinct": false
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

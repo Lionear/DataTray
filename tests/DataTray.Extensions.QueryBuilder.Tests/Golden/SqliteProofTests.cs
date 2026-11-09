@@ -16,6 +16,16 @@ public class SqliteProofTests
         Assert.Equal(FixtureCases.Version("sqlite"), command.ExecuteScalar());
     }
 
+    [Fact]
+    public void Explain_UnknownColumn_Throws()
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "EXPLAIN SELECT \"NoSuchColumn\" FROM \"Researcher\"";
+
+        Assert.Throws<SqliteException>(() => command.ExecuteNonQuery());
+    }
+
     [Theory, MemberData(nameof(Cases))]
     public void Golden_ExplainsAgainstTheDemoSchema(string dialect, string name)
     {

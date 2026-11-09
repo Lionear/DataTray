@@ -12,21 +12,15 @@
             "args": [
               {
                 "$type": "FunctionCall",
-                "name": "SUBSTR",
+                "name": "COALESCE",
                 "args": [
                   {
                     "$type": "ColumnRef",
+                    "name": "Email"
+                  },
+                  {
+                    "$type": "ColumnRef",
                     "name": "Name"
-                  },
-                  {
-                    "$type": "Literal",
-                    "kind": "Number",
-                    "text": "1"
-                  },
-                  {
-                    "$type": "Literal",
-                    "kind": "Number",
-                    "text": "3"
                   }
                 ],
                 "distinct": false

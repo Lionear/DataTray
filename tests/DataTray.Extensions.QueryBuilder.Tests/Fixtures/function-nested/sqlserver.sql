@@ -1,2 +1,2 @@
-SELECT UPPER(SUBSTR([Name], 1, 3))
+SELECT UPPER(COALESCE([Email], [Name]))
 FROM [Researcher];

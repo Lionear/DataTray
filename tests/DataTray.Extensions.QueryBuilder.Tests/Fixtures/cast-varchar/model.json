@@ -12,7 +12,7 @@
               "$type": "ColumnRef",
               "name": "HIndex"
             },
-            "typeName": "VARCHAR(20)"
+            "typeName": "CHAR(20)"
           }
         }
       ],

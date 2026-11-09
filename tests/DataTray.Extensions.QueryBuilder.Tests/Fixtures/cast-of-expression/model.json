@@ -21,7 +21,7 @@
                 "text": "1"
               }
             },
-            "typeName": "VARCHAR(5)"
+            "typeName": "CHAR(5)"
           }
         }
       ],

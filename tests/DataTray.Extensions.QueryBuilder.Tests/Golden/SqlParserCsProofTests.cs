@@ -6,7 +6,7 @@ namespace DataTray.Extensions.QueryBuilder.Tests.Golden;
 public class SqlParserCsProofTests
 {
     // SqlParserCS 0.6.5 lacks the PostgreSQL frame EXCLUDE clause; SqliteProofTests proves that syntax.
-    private static readonly string[] ParserGaps = ["window-frame-exclude-current-row", "window-frame-exclude-no-others", "window-frame-exclude-ties"];
+    private static readonly string[] ParserGaps = ["window-frame-exclude-current-row", "window-frame-exclude-group", "window-frame-exclude-no-others", "window-frame-exclude-ties"];
 
     public static TheoryData<string, string> Cases() => FixtureCases.SqlCases(n => !ParserGaps.Contains(n), "postgres", "mysql");
 

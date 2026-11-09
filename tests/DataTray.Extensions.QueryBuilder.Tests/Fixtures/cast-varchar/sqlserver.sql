@@ -1,2 +1,2 @@
-SELECT CAST([HIndex] AS VARCHAR(20))
+SELECT CAST([HIndex] AS CHAR(20))
 FROM [Researcher];
