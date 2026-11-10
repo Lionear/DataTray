@@ -1,4 +1,5 @@
 using System.Globalization;
+using DataTray.Extensions.QueryBuilder.Generation;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 using M = DataTray.Extensions.QueryBuilder.Model;
 
@@ -141,7 +142,7 @@ internal sealed class ScriptDomMapper(string sql)
         M.Expr[] groupBy = s.GroupByClause switch
         {
             null => [],
-            { All: false, GroupByOption: GroupByOption.None } g when g.GroupingSpecifications.All(x => x is ExpressionGroupingSpecification) =>
+            { All: false, GroupByOption: GroupByOption.None } g when g.GroupingSpecifications.All(x => x is ExpressionGroupingSpecification { DistributedAggregation: false }) =>
                 g.GroupingSpecifications.Cast<ExpressionGroupingSpecification>().Select(x => Expr(x.Expression)).ToArray(),
             var g => throw new Refused("GROUP BY ALL, ROLLUP, CUBE or GROUPING SETS", g.StartLine),
         };
@@ -219,7 +220,7 @@ internal sealed class ScriptDomMapper(string sql)
         UnqualifiedJoin j => new M.JoinSource(Reference(j.FirstTableReference), JoinType(j.UnqualifiedJoinType), Reference(j.SecondTableReference), null),
         JoinParenthesisTableReference p => Reference(p.Join),
         NamedTableReference t => Table(t),
-        QueryDerivedTable { Columns.Count: 0, Alias: { } alias } d => new M.SubquerySource(Query(d.QueryExpression), alias.Value, false),
+        QueryDerivedTable { Columns.Count: 0, Alias: { } alias, ForPath: false } d => new M.SubquerySource(Query(d.QueryExpression), alias.Value, false),
         // A single table, function or derived table is one unit of the FROM clause, so its own text can stand in for it.
         _ => FragmentSource(reference),
     };
@@ -281,12 +282,14 @@ internal sealed class ScriptDomMapper(string sql)
         ColumnReferenceExpression { ColumnType: ColumnType.Regular, MultiPartIdentifier.Identifiers: [var q, var n] } => new M.ColumnRef(q.Value, n.Value),
         ColumnReferenceExpression { ColumnType: ColumnType.Wildcard, MultiPartIdentifier: null } => new M.Star(null),
         ColumnReferenceExpression { ColumnType: ColumnType.Wildcard, MultiPartIdentifier.Identifiers: [var q] } => new M.Star(q.Value),
-        IntegerLiteral or NumericLiteral or RealLiteral => new M.Literal(M.LiteralKind.Number, ((Literal)e).Value),
+        // Only number text the generator writes back unchanged; ScriptDom also takes "1e" as a real.
+        (IntegerLiteral or NumericLiteral or RealLiteral) and Literal { Value: var number } when SqlGenerator.NumberText().IsMatch(number) =>
+            new M.Literal(M.LiteralKind.Number, number),
         StringLiteral s => new M.Literal(s.IsNational ? M.LiteralKind.String : M.LiteralKind.NarrowString, s.Value),
         NullLiteral => new M.Literal(M.LiteralKind.Null, "NULL"),
         ParenthesisExpression p => Map(p.Expression),
         BooleanParenthesisExpression p => Map(p.Expression),
-        UnaryExpression { UnaryExpressionType: UnaryExpressionType.Negative, Expression: (IntegerLiteral or NumericLiteral or RealLiteral) and Literal { Collation: null } n } =>
+        UnaryExpression { UnaryExpressionType: UnaryExpressionType.Negative, Expression: (IntegerLiteral or NumericLiteral or RealLiteral) and Literal { Collation: null } n } when SqlGenerator.NumberText().IsMatch(n.Value) =>
             new M.Literal(M.LiteralKind.Number, "-" + n.Value),
         UnaryExpression { UnaryExpressionType: UnaryExpressionType.Negative } u => new M.Unary(M.UnaryOp.Negate, Expr(u.Expression)),
         // T-SQL + adds or concatenates depending on the operand types; Add is written back as the same +.
@@ -337,7 +340,8 @@ internal sealed class ScriptDomMapper(string sql)
         if (f.CallTarget is not null || f.FunctionName.QuoteType != QuoteType.NotQuoted || f.UniqueRowFilter == UniqueRowFilter.All
             || f.WithinGroupClause is not null || f.IgnoreRespectNulls is { Count: > 0 } || f.TrimOptions is not null
             || f.JsonParameters is { Count: > 0 } || f.JsonOrderByClause is not null || f.AbsentOrNullOnNull is { Count: > 0 }
-            || f.ReturnType is { Count: > 0 } || f.WithArrayWrapper || DatePartFunctions.Contains(name, StringComparer.OrdinalIgnoreCase))
+            || f.ReturnType is { Count: > 0 } || f.WithArrayWrapper || DatePartFunctions.Contains(name, StringComparer.OrdinalIgnoreCase)
+            || !PlainArguments(f))
         {
             throw new Unrepresentable("this function call");
         }
@@ -352,6 +356,41 @@ internal sealed class ScriptDomMapper(string sql)
             ? new M.WindowCall(call, WindowSpec(over.WindowName, over.Partitions, over.OrderByClause, over.WindowFrameClause))
             : call;
     }
+
+    // ScriptDom folds keyword syntax such as TRIM(x FROM y) into Parameters; any token between the parentheses that is
+    // not part of a parameter, a comma, DISTINCT/ALL or trivia means the call is not a plain argument list.
+    private static bool PlainArguments(FunctionCall f)
+    {
+        var tokens = f.ScriptTokenStream;
+        var i = f.FunctionName.LastTokenIndex + 1;
+        while (tokens[i].TokenType != TSqlTokenType.LeftParenthesis)
+        {
+            i++;
+        }
+        i++;
+        foreach (var parameter in f.Parameters)
+        {
+            for (; i < parameter.FirstTokenIndex; i++)
+            {
+                if (!Separator(tokens[i].TokenType))
+                {
+                    return false;
+                }
+            }
+            i = parameter.LastTokenIndex + 1;
+        }
+        for (; tokens[i].TokenType != TSqlTokenType.RightParenthesis; i++)
+        {
+            if (!Separator(tokens[i].TokenType))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool Separator(TSqlTokenType type) => type is TSqlTokenType.Comma or TSqlTokenType.WhiteSpace
+        or TSqlTokenType.SingleLineComment or TSqlTokenType.MultilineComment or TSqlTokenType.Distinct or TSqlTokenType.All;
 
     // LOWER(x) LIKE LOWER(p) is how the generator writes a case-insensitive LIKE (SQL Server has no ILIKE).
     private M.Expr Like(ScalarExpression value, ScalarExpression pattern, bool not) =>

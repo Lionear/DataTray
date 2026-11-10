@@ -39,7 +39,7 @@ public sealed partial class SqlGenerator
 
     // [0-9], not \d: \d also matches non-ASCII digits.
     [GeneratedRegex(@"^-?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?\z")]
-    private static partial Regex NumberText();
+    internal static partial Regex NumberText();
 
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*\z")]
     private static partial Regex SimpleName();

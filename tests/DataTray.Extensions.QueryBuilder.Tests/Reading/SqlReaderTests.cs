@@ -72,6 +72,7 @@ public class SqlReaderTests
         { "sqlserver", "SELECT a FROM t\nOPTION (RECOMPILE);", [("cannot-represent", 2)] },
         { "sqlserver", "SELECT a FROM t\nORDER BY a OFFSET 5 ROWS;", [("cannot-represent", 2)] },
         { "sqlserver", "SELECT a FROM t\nGROUP BY a WITH ROLLUP;", [("cannot-represent", 2)] },
+        { "sqlserver", "SELECT a FROM t\nGROUP BY a WITH (DISTRIBUTED_AGG);", [("cannot-represent", 2)] },
         { "sqlserver", "INSERT INTO t VALUES (1);", [("dml-not-yet", 1)] },
         { "sqlserver", ";WITH x AS (SELECT 1 AS a)\nDELETE FROM t;", [("dml-not-yet", 1)] },
         { "sqlserver", "PRINT 1;", [("not-a-query", 1)] },
@@ -128,6 +129,8 @@ public class SqlReaderTests
         { "sqlserver", "SELECT [a] COLLATE Latin1_General_CI_AS", new Fragment("[a] COLLATE Latin1_General_CI_AS") },
         { "sqlserver", "SELECT \"x\"\"y\"", Col("x\"y") },
         { "sqlserver", "SELECT DATEADD(day, 1, [a])", new Fragment("DATEADD(day, 1, [a])") },
+        { "sqlserver", "SELECT TRIM(N'x' FROM [a])", new Fragment("TRIM(N'x' FROM [a])") },
+        { "sqlserver", "SELECT 1e", new Fragment("1e") },
     };
 
     [Theory, MemberData(nameof(ExpressionCases))]
@@ -235,6 +238,15 @@ public class SqlReaderTests
 
         Assert.Equal(ReadOutcome.ReadWithFragments, result.Outcome);
         Assert.Equal(expected, result.Statement);
+    }
+
+    [Fact]
+    public void Read_SqlServerDerivedTableForPath_KeepsTheSourceAsAFragment()
+    {
+        var result = SqlReaders.For("sqlserver").Read("SELECT 1 FROM t AS a, (SELECT 1 AS n) FOR PATH AS x WHERE MATCH(SHORTEST_PATH(a(-(e)->x)+))");
+
+        var select = Assert.IsType<Select>(Assert.IsType<QueryStatement>(result.Statement).Query.Body);
+        Assert.IsType<FragmentSource>(select.From[1]);
     }
 
     public static TheoryData<string, Expr> SqlServerPredicateCases() => new()
