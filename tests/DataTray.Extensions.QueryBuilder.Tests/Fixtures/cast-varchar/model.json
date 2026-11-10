@@ -1,0 +1,32 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Cast",
+            "value": {
+              "$type": "ColumnRef",
+              "name": "HIndex"
+            },
+            "typeName": "CHAR(20)"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

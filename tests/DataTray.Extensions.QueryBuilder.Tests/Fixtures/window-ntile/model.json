@@ -1,0 +1,57 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "WindowCall",
+            "function": {
+              "name": "NTILE",
+              "args": [
+                {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "4"
+                }
+              ],
+              "distinct": false
+            },
+            "over": {
+              "partitionBy": [],
+              "orderBy": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  },
+                  "descending": false
+                }
+              ]
+            }
+          },
+          "alias": "W"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

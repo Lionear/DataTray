@@ -1,0 +1,103 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "with": {
+      "recursive": true,
+      "ctes": [
+        {
+          "name": "Seq",
+          "columns": [
+            "n"
+          ],
+          "query": {
+            "body": {
+              "$type": "SetOperation",
+              "left": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "Literal",
+                      "kind": "Number",
+                      "text": "1"
+                    }
+                  }
+                ],
+                "from": [],
+                "groupBy": [],
+                "windows": []
+              },
+              "op": "Union",
+              "all": true,
+              "right": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "Binary",
+                      "op": "Add",
+                      "left": {
+                        "$type": "ColumnRef",
+                        "name": "n"
+                      },
+                      "right": {
+                        "$type": "Literal",
+                        "kind": "Number",
+                        "text": "1"
+                      }
+                    }
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "CteSource",
+                    "name": "Seq"
+                  }
+                ],
+                "where": {
+                  "$type": "Binary",
+                  "op": "Lt",
+                  "left": {
+                    "$type": "ColumnRef",
+                    "name": "n"
+                  },
+                  "right": {
+                    "$type": "Literal",
+                    "kind": "Number",
+                    "text": "10"
+                  }
+                },
+                "groupBy": [],
+                "windows": []
+              }
+            },
+            "orderBy": []
+          }
+        }
+      ]
+    },
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "n"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "CteSource",
+          "name": "Seq"
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

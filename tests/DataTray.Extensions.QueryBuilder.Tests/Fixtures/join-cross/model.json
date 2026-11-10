@@ -1,0 +1,48 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "r",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "c",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Researcher"
+            },
+            "alias": "r"
+          },
+          "type": "Cross",
+          "right": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Conference"
+            },
+            "alias": "c"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

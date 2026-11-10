@@ -1,0 +1,48 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "InList",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "Name"
+        },
+        "items": [
+          {
+            "$type": "Literal",
+            "kind": "String",
+            "text": "Ada"
+          },
+          {
+            "$type": "Literal",
+            "kind": "String",
+            "text": "Alan"
+          }
+        ],
+        "not": true
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

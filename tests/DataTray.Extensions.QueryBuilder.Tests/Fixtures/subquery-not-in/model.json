@@ -1,0 +1,61 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "InSubquery",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "Id"
+        },
+        "query": {
+          "body": {
+            "$type": "Select",
+            "distinct": false,
+            "items": [
+              {
+                "expr": {
+                  "$type": "ColumnRef",
+                  "name": "ResearcherId"
+                }
+              }
+            ],
+            "from": [
+              {
+                "$type": "TableSource",
+                "name": {
+                  "name": "Grant"
+                }
+              }
+            ],
+            "groupBy": [],
+            "windows": []
+          },
+          "orderBy": []
+        },
+        "not": true
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

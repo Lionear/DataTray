@@ -1,0 +1,7 @@
+SELECT "Name"
+FROM "Researcher"
+UNION ALL
+SELECT "Name"
+FROM "Institution"
+ORDER BY "Name" DESC
+LIMIT 10 OFFSET 20;

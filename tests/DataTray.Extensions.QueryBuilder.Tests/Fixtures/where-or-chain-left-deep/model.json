@@ -1,0 +1,92 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Or",
+        "left": {
+          "$type": "Binary",
+          "op": "Or",
+          "left": {
+            "$type": "Binary",
+            "op": "Or",
+            "left": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "name": "HIndex"
+              },
+              "right": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "1"
+              }
+            },
+            "right": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "name": "HIndex"
+              },
+              "right": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "2"
+              }
+            }
+          },
+          "right": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "name": "HIndex"
+            },
+            "right": {
+              "$type": "Literal",
+              "kind": "Number",
+              "text": "3"
+            }
+          }
+        },
+        "right": {
+          "$type": "Binary",
+          "op": "Eq",
+          "left": {
+            "$type": "ColumnRef",
+            "name": "HIndex"
+          },
+          "right": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "4"
+          }
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

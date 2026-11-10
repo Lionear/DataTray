@@ -1,0 +1,41 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Eq",
+        "left": {
+          "$type": "ColumnRef",
+          "name": "Name"
+        },
+        "right": {
+          "$type": "Literal",
+          "kind": "String",
+          "text": "a\\b"
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Eq",
+        "left": {
+          "$type": "Case",
+          "whens": [
+            {
+              "when": {
+                "$type": "Binary",
+                "op": "Eq",
+                "left": {
+                  "$type": "ColumnRef",
+                  "name": "Active"
+                },
+                "right": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "1"
+                }
+              },
+              "then": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "1"
+              }
+            }
+          ],
+          "else": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "0"
+          }
+        },
+        "right": {
+          "$type": "Literal",
+          "kind": "Number",
+          "text": "1"
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": [
+      {
+        "expr": {
+          "$type": "Case",
+          "whens": [
+            {
+              "when": {
+                "$type": "Binary",
+                "op": "Eq",
+                "left": {
+                  "$type": "ColumnRef",
+                  "name": "Active"
+                },
+                "right": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "1"
+                }
+              },
+              "then": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "0"
+              }
+            }
+          ],
+          "else": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "1"
+          }
+        },
+        "descending": false
+      }
+    ]
+  }
+}

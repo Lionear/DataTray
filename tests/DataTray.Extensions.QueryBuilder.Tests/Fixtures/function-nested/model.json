@@ -1,0 +1,46 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "FunctionCall",
+            "name": "UPPER",
+            "args": [
+              {
+                "$type": "FunctionCall",
+                "name": "COALESCE",
+                "args": [
+                  {
+                    "$type": "ColumnRef",
+                    "name": "Email"
+                  },
+                  {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                ],
+                "distinct": false
+              }
+            ],
+            "distinct": false
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

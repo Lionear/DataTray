@@ -1,0 +1,77 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Star",
+            "qualifier": "p"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Paper"
+            },
+            "alias": "p"
+          },
+          "type": "Inner",
+          "right": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Conference"
+            },
+            "alias": "c"
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "qualifier": "p",
+              "name": "ConferenceId"
+            },
+            "right": {
+              "$type": "ColumnRef",
+              "qualifier": "c",
+              "name": "Id"
+            }
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Eq",
+        "left": {
+          "$type": "ColumnRef",
+          "qualifier": "c",
+          "name": "Rank"
+        },
+        "right": {
+          "$type": "Literal",
+          "kind": "String",
+          "text": "A*"
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": [
+      {
+        "expr": {
+          "$type": "ColumnRef",
+          "qualifier": "p",
+          "name": "Citations"
+        },
+        "descending": true
+      }
+    ]
+  }
+}

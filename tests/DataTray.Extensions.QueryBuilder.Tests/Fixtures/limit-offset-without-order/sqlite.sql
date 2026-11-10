@@ -1,0 +1,3 @@
+SELECT "Name"
+FROM "Researcher"
+LIMIT 10 OFFSET 20;

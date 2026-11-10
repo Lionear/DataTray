@@ -1,0 +1,30 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "FunctionCall",
+            "name": "ABS",
+            "args": [
+              {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "-1"
+              }
+            ],
+            "distinct": false
+          },
+          "alias": "A"
+        }
+      ],
+      "from": [],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

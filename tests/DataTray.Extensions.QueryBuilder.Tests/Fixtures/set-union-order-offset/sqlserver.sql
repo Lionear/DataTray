@@ -1,0 +1,7 @@
+SELECT [Name]
+FROM [Researcher]
+UNION ALL
+SELECT [Name]
+FROM [Institution]
+ORDER BY [Name] DESC
+OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY;

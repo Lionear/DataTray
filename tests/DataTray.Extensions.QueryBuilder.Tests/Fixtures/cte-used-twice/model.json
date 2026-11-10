@@ -1,0 +1,103 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "with": {
+      "recursive": false,
+      "ctes": [
+        {
+          "name": "R",
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Id"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "AdvisorId"
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Researcher"
+                  }
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        }
+      ]
+    },
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "x",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "y",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "CteSource",
+            "name": "R",
+            "alias": "x"
+          },
+          "type": "Inner",
+          "right": {
+            "$type": "CteSource",
+            "name": "R",
+            "alias": "y"
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "qualifier": "x",
+              "name": "AdvisorId"
+            },
+            "right": {
+              "$type": "ColumnRef",
+              "qualifier": "y",
+              "name": "Id"
+            }
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

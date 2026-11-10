@@ -1,0 +1,64 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "s",
+            "name": "Name"
+          },
+          "alias": "Student"
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "a",
+            "name": "Name"
+          },
+          "alias": "Advisor"
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Researcher"
+            },
+            "alias": "s"
+          },
+          "type": "Left",
+          "right": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Researcher"
+            },
+            "alias": "a"
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "qualifier": "s",
+              "name": "AdvisorId"
+            },
+            "right": {
+              "$type": "ColumnRef",
+              "qualifier": "a",
+              "name": "Id"
+            }
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

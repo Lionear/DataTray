@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "query-builder",
+  "type": "extension",
+  "name": "Visual Query Builder",
+  "version": "0.1.0",
+  "hostApiVersion": 9,
+  "entryAssembly": "DataTray.Extensions.QueryBuilder.dll",
+  "capabilities": ["query-pane", "schema", "storage"]
+}

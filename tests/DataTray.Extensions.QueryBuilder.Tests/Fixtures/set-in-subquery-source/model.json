@@ -1,0 +1,80 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "u",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "SubquerySource",
+          "query": {
+            "body": {
+              "$type": "SetOperation",
+              "left": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "name": "Name"
+                    }
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "TableSource",
+                    "name": {
+                      "name": "Researcher"
+                    }
+                  }
+                ],
+                "groupBy": [],
+                "windows": []
+              },
+              "op": "Union",
+              "all": true,
+              "right": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "name": "Name"
+                    }
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "TableSource",
+                    "name": {
+                      "name": "Institution"
+                    }
+                  }
+                ],
+                "groupBy": [],
+                "windows": []
+              }
+            },
+            "orderBy": []
+          },
+          "alias": "u",
+          "lateral": false
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

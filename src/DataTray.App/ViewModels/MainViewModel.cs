@@ -424,8 +424,10 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Persist the open query tabs so the next launch can reopen them (called by the view on close).</summary>
     public void PersistOpenTabs() =>
         _openTabsStore.Save(Documents
-            .Where(d => d is { IsQueryMode: true, Connection: not null })
-            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument), d.PaneStates.Count == 0 ? null : d.PaneStates))
+            .Select(d => d is { IsQueryMode: true, Connection: { } connection }
+                ? new OpenTabState(connection.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument), d.PaneStates.Count == 0 ? null : d.PaneStates)
+                : null)
+            .OfType<OpenTabState>()
             .ToList());
 
     /// <summary>True when the Plugin Store has staged changes that need a restart — shows a main-window banner.</summary>

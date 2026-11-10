@@ -1,0 +1,87 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "r",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "p",
+            "name": "Title"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "JoinSource",
+            "left": {
+              "$type": "TableSource",
+              "name": {
+                "name": "Researcher"
+              },
+              "alias": "r"
+            },
+            "type": "Inner",
+            "right": {
+              "$type": "TableSource",
+              "name": {
+                "name": "PaperAuthor"
+              },
+              "alias": "pa"
+            },
+            "on": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "qualifier": "r",
+                "name": "Id"
+              },
+              "right": {
+                "$type": "ColumnRef",
+                "qualifier": "pa",
+                "name": "ResearcherId"
+              }
+            }
+          },
+          "type": "Left",
+          "right": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Paper"
+            },
+            "alias": "p"
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "Eq",
+            "left": {
+              "$type": "ColumnRef",
+              "qualifier": "pa",
+              "name": "PaperId"
+            },
+            "right": {
+              "$type": "ColumnRef",
+              "qualifier": "p",
+              "name": "Id"
+            }
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

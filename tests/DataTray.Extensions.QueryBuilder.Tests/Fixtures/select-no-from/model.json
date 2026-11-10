@@ -1,0 +1,31 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "1"
+          },
+          "alias": "One"
+        },
+        {
+          "expr": {
+            "$type": "Literal",
+            "kind": "String",
+            "text": "x"
+          },
+          "alias": "Letter"
+        }
+      ],
+      "from": [],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

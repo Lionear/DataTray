@@ -14,6 +14,8 @@
          present at runtime — the host normally provides it across the ALC, so here the test plays that role.
          (No control is instantiated, so no display/AppBuilder is needed.) -->
     <PackageReference Include="Avalonia" Version="12.0.5" />
+    <!-- Test-only: NullForgivingGuardTests finds the null-forgiving operator by syntax tree, not by regex. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />

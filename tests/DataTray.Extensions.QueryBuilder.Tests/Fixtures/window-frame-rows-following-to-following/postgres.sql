@@ -1,0 +1,3 @@
+SELECT "Name",
+       SUM("Salary") OVER (ORDER BY "Id" ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING) AS "W"
+FROM "Researcher";

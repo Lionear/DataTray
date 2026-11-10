@@ -1,0 +1,57 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ScalarSubquery",
+            "query": {
+              "body": {
+                "$type": "Select",
+                "distinct": false,
+                "items": [
+                  {
+                    "expr": {
+                      "$type": "ColumnRef",
+                      "name": "Title"
+                    }
+                  }
+                ],
+                "from": [
+                  {
+                    "$type": "TableSource",
+                    "name": {
+                      "name": "Paper"
+                    }
+                  }
+                ],
+                "groupBy": [],
+                "windows": []
+              },
+              "orderBy": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Citations"
+                  },
+                  "descending": true
+                }
+              ],
+              "limit": {
+                "count": 1
+              }
+            }
+          },
+          "alias": "TopPaper"
+        }
+      ],
+      "from": [],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

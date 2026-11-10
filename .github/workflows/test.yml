@@ -69,6 +69,10 @@ jobs:
       - name: Test (Tools.ErDiagram)
         run: dotnet test tests/DataTray.Tools.ErDiagram.Tests/DataTray.Tools.ErDiagram.Tests.csproj -c Release
 
+      # Visual Query Builder (SE-299): the pure core — model, SQL generator and reader. No database server.
+      - name: Test (Extensions.QueryBuilder)
+        run: dotnet test tests/DataTray.Extensions.QueryBuilder.Tests/DataTray.Extensions.QueryBuilder.Tests.csproj -c Release
+
       # SQL Server admin plugin: the pure logic behind its tools — the Activity Monitor's rate arithmetic
       # (cumulative DMV counters differenced into per-second figures) and the index statements. No database.
       - name: Test (Tools.MsSqlAdmin)

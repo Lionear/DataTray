@@ -1,0 +1,63 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Case",
+            "operand": {
+              "$type": "ColumnRef",
+              "name": "InstitutionId"
+            },
+            "whens": [
+              {
+                "when": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "1"
+                },
+                "then": {
+                  "$type": "Literal",
+                  "kind": "String",
+                  "text": "one"
+                }
+              },
+              {
+                "when": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "2"
+                },
+                "then": {
+                  "$type": "Literal",
+                  "kind": "String",
+                  "text": "two"
+                }
+              }
+            ],
+            "else": {
+              "$type": "Literal",
+              "kind": "String",
+              "text": "other"
+            }
+          },
+          "alias": "Name2"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

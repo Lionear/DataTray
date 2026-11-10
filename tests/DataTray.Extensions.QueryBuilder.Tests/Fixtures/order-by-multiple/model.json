@@ -1,0 +1,50 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": [
+      {
+        "expr": {
+          "$type": "ColumnRef",
+          "name": "InstitutionId"
+        },
+        "descending": false
+      },
+      {
+        "expr": {
+          "$type": "ColumnRef",
+          "name": "HIndex"
+        },
+        "descending": true
+      },
+      {
+        "expr": {
+          "$type": "ColumnRef",
+          "name": "Name"
+        },
+        "descending": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Case",
+            "whens": [
+              {
+                "when": {
+                  "$type": "Binary",
+                  "op": "Gt",
+                  "left": {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  },
+                  "right": {
+                    "$type": "Literal",
+                    "kind": "Number",
+                    "text": "1"
+                  }
+                },
+                "then": {
+                  "$type": "Case",
+                  "whens": [
+                    {
+                      "when": {
+                        "$type": "Binary",
+                        "op": "Gt",
+                        "left": {
+                          "$type": "ColumnRef",
+                          "name": "Salary"
+                        },
+                        "right": {
+                          "$type": "Literal",
+                          "kind": "Number",
+                          "text": "100"
+                        }
+                      },
+                      "then": {
+                        "$type": "Literal",
+                        "kind": "Number",
+                        "text": "2"
+                      }
+                    }
+                  ],
+                  "else": {
+                    "$type": "Literal",
+                    "kind": "Number",
+                    "text": "1"
+                  }
+                }
+              }
+            ],
+            "else": {
+              "$type": "Literal",
+              "kind": "Number",
+              "text": "0"
+            }
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

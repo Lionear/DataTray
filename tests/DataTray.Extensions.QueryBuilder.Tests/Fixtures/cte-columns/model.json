@@ -1,0 +1,69 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "with": {
+      "recursive": false,
+      "ctes": [
+        {
+          "name": "Names",
+          "columns": [
+            "n",
+            "h"
+          ],
+          "query": {
+            "body": {
+              "$type": "Select",
+              "distinct": false,
+              "items": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "Name"
+                  }
+                },
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  }
+                }
+              ],
+              "from": [
+                {
+                  "$type": "TableSource",
+                  "name": {
+                    "name": "Researcher"
+                  }
+                }
+              ],
+              "groupBy": [],
+              "windows": []
+            },
+            "orderBy": []
+          }
+        }
+      ]
+    },
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "n"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "CteSource",
+          "name": "Names"
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

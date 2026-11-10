@@ -1,0 +1,56 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        },
+        {
+          "expr": {
+            "$type": "WindowCall",
+            "function": {
+              "name": "ROW_NUMBER",
+              "args": [],
+              "distinct": false
+            },
+            "over": {
+              "partitionBy": [
+                {
+                  "$type": "ColumnRef",
+                  "name": "InstitutionId"
+                }
+              ],
+              "orderBy": [
+                {
+                  "expr": {
+                    "$type": "ColumnRef",
+                    "name": "HIndex"
+                  },
+                  "descending": true
+                }
+              ]
+            }
+          },
+          "alias": "W"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

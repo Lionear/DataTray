@@ -1,0 +1,42 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Like",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "Name"
+        },
+        "pattern": {
+          "$type": "Literal",
+          "kind": "String",
+          "text": "a%"
+        },
+        "caseInsensitive": true,
+        "not": false
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

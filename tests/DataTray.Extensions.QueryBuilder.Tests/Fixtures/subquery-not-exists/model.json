@@ -1,0 +1,75 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "r",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          },
+          "alias": "r"
+        }
+      ],
+      "where": {
+        "$type": "Exists",
+        "query": {
+          "body": {
+            "$type": "Select",
+            "distinct": false,
+            "items": [
+              {
+                "expr": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "1"
+                }
+              }
+            ],
+            "from": [
+              {
+                "$type": "TableSource",
+                "name": {
+                  "name": "Grant"
+                },
+                "alias": "g"
+              }
+            ],
+            "where": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "qualifier": "g",
+                "name": "ResearcherId"
+              },
+              "right": {
+                "$type": "ColumnRef",
+                "qualifier": "r",
+                "name": "Id"
+              }
+            },
+            "groupBy": [],
+            "windows": []
+          },
+          "orderBy": []
+        },
+        "not": true
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

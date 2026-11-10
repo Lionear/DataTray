@@ -1,0 +1,40 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": [
+      {
+        "expr": {
+          "$type": "ColumnRef",
+          "name": "Id"
+        },
+        "descending": false
+      }
+    ],
+    "limit": {
+      "count": 10,
+      "offset": 20
+    }
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Binary",
+        "op": "Or",
+        "left": {
+          "$type": "Binary",
+          "op": "Or",
+          "left": {
+            "$type": "Binary",
+            "op": "Or",
+            "left": {
+              "$type": "Binary",
+              "op": "Or",
+              "left": {
+                "$type": "Binary",
+                "op": "NotEq",
+                "left": {
+                  "$type": "ColumnRef",
+                  "name": "HIndex"
+                },
+                "right": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "1"
+                }
+              },
+              "right": {
+                "$type": "Binary",
+                "op": "Lt",
+                "left": {
+                  "$type": "ColumnRef",
+                  "name": "HIndex"
+                },
+                "right": {
+                  "$type": "Literal",
+                  "kind": "Number",
+                  "text": "2"
+                }
+              }
+            },
+            "right": {
+              "$type": "Binary",
+              "op": "LtEq",
+              "left": {
+                "$type": "ColumnRef",
+                "name": "HIndex"
+              },
+              "right": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "3"
+              }
+            }
+          },
+          "right": {
+            "$type": "Binary",
+            "op": "Gt",
+            "left": {
+              "$type": "ColumnRef",
+              "name": "HIndex"
+            },
+            "right": {
+              "$type": "Literal",
+              "kind": "Number",
+              "text": "4"
+            }
+          }
+        },
+        "right": {
+          "$type": "Binary",
+          "op": "GtEq",
+          "left": {
+            "$type": "ColumnRef",
+            "name": "HIndex"
+          },
+          "right": {
+            "$type": "Literal",
+            "kind": "Number",
+            "text": "5"
+          }
+        }
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

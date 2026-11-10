@@ -1,0 +1,73 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "qualifier": "r",
+            "name": "Name"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "JoinSource",
+          "left": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Researcher"
+            },
+            "alias": "r"
+          },
+          "type": "Inner",
+          "right": {
+            "$type": "TableSource",
+            "name": {
+              "name": "Institution"
+            },
+            "alias": "i"
+          },
+          "on": {
+            "$type": "Binary",
+            "op": "And",
+            "left": {
+              "$type": "Binary",
+              "op": "Eq",
+              "left": {
+                "$type": "ColumnRef",
+                "qualifier": "r",
+                "name": "InstitutionId"
+              },
+              "right": {
+                "$type": "ColumnRef",
+                "qualifier": "i",
+                "name": "Id"
+              }
+            },
+            "right": {
+              "$type": "Binary",
+              "op": "Gt",
+              "left": {
+                "$type": "ColumnRef",
+                "qualifier": "r",
+                "name": "HIndex"
+              },
+              "right": {
+                "$type": "Literal",
+                "kind": "Number",
+                "text": "10"
+              }
+            }
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

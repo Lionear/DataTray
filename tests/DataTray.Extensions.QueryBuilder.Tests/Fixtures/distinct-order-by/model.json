@@ -1,0 +1,36 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": true,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Country"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Institution"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": [
+      {
+        "expr": {
+          "$type": "ColumnRef",
+          "name": "Country"
+        },
+        "descending": false
+      }
+    ]
+  }
+}

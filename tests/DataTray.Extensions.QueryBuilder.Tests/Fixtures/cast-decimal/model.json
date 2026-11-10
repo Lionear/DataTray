@@ -1,0 +1,33 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "Cast",
+            "value": {
+              "$type": "ColumnRef",
+              "name": "Salary"
+            },
+            "typeName": "DECIMAL(10,2)"
+          },
+          "alias": "S"
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

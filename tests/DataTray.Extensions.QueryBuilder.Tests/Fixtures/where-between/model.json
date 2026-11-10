@@ -1,0 +1,46 @@
+{
+  "$type": "QueryStatement",
+  "query": {
+    "body": {
+      "$type": "Select",
+      "distinct": false,
+      "items": [
+        {
+          "expr": {
+            "$type": "ColumnRef",
+            "name": "Id"
+          }
+        }
+      ],
+      "from": [
+        {
+          "$type": "TableSource",
+          "name": {
+            "name": "Researcher"
+          }
+        }
+      ],
+      "where": {
+        "$type": "Between",
+        "value": {
+          "$type": "ColumnRef",
+          "name": "HIndex"
+        },
+        "low": {
+          "$type": "Literal",
+          "kind": "Number",
+          "text": "5"
+        },
+        "high": {
+          "$type": "Literal",
+          "kind": "Number",
+          "text": "20"
+        },
+        "not": false
+      },
+      "groupBy": [],
+      "windows": []
+    },
+    "orderBy": []
+  }
+}

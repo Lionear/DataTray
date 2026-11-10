@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataTray.Extensions.QueryBuilder</RootNamespace>
+    <!-- Plugin build: emit the private parsers (ScriptDom, SqlParserCS) into the output folder so the plugin
+         loads them from its isolated AssemblyLoadContext, exactly like Tools.MsSqlBacpac does for DacFx. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Contract only. Private=false keeps DataTray.Sdk.dll out of the plugin folder so the host's copy
+         is used across the ALC boundary. -->
+    <ProjectReference Include="..\..\src\DataTray.Sdk\DataTray.Sdk.csproj" Private="false" />
+    <!-- Plugin-private parsers behind ISqlReader; both stay ALC-local. -->
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.37.3" />
+    <PackageReference Include="SqlParserCS" Version="0.6.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DataTray.Extensions.QueryBuilder.Tests" />
+  </ItemGroup>
+
+</Project>
