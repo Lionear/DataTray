@@ -60,6 +60,7 @@ public class WindowGenerationTests
         { Frame(FrameUnit.Rows, Bound(BoundKind.Following, 3), Bound(BoundKind.Following, 1), null), "invalid-frame" },
         { Frame(FrameUnit.Rows, Bound(BoundKind.Preceding, 1), Bound(BoundKind.Preceding, 3), null), "invalid-frame" },
         { Frame(FrameUnit.Rows, Bound(BoundKind.Preceding, null), null, null), "invalid-frame-offset" },
+        { Frame(FrameUnit.Rows, Bound(BoundKind.Preceding, -1), null, null), "invalid-frame-offset" },
     };
 
     [Theory, MemberData(nameof(InvalidFrames))]

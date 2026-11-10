@@ -128,6 +128,12 @@ public class SourceGenerationTests
     }
 
     [Fact]
+    public void Generate_UnknownSource_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate("postgres", null, Query(null, [new UnknownSource()], All)));
+    }
+
+    [Fact]
     public void Generate_LateralWhereSupported_WritesTheKeyword()
     {
         var query = Query(null, [Join(Table("A", "a"), JoinType.Cross, new SubquerySource(Inner("B", "b", null), "l", true), null)], All);

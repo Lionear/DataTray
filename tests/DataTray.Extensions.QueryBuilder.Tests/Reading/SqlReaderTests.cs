@@ -91,6 +91,31 @@ public class SqlReaderTests
         Assert.Equal(expected, result.Reasons.Select(r => (r.Code, r.Line)).ToArray());
     }
 
+    // SqlParserCS loops until out of memory on these, so they are asserted on the scanner alone: no parser call.
+    public static TheoryData<string, string, (string, int)[]> ParserTrapCases() => new()
+    {
+        { "sqlite", "SELECT E'x", [("unterminated-quote", 1)] },
+        { "mysql", "SELECT 1 FROM t WHERE a = E'abc", [("unterminated-quote", 1)] },
+        { "postgres", "SELECT E'x", [("unterminated-quote", 1)] },
+        { "sqlite", "SELECT e'x\\'", [("prefixed-string", 1)] },
+        { "mysql", "SELECT E'x'", [("prefixed-string", 1)] },
+        { "postgres", "SELECT 1,\n'abc", [("unterminated-quote", 2)] },
+        { "sqlite", "SELECT \"abc", [("unterminated-quote", 1)] },
+        { "mysql", "SELECT `abc", [("unterminated-quote", 1)] },
+        { "mysql", "SELECT 'a\\", [("unterminated-quote", 1)] },
+        { "sqlserver", "SELECT 1\nFROM [t", [("unterminated-quote", 2)] },
+        { "postgres", "SELECT 1 /* x", [("unterminated-quote", 1)] },
+        { "sqlserver", "SELECT 1 /* a /* b */", [("unterminated-quote", 1)] },
+    };
+
+    [Theory, MemberData(nameof(ParserTrapCases))]
+    public void Scan_UnterminatedQuoteOrMisreadPrefix_IsRefusedBeforeParsing(string provider, string sql, (string, int)[] expected)
+    {
+        var scan = ScriptScanner.Scan(sql, provider);
+
+        Assert.Equal(expected, scan.Reasons.Select(r => (r.Code, r.Line)).ToArray());
+    }
+
     public static TheoryData<string, string, Statement> SingleStatementCases() => new()
     {
         { "postgres", "SELECT ';' AS \"a;b\" -- c;d\n;", new QueryStatement(Query(null, [], new SelectItem(Str(";"), "a;b"))) },

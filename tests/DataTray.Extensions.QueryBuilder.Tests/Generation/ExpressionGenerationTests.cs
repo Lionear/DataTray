@@ -63,7 +63,7 @@ public class ExpressionGenerationTests
         { "sqlserver", null, Where(Bin(BinaryOp.Eq, Bin(BinaryOp.Eq, Col("a"), Col("b")), Col("c"))) },
         { "sqlserver", null, Query(Bin(BinaryOp.Add, new InList(Col("a"), [Num("1")], false), Num("1"))) },
         { "sqlserver", null, Query(new Case(null, [new CaseWhen(Bin(BinaryOp.Eq, Col("a"), Num("1")), Bin(BinaryOp.Eq, Col("b"), Num("1")))], null)) },
-        { "sqlserver", null, Query(new Case(null, [new CaseWhen(Bin(BinaryOp.Eq, Col("a"), Num("1")), Num("1"))], Not(Col("b")))) },
+        { "sqlserver", null, Query(new Case(null, [new CaseWhen(Bin(BinaryOp.Eq, Col("a"), Num("1")), Num("1"))], Not(Bin(BinaryOp.Eq, Col("b"), Num("1"))))) },
         { "sqlserver", null, Query(new Cast(new IsNull(Col("a"), false), "bit")) },
         { "sqlite", null, Query(new Like(Col("a"), Str("x%"), false, false)) },
         { "sqlite", null, Query(new Exists(Query(Num("1")), false)) },
@@ -76,6 +76,22 @@ public class ExpressionGenerationTests
 
         Assert.Null(result.Sql);
         Assert.Equal(["predicate-as-value"], Codes(result));
+    }
+
+    public static TheoryData<Query> ValuesAsPredicates() => new()
+    {
+        Where(Col("a")),
+        Query(null, [new JoinSource(Table("T", null), JoinType.Inner, Table("U", null), Col("a"))], new SelectItem(Num("1"), null)),
+        new Query(null, new Select(false, [new SelectItem(Num("1"), null)], [Table("T", null)], null, [Col("g")], Col("a"), []), [], null),
+    };
+
+    [Theory, MemberData(nameof(ValuesAsPredicates))]
+    public void Generate_ValueAsPredicateWithoutBooleans_IsAProblem(Query query)
+    {
+        var result = Generate("sqlserver", null, query);
+
+        Assert.Null(result.Sql);
+        Assert.Equal(["value-as-predicate"], Codes(result));
     }
 
     [Fact]

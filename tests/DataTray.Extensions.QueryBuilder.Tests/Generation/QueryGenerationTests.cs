@@ -289,6 +289,7 @@ public class QueryGenerationTests
         { "sqlserver", null, Q(new NestedQuery(Q(A, [ByA], null))), "order-by-needs-limit" },
         { "sqlserver", null, Q(Set(B, SetOp.Union, false, new NestedQuery(Q(A, [ByA], Limit(1, null))))), "order-by-in-set-operand" },
         { "sqlserver", null, Q(Set(new NestedQuery(Q(A, [ByA], Limit(1, 5))), SetOp.Union, false, B)), "order-by-in-set-operand" },
+        { "sqlserver", null, Q(Set(B, SetOp.Union, false, new NestedQuery(Q(new NestedQuery(Q(A, [ByA], Limit(5, null))))))), "order-by-in-set-operand" },
         { "sqlserver", null, Where(new InSubquery(Col("a"), Q(new NestedQuery(Q(A)), [ByA], Limit(1, null)), false)), "nested-query-body" },
         { "postgres", null, FromSubquery(Q(new NestedQuery(Q(A)), [], Limit(1, null))), "nested-query-body" },
         { "sqlserver", null, Q(A, [ByA], Limit(0, 5)), "invalid-limit" },

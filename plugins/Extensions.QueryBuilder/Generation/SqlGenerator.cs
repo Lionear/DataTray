@@ -202,7 +202,7 @@ public sealed partial class SqlGenerator
 
     private void WriteOperand(QueryBody body, bool wrap, bool inSubquery)
     {
-        if (body is NestedQuery { Query.OrderBy.Count: > 0 } && !_can.OrderByInSetOperand)
+        if (!_can.OrderByInSetOperand && HasOrderBy(body))
         {
             Problem("order-by-in-set-operand", $"{_dialect.Id} does not allow ORDER BY inside a set-operation branch.", body);
         }
@@ -216,6 +216,10 @@ public sealed partial class SqlGenerator
             WriteBody(body, null, inSubquery);
         }
     }
+
+    // Parentheses inside parentheses print as one pair, so an ORDER BY at any depth lands in the branch.
+    private static bool HasOrderBy(QueryBody body) =>
+        body is NestedQuery { Query: var query } && (query.OrderBy.Count > 0 || HasOrderBy(query.Body));
 
     private void WriteParenthesized(Action body, QueryBody node)
     {
@@ -363,6 +367,8 @@ public sealed partial class SqlGenerator
             case JoinSource j:
                 WriteJoin(j, inline);
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(source), source, null);
         }
     }
 
@@ -434,9 +440,9 @@ public sealed partial class SqlGenerator
         }
     }
 
-    // Writes expr, wrapped in parentheses when it binds looser than the parent requires. Without boolean
-    // literals a condition only exists in predicate position: a bare TRUE/FALSE there becomes `1 = 1`/`1 = 0`,
-    // and a condition in value position is refused (`SELECT [a] = 1` would be an alias assignment).
+    // Writes expr, wrapped in parentheses when it binds looser than the parent requires. Without boolean literals a
+    // bare TRUE/FALSE predicate becomes `1 = 1`/`1 = 0`; a condition as a value (`SELECT [a] = 1` assigns an alias)
+    // and a value as a condition (`WHERE [a]`) are refused. A fragment may be either, so it passes.
     private void WriteExpr(Expr expr, int required, bool predicate = false)
     {
         if (!_can.BooleanLiterals && predicate && expr is Literal { Kind: LiteralKind.Boolean } literal)
@@ -448,6 +454,11 @@ public sealed partial class SqlGenerator
         if (!_can.BooleanLiterals && !predicate && IsCondition(expr))
         {
             Problem("predicate-as-value", $"{_dialect.Id} has no boolean values; a condition cannot be used as a value here.", expr);
+        }
+
+        if (!_can.BooleanLiterals && predicate && !IsCondition(expr) && expr is not Fragment)
+        {
+            Problem("value-as-predicate", $"{_dialect.Id} has no boolean values; a value cannot be used as a condition here.", expr);
         }
 
         var wrap = Precedence.Of(expr, _can.ConcatStyle) < required;
@@ -814,9 +825,9 @@ public sealed partial class SqlGenerator
 
     private string Bound(FrameBound bound)
     {
-        if (bound.Kind is BoundKind.Preceding or BoundKind.Following && bound.Offset is null)
+        if (bound.Kind is BoundKind.Preceding or BoundKind.Following && bound.Offset is null or < 0)
         {
-            Problem("invalid-frame-offset", "A PRECEDING or FOLLOWING bound needs an offset.", bound);
+            Problem("invalid-frame-offset", "A PRECEDING or FOLLOWING bound needs an offset of zero or more.", bound);
         }
 
         return bound.Kind switch

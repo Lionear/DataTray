@@ -60,7 +60,12 @@ internal static class ScriptScanner
             }
             if (c == '/' && next == '*')
             {
-                var stop = sqlServer ? NestedCommentEnd(sql, i) : sql.IndexOf("*/", i + 2, StringComparison.Ordinal) is var end and >= 0 ? end + 2 : sql.Length;
+                var stop = sqlServer ? NestedCommentEnd(sql, i) : sql.IndexOf("*/", i + 2, StringComparison.Ordinal) is var end and >= 0 ? end + 2 : -1;
+                if (stop < 0)
+                {
+                    reasons.Add(Unterminated() with { Line = line });
+                    stop = sql.Length;
+                }
                 if (mysql && i + 2 < sql.Length && (sql[i + 2] is '!' or '+' || (sql[i + 2] == 'M' && i + 3 < sql.Length && sql[i + 3] == '!')))
                 {
                     reasons.Add(new ReadReason("mysql-executable-comment", "MySQL runs /*! … */ and /*+ … */ comments (MariaDB also /*M! … */); the builder would drop them.", line));
@@ -91,9 +96,13 @@ internal static class ScriptScanner
             {
                 var start = i;
                 var close = c == '[' ? ']' : c;
-                i = SkipQuoted(sql, i + 1, close, mysql && c != '`', ref line);
+                i = SkipQuoted(sql, i + 1, close, mysql && c != '`', ref line, out var closed);
                 isString = c == '\'' || (mysql && c == '"');
-                if (isString && afterString)
+                if (!closed)
+                {
+                    finding = Unterminated() with { Line = tokenLine };
+                }
+                else if (isString && afterString)
                 {
                     finding = Reason("adjacent-strings", "Adjacent string literals are joined or read as an alias depending on the server; the builder can't keep that.") with { Line = tokenLine };
                 }
@@ -113,8 +122,8 @@ internal static class ScriptScanner
                 var quoteAt = word == "U" && providerId == "postgres" && i + 1 < sql.Length && sql[i] == '&' ? i + 1 : i;
                 if (quoteAt < sql.Length && sql[quoteAt] == '\'' && Prefix(word, providerId) is { } prefix)
                 {
-                    finding = prefix with { Line = tokenLine };
-                    i = SkipQuoted(sql, quoteAt + 1, '\'', mysql || word == "E", ref line);
+                    i = SkipQuoted(sql, quoteAt + 1, '\'', mysql || (word == "E" && providerId == "postgres"), ref line, out var closed);
+                    finding = (closed ? prefix : Unterminated()) with { Line = tokenLine };
                     isString = true;
                 }
                 else if (WordFinding(word, prev, providerId) is { } wordFinding)
@@ -206,6 +215,7 @@ internal static class ScriptScanner
         ("postgres", "E") => Reason("escape-string", "PostgreSQL E'…' strings can't be read back yet."),
         ("postgres", "B" or "X" or "U") or ("mysql", "B" or "X") => PrefixedString(),
         ("mysql", _) when word.StartsWith('_') => PrefixedString(),
+        ("mysql" or "sqlite", "E") => PrefixedString(),
         _ => null,
     };
 
@@ -218,7 +228,10 @@ internal static class ScriptScanner
         _ => null,
     };
 
-    private static ReadReason PrefixedString() => Reason("prefixed-string", "Prefixed string literals (B'…', X'…', U&'…', _charset'…') can't be read back yet.");
+    private static ReadReason PrefixedString() => Reason("prefixed-string", "Prefixed string literals (B'…', X'…', U&'…', _charset'…', and E'…' outside PostgreSQL) can't be read back yet.");
+
+    // SqlParserCS runs out of memory on some unclosed quotes, so these never reach it.
+    private static ReadReason Unterminated() => Reason("unterminated-quote", "A string, quoted name or comment is not closed before the end of the text.");
 
     private static ReadReason MySqlOperator() => Reason("mysql-operator", "MySQL || and XOR can't be read back with their MySQL meaning.");
 
@@ -245,8 +258,9 @@ internal static class ScriptScanner
     private static ReadReason Reason(string code, string message) => new(code, message, 0);
 
     // A doubled close character escapes itself; MySQL strings also take backslash escapes.
-    private static int SkipQuoted(string sql, int i, char close, bool backslash, ref int line)
+    private static int SkipQuoted(string sql, int i, char close, bool backslash, ref int line, out bool closed)
     {
+        closed = false;
         while (i < sql.Length)
         {
             var c = sql[i];
@@ -267,6 +281,7 @@ internal static class ScriptScanner
                     i += 2;
                     continue;
                 }
+                closed = true;
                 return i + 1;
             }
             i++;
@@ -274,7 +289,7 @@ internal static class ScriptScanner
         return i;
     }
 
-    // T-SQL block comments nest: "/* a /* b */ c */" is one comment.
+    // T-SQL block comments nest: "/* a /* b */ c */" is one comment; -1 when it is not closed.
     private static int NestedCommentEnd(string sql, int i)
     {
         var depth = 0;
@@ -288,7 +303,7 @@ internal static class ScriptScanner
                 return i;
             }
         }
-        return sql.Length;
+        return -1;
     }
 
     private static int LineEnd(string sql, int i) => sql.IndexOf('\n', i) is var end and >= 0 ? end : sql.Length;
