@@ -7,13 +7,16 @@ namespace DataTray.Extensions.QueryBuilder.Tests.Golden;
 
 public class RoundTripTests
 {
-    // Refused: SqlParserCS 0.6.5 can't parse EXCLUDE in a window frame; fragment-in-where's redundant parentheses
-    // `((1 + 2))` read as 1 + 2, which the generator writes without them.
-    private static readonly string[] RefusedGaps =
-    [
-        "window-frame-exclude-current-row", "window-frame-exclude-group", "window-frame-exclude-no-others", "window-frame-exclude-ties",
-        "fragment-in-where",
-    ];
+    // Refused, with the code: SqlParserCS 0.6.5 can't parse EXCLUDE in a window frame; fragment-in-where's redundant
+    // parentheses `((1 + 2))` read as 1 + 2, which the generator writes without them.
+    private static readonly Dictionary<string, string> RefusedGaps = new()
+    {
+        ["window-frame-exclude-current-row"] = "parse-error",
+        ["window-frame-exclude-group"] = "parse-error",
+        ["window-frame-exclude-no-others"] = "parse-error",
+        ["window-frame-exclude-ties"] = "parse-error",
+        ["fragment-in-where"] = "would-change",
+    };
 
     // The reader understands the fragment's text (a derived table); the model differs, the tokens don't.
     private static readonly string[] OtherModelGaps = ["fragment-source"];
@@ -25,10 +28,10 @@ public class RoundTripTests
     private static readonly string[] SqlServerSameSqlGaps = ["where-boolean-literal", "where-boolean-false", "where-negate", "set-right-nested"];
 
     public static TheoryData<string, string> Cases() =>
-        FixtureCases.SqlCases(n => !RefusedGaps.Contains(n) && !OtherModelGaps.Contains(n) && !SameSqlGaps.Contains(n), "postgres", "mysql", "sqlite");
+        FixtureCases.SqlCases(n => !RefusedGaps.ContainsKey(n) && !OtherModelGaps.Contains(n) && !SameSqlGaps.Contains(n), "postgres", "mysql", "sqlite");
 
     public static TheoryData<string, string> SqlServerCases() =>
-        FixtureCases.SqlCases(n => !RefusedGaps.Contains(n) && !OtherModelGaps.Contains(n) && !SqlServerSameSqlGaps.Contains(n), "sqlserver");
+        FixtureCases.SqlCases(n => !RefusedGaps.ContainsKey(n) && !OtherModelGaps.Contains(n) && !SqlServerSameSqlGaps.Contains(n), "sqlserver");
 
     public static TheoryData<string, string> SameSqlCases() => FixtureCases.SqlCases(n => SameSqlGaps.Contains(n), "postgres", "mysql", "sqlite");
 
@@ -36,7 +39,7 @@ public class RoundTripTests
 
     public static TheoryData<string, string> OtherModelCases() => FixtureCases.SqlCases(n => OtherModelGaps.Contains(n), FixtureCases.Dialects);
 
-    public static TheoryData<string, string> RefusedCases() => FixtureCases.SqlCases(n => RefusedGaps.Contains(n), FixtureCases.Dialects);
+    public static TheoryData<string, string> RefusedCases() => FixtureCases.SqlCases(RefusedGaps.ContainsKey, FixtureCases.Dialects);
 
     [Theory, MemberData(nameof(Cases)), MemberData(nameof(SqlServerCases))]
     public void RoundTrip_EveryGolden_ReadsBackToItsModel(string dialect, string name)
@@ -74,7 +77,6 @@ public class RoundTripTests
     {
         var result = ReadBack.ReadAndVerify(FixtureCases.Sql(name, dialect), dialect, FixtureCases.Version(dialect));
 
-        Assert.Equal(ReadOutcome.CannotShow, result.Outcome);
-        Assert.Null(result.Statement);
+        Assert.Equal((ReadOutcome.CannotShow, RefusedGaps[name]), (result.Outcome, Assert.Single(result.Reasons).Code));
     }
 }

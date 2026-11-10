@@ -31,17 +31,18 @@ public class ReadBackTests
         Assert.Equal(ReadOutcome.Read, result.Outcome);
     }
 
-    [Fact]
-    public void ReadBack_DifferentMeaning_Refuses()
+    public static TheoryData<string> LineBreakCases() => ["SELECT [a]\nFROM [t];", "SELECT [a]\r\nFROM [t];", "SELECT [a]\rFROM [t];"];
+
+    [Theory, MemberData(nameof(LineBreakCases))]
+    public void ReadBack_DifferentMeaning_RefusesNamingTheFirstDifferenceAndItsLine(string sql)
     {
         var lossy = new QueryStatement(Query(null, [new TableSource(new TableName(null, "u"), null)], new SelectItem(Col("a"), null)));
 
-        var result = ReadBack.ReadAndVerify("SELECT [a]\nFROM [t];", new FixedReader(lossy), SqlDialects.For("sqlserver", null));
+        var result = ReadBack.ReadAndVerify(sql, new FixedReader(lossy), SqlDialects.For("sqlserver", null));
 
         var reason = Assert.Single(result.Reasons);
         Assert.Equal((ReadOutcome.CannotShow, "would-change", 2), (result.Outcome, reason.Code, reason.Line));
-        Assert.Contains("T", reason.Message);
-        Assert.Contains("U", reason.Message);
+        Assert.Contains("`T` would become `U`", reason.Message);
     }
 
     public static TheoryData<string, string, Statement> LossyReadCases() => new()
@@ -67,7 +68,7 @@ public class ReadBackTests
         { "sqlserver", "SELECT a FROM t\nORDER BY a\nOFFSET 0 ROWS FETCH FIRST 5 ROW ONLY;", 3 },
         { "postgres", "SELECT a\nFROM t\nWHERE (a = 1);", 3 },
         { "postgres", "SELECT a::int FROM t;", 1 },
-        { "sqlserver", "SELECT 1 FROM t AS a, (SELECT 1 AS n) FOR PATH AS x WHERE MATCH(SHORTEST_PATH(a(-(e)->x)+))", 1 },
+        { "postgres", "SELECT 1 -- c\r+ 2", 2 },
     };
 
     [Theory, MemberData(nameof(WrittenDifferentlyCases))]
@@ -77,6 +78,37 @@ public class ReadBackTests
 
         var reason = Assert.Single(result.Reasons);
         Assert.Equal((ReadOutcome.CannotShow, "would-change", line), (result.Outcome, reason.Code, reason.Line));
+    }
+
+    // The server lexes these otherwise than the parser: PostgreSQL ends "--" at \r, only ASCII whitespace separates
+    // words, and a number glued to letters, digits or _ is one (bad) token, never a number plus an alias.
+    public static TheoryData<string, string> ServerLexesDifferentlyCases() => new()
+    {
+        { "postgres", "SELECT a\u00A0b FROM t" },
+        { "postgres", "SELECT a,\u00A0b FROM t" },
+        { "postgres", "SELECT 1 FROM t WHERE a =\u00A01" },
+        { "postgres", "SELECT a\u2003b FROM t" },
+        { "postgres", "SELECT a\u0085b FROM t" },
+        { "postgres", "SELECT 1 FROM t WHERE a\u00A0= 1" },
+        { "sqlite", "SELECT a\u00A0b FROM t" },
+        { "mysql", "SELECT a\u00A0b FROM t" },
+        { "postgres", "SELECT 1_000" },
+        { "postgres", "SELECT 0b101" },
+        { "postgres", "SELECT 0o17" },
+        { "postgres", "SELECT 1a" },
+        { "postgres", "SELECT 1.5e" },
+        { "sqlite", "SELECT 1a" },
+        { "sqlite", "SELECT 1_000" },
+        { "sqlite", "SELECT 1.5e" },
+        { "mysql", "SELECT 1a" },
+    };
+
+    [Theory, MemberData(nameof(ServerLexesDifferentlyCases))]
+    public void ReadBack_TextTheServerLexesDifferently_CannotShow(string provider, string sql)
+    {
+        var result = ReadBack.ReadAndVerify(sql, provider, null);
+
+        Assert.Equal(ReadOutcome.CannotShow, result.Outcome);
     }
 
     [Fact]

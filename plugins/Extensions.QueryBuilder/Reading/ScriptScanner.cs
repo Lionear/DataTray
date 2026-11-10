@@ -61,9 +61,9 @@ internal static class ScriptScanner
             if (c == '/' && next == '*')
             {
                 var stop = sqlServer ? NestedCommentEnd(sql, i) : sql.IndexOf("*/", i + 2, StringComparison.Ordinal) is var end and >= 0 ? end + 2 : sql.Length;
-                if (mysql && i + 2 < sql.Length && sql[i + 2] is '!' or '+')
+                if (mysql && i + 2 < sql.Length && (sql[i + 2] is '!' or '+' || (sql[i + 2] == 'M' && i + 3 < sql.Length && sql[i + 3] == '!')))
                 {
-                    reasons.Add(new ReadReason("mysql-executable-comment", "MySQL runs /*! … */ and /*+ … */ comments; the builder would drop them.", line));
+                    reasons.Add(new ReadReason("mysql-executable-comment", "MySQL runs /*! … */ and /*+ … */ comments (MariaDB also /*M! … */); the builder would drop them.", line));
                 }
                 else
                 {

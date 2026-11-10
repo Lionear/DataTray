@@ -29,6 +29,7 @@ public class SqlReaderTests
         { "postgres", "SELECT 1\nWHERE a = E'x\\n';", [("escape-string", 2)] },
         { "mysql", "SELECT /*! 1 + */ 2;", [("mysql-executable-comment", 1)] },
         { "mysql", "SELECT\n/*+ NO_ICP(t) */ a FROM t;", [("mysql-executable-comment", 2)] },
+        { "mysql", "SELECT /*M! 1 + */ 2;", [("mysql-executable-comment", 1)] },
         { "mysql", "SELECT 1 --1\n;", [("mysql-double-dash", 1)] },
         { "mysql", "SELECT 1 WHERE a LIKE '50\\%';", [("mysql-like-escape", 1)] },
         { "postgres", "SELECT 'a'\n'b';", [("adjacent-strings", 2)] },
@@ -77,6 +78,7 @@ public class SqlReaderTests
         { "sqlserver", ";WITH x AS (SELECT 1 AS a)\nDELETE FROM t;", [("dml-not-yet", 1)] },
         { "sqlserver", "PRINT 1;", [("not-a-query", 1)] },
         { "sqlserver", "SELECT 1\nFROM t WHERE;", [("parse-error", 2)] },
+        { "sqlserver", "SELECT 1 FROM t AS a, (SELECT 1 AS n) FOR PATH AS x\nWHERE MATCH(SHORTEST_PATH(a(-(e)->x)+))", [("cannot-represent", 2)] },
     };
 
     [Theory, MemberData(nameof(UnshowableCases))]
@@ -243,7 +245,7 @@ public class SqlReaderTests
     [Fact]
     public void Read_SqlServerDerivedTableForPath_KeepsTheSourceAsAFragment()
     {
-        var result = SqlReaders.For("sqlserver").Read("SELECT 1 FROM t AS a, (SELECT 1 AS n) FOR PATH AS x WHERE MATCH(SHORTEST_PATH(a(-(e)->x)+))");
+        var result = SqlReaders.For("sqlserver").Read("SELECT 1 FROM t AS a, (SELECT 1 AS n) FOR PATH AS x");
 
         var select = Assert.IsType<Select>(Assert.IsType<QueryStatement>(result.Statement).Query.Body);
         Assert.IsType<FragmentSource>(select.From[1]);

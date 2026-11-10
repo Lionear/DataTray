@@ -42,7 +42,7 @@ public static class ReadBack
         return CannotShow(read, new ReadReason("would-change", message, Math.Max(line, 1)));
     }
 
-    private static string Describe(List<(string Text, int Line, bool Word)> tokens, int at) =>
+    private static string Describe(List<(string Text, int Line, SqlTokenKind Kind)> tokens, int at) =>
         at < tokens.Count ? $"`{tokens[at].Text}`" : "the end of the query";
 
     private static ReadResult CannotShow(ReadResult read, params ReadReason[] reasons) =>

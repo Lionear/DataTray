@@ -277,6 +277,8 @@ internal sealed class ScriptDomMapper(string sql)
 
     private M.Expr Map(TSqlFragment e) => e switch
     {
+        // ScriptDom's offsets for a MATCH predicate leave out "MATCH(", so it can't even be kept as text.
+        GraphMatchPredicate g => throw new Refused("a graph MATCH predicate", g.StartLine),
         PrimaryExpression { Collation: not null } => throw new Unrepresentable("COLLATE"),
         ColumnReferenceExpression { ColumnType: ColumnType.Regular, MultiPartIdentifier.Identifiers: [var n] } => new M.ColumnRef(null, n.Value),
         ColumnReferenceExpression { ColumnType: ColumnType.Regular, MultiPartIdentifier.Identifiers: [var q, var n] } => new M.ColumnRef(q.Value, n.Value),

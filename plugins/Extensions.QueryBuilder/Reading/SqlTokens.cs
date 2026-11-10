@@ -14,16 +14,16 @@ public static class SqlTokens
 
     public static IReadOnlyList<string> Normalize(string sql, IDialect dialect) => Tokens(sql, dialect).Select(t => t.Text).ToArray();
 
-    // Word marks an unquoted word (keyword or bare name); only words take part in the equivalences. Line is 1-based.
-    internal static List<(string Text, int Line, bool Word)> Tokens(string sql, IDialect dialect) =>
+    // Only words take part in the equivalences; Line is 1-based.
+    internal static List<(string Text, int Line, SqlTokenKind Kind)> Tokens(string sql, IDialect dialect) =>
         Equivalences(Scan(sql, dialect.Id), dialect.Id);
 
-    private static List<(string Text, int Line, bool Word)> Scan(string sql, string id)
+    private static List<(string Text, int Line, SqlTokenKind Kind)> Scan(string sql, string id)
     {
         var mysql = id == "mysql";
         var postgres = id == "postgres";
         var sqlServer = id == "sqlserver";
-        var tokens = new List<(string Text, int Line, bool Word)>();
+        var tokens = new List<(string Text, int Line, SqlTokenKind Kind)>();
         var line = 1;
         var i = 0;
         while (i < sql.Length)
@@ -33,13 +33,14 @@ public static class SqlTokens
             var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
             // MySQL needs whitespace after "--" for a comment, as in ScriptScanner.
             var dashComment = c == '-' && next == '-' && (!mysql || i + 2 >= sql.Length || char.IsWhiteSpace(sql[i + 2]) || char.IsControl(sql[i + 2]));
-            if (char.IsWhiteSpace(c))
+            if (sqlServer ? char.IsWhiteSpace(c) : c is ' ' or '\t' or '\n' or '\r' or '\f' or '\v')
             {
                 i++;
             }
             else if (dashComment || (mysql && c == '#'))
             {
-                i = sql.IndexOf('\n', i) is var end and >= 0 ? end : sql.Length;
+                // PostgreSQL ends a line comment at \r as well; the others at \n only.
+                i = (postgres ? sql.IndexOfAny(['\n', '\r'], i) : sql.IndexOf('\n', i)) is var end and >= 0 ? end : sql.Length;
             }
             else if (c == '/' && next == '*')
             {
@@ -48,53 +49,73 @@ public static class SqlTokens
             else if (c == '\'' || (mysql && c == '"'))
             {
                 (var value, i) = Quoted(sql, i + 1, c, mysql);
-                tokens.Add(("'" + value + "'", line, false));
+                tokens.Add(("'" + value + "'", line, SqlTokenKind.String));
             }
             else if (sqlServer && c is 'N' or 'n' && next == '\'')
             {
                 (var value, i) = Quoted(sql, i + 2, '\'', false);
-                tokens.Add(("N'" + value + "'", line, false));
+                tokens.Add(("N'" + value + "'", line, SqlTokenKind.String));
             }
             else if (c == '"' || (c == '`' && !sqlServer) || (c == '[' && (sqlServer || id == "sqlite")))
             {
                 (var value, i) = Quoted(sql, i + 1, c == '[' ? ']' : c, false);
-                tokens.Add((Identifier(value, postgres), line, false));
+                tokens.Add((Identifier(value, postgres), line, SqlTokenKind.Name));
             }
-            else if (char.IsLetter(c) || c == '_')
+            else if (IsWordChar(c, sqlServer) && !char.IsAsciiDigit(c) && c is not '$' and not '@')
             {
-                while (i < sql.Length && (char.IsLetterOrDigit(sql[i]) || sql[i] is '_' or '$' or '@'))
+                while (i < sql.Length && IsWordChar(sql[i], sqlServer))
                 {
                     i++;
                 }
-                tokens.Add((postgres ? FoldAscii(sql[start..i]) : sql[start..i].ToUpperInvariant(), line, true));
+                tokens.Add((postgres ? FoldAscii(sql[start..i]) : sql[start..i].ToUpperInvariant(), line, SqlTokenKind.Word));
             }
-            else if (char.IsDigit(c) || (c == '.' && char.IsDigit(next)))
+            else if (char.IsAsciiDigit(c) || (c == '.' && char.IsAsciiDigit(next)))
             {
                 i = NumberEnd(sql, i);
-                tokens.Add((sql[start..i], line, false));
+                // Outside T-SQL a number glued to letters, digits or _ is one token (1_000, 0b101, 1a), never 1 AS a.
+                while (!sqlServer && i < sql.Length && (char.IsAsciiLetterOrDigit(sql[i]) || sql[i] == '_'))
+                {
+                    i++;
+                }
+                tokens.Add((sql[start..i], line, SqlTokenKind.Number));
             }
             else
             {
                 var op = Operators.FirstOrDefault(o => string.CompareOrdinal(sql, i, o, 0, o.Length) == 0) ?? c.ToString();
                 i += op.Length;
-                tokens.Add((op, line, false));
+                tokens.Add((op, line, SqlTokenKind.Symbol));
             }
-            line += sql.AsSpan(start, i - start).Count('\n');
+            line += LineBreaks(sql, start, i);
         }
         return tokens;
     }
 
-    // The optional spellings: AS before an alias, OUTER/INNER in joins, ASC, != for <>, a trailing ";", and per dialect
+    // The optional spellings: AS before an alias (not in CAST(x AS t), a CTE or a window), OUTER/INNER in joins, ASC, != for <>, a trailing ";", and per dialect
     // MySQL LIMIT o, n = LIMIT n OFFSET o, PostgreSQL LIMIT ALL = no limit, T-SQL TOP (n) = TOP n.
-    private static List<(string Text, int Line, bool Word)> Equivalences(List<(string Text, int Line, bool Word)> t, string id)
+    private static List<(string Text, int Line, SqlTokenKind Kind)> Equivalences(List<(string Text, int Line, SqlTokenKind Kind)> t, string id)
     {
-        var result = new List<(string Text, int Line, bool Word)>();
+        var result = new List<(string Text, int Line, SqlTokenKind Kind)>();
+        var functionParens = new Stack<bool>();
         for (var k = 0; k < t.Count; k++)
         {
-            bool Is(int at, string text) => at >= 0 && at < t.Count && t[at].Text.Equals(text, StringComparison.OrdinalIgnoreCase) && (t[at].Word || !char.IsLetter(text[0]));
-            bool IsNumber(int at) => at < t.Count && (char.IsDigit(t[at].Text[0]) || t[at].Text is ['.', _, ..]);
+            bool Is(int at, string text) => at >= 0 && at < t.Count && t[at].Text.Equals(text, StringComparison.OrdinalIgnoreCase)
+                && t[at].Kind == (char.IsLetter(text[0]) ? SqlTokenKind.Word : SqlTokenKind.Symbol);
+            bool IsNumber(int at) => at < t.Count && t[at].Kind == SqlTokenKind.Number;
+            bool IsName(int at) => at < t.Count && (t[at].Kind == SqlTokenKind.Name || (t[at].Kind == SqlTokenKind.Word && !ReservedWords.Contains(t[at].Text)));
+            bool EndsOperand(int at) => at >= 0 && (IsName(at) || t[at].Kind is SqlTokenKind.String or SqlTokenKind.Number
+                || Is(at, ")") || Is(at, "END") || Is(at, "NULL") || Is(at, "TRUE") || Is(at, "FALSE"));
 
-            if ((Is(k, "AS") && !Is(k + 1, "("))
+            if (Is(k, "("))
+            {
+                functionParens.Push(k > 0 && (IsName(k - 1) || Is(k - 1, "CAST") || Is(k - 1, "TRY_CAST") || Is(k - 1, "CONVERT")));
+            }
+            else if (Is(k, ")") && functionParens.Count > 0)
+            {
+                functionParens.Pop();
+            }
+
+            var alias = EndsOperand(k - 1) && IsName(k + 1) && !(functionParens.TryPeek(out var inFunction) && inFunction);
+            if ((Is(k, "AS") && alias)
                 || (Is(k, "OUTER") && (Is(k - 1, "LEFT") || Is(k - 1, "RIGHT") || Is(k - 1, "FULL")) && Is(k + 1, "JOIN"))
                 || (Is(k, "INNER") && Is(k + 1, "JOIN"))
                 || Is(k, "ASC")
@@ -109,7 +130,7 @@ public static class SqlTokens
             }
             if (id == "mysql" && Is(k, "LIMIT") && IsNumber(k + 1) && Is(k + 2, ",") && IsNumber(k + 3))
             {
-                result.AddRange([t[k], t[k + 3], ("OFFSET", t[k].Line, true), t[k + 1]]);
+                result.AddRange([t[k], t[k + 3], ("OFFSET", t[k].Line, SqlTokenKind.Word), t[k + 1]]);
                 k += 3;
                 continue;
             }
@@ -131,6 +152,21 @@ public static class SqlTokens
         var text = postgres ? value : value.ToUpperInvariant();
         var regular = value.Length > 0 && (char.IsLetter(value[0]) || value[0] == '_') && value.All(ch => char.IsLetterOrDigit(ch) || ch == '_');
         return regular && !ReservedWords.Contains(value) ? text : "\"" + text + "\"";
+    }
+
+    // T-SQL words are Unicode letters and digits (as ScriptDom); the others take any non-ASCII character as a letter.
+    private static bool IsWordChar(char c, bool sqlServer) =>
+        c is '_' or '$' or '@' || (sqlServer ? char.IsLetterOrDigit(c) : char.IsAsciiLetterOrDigit(c) || c >= '\u0080');
+
+    // \r\n, a lone \r and \n each end a line.
+    private static int LineBreaks(string sql, int from, int to)
+    {
+        var count = 0;
+        for (var j = from; j < to; j++)
+        {
+            count += sql[j] == '\n' || (sql[j] == '\r' && (j + 1 >= sql.Length || sql[j + 1] != '\n')) ? 1 : 0;
+        }
+        return count;
     }
 
     // PostgreSQL folds unquoted names to lower case, ASCII letters only (as AstMapper.Name).
@@ -180,7 +216,7 @@ public static class SqlTokens
 
     private static int NumberEnd(string sql, int i)
     {
-        while (i < sql.Length && (char.IsDigit(sql[i]) || sql[i] == '.'))
+        while (i < sql.Length && (char.IsAsciiDigit(sql[i]) || sql[i] == '.'))
         {
             i++;
         }
@@ -189,10 +225,10 @@ public static class SqlTokens
         {
             exponent++;
         }
-        if (exponent > 0 && exponent < sql.Length && char.IsDigit(sql[exponent]))
+        if (exponent > 0 && exponent < sql.Length && char.IsAsciiDigit(sql[exponent]))
         {
             i = exponent;
-            while (i < sql.Length && char.IsDigit(sql[i]))
+            while (i < sql.Length && char.IsAsciiDigit(sql[i]))
             {
                 i++;
             }
