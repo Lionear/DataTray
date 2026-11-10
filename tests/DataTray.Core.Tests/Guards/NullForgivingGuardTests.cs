@@ -20,6 +20,23 @@ public class NullForgivingGuardTests
     }
 
     [Fact]
+    public void Excess_SaysHowManyAreNewAndListsEveryLine()
+    {
+        var scan = new Dictionary<string, IReadOnlyList<int>> { ["src/A.cs"] = [3, 7, 9] };
+        var baseline = new Dictionary<string, int> { ["src/A.cs"] = 1 };
+
+        var excess = NullForgivingBaseline.Excess(scan, baseline);
+
+        Assert.Equal(
+            [
+                "src/A.cs:3: the null-forgiving operator is not allowed in DataTray (2 more than the baseline of 1 in this file)",
+                "src/A.cs:7: the null-forgiving operator is not allowed in DataTray (2 more than the baseline of 1 in this file)",
+                "src/A.cs:9: the null-forgiving operator is not allowed in DataTray (2 more than the baseline of 1 in this file)",
+            ],
+            excess);
+    }
+
+    [Fact]
     public void Repository_HasNoNullForgivingOperatorBeyondTheBaseline()
     {
         var excess = NullForgivingBaseline.Excess(Scan.Value, Baseline.Value);

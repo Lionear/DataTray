@@ -17,9 +17,12 @@ public static class QueryModelJson
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         AllowOutOfOrderMetadataProperties = true,
         RespectNullableAnnotations = true,
+        AllowDuplicateProperties = false,
         TypeInfoResolver = new DefaultJsonTypeInfoResolver { Modifiers = { RequireNonNullableParameters } },
-        Converters = { new JsonStringEnumConverter() },
+        Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
     };
+
+    private static readonly JsonDocumentOptions DocumentOptions = new() { AllowDuplicateProperties = false };
 
     public static string Serialize(Statement statement)
     {
@@ -36,38 +39,42 @@ public static class QueryModelJson
             return Failed("The saved query is empty.");
         }
 
-        JsonNode? root;
+        JsonDocument document;
         try
         {
-            root = JsonNode.Parse(json);
+            document = JsonDocument.Parse(json, DocumentOptions);
         }
         catch (JsonException e)
         {
             return Failed($"The saved query is not valid JSON: {e.Message}");
         }
 
-        if (root is JsonObject obj && obj["formatVersion"] is { } versionNode)
+        using (document)
         {
-            if (versionNode is not JsonValue versionValue || !versionValue.TryGetValue<int>(out var version))
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("formatVersion", out var versionElement))
             {
-                return Failed("The saved query has an unreadable format version.");
+                if (versionElement.ValueKind != JsonValueKind.Number || !versionElement.TryGetInt32(out var version) || version <= 0)
+                {
+                    return Failed("The saved query has an unreadable format version.");
+                }
+
+                if (version > FormatVersion)
+                {
+                    return Failed($"The saved query was written by a newer version (format {version}).");
+                }
             }
 
-            if (version > FormatVersion)
+            try
             {
-                return Failed($"The saved query was written by a newer version (format {version}).");
+                return root.Deserialize<Statement>(Options) is { } statement
+                    ? new QueryModelLoadResult(statement, null)
+                    : Failed("The saved query is empty.");
             }
-        }
-
-        try
-        {
-            return root.Deserialize<Statement>(Options) is { } statement
-                ? new QueryModelLoadResult(statement, null)
-                : Failed("The saved query is empty.");
-        }
-        catch (Exception e) when (e is JsonException or NotSupportedException)
-        {
-            return Failed($"The saved query does not match the query model: {e.Message}");
+            catch (Exception e) when (e is JsonException or NotSupportedException)
+            {
+                return Failed($"The saved query does not match the query model: {ModelJsonErrors.Describe(e)}");
+            }
         }
     }
 

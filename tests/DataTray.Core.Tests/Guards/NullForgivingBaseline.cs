@@ -28,7 +28,8 @@ internal static class NullForgivingBaseline
         scan
             .Where(file => file.Value.Count > baseline.GetValueOrDefault(file.Key))
             .SelectMany(file => file.Value.Select(line =>
-                $"{file.Key}:{line}: the null-forgiving operator is not allowed in DataTray (baseline {baseline.GetValueOrDefault(file.Key)}, found {file.Value.Count})"))
+                $"{file.Key}:{line}: the null-forgiving operator is not allowed in DataTray " +
+                $"({file.Value.Count - baseline.GetValueOrDefault(file.Key)} more than the baseline of {baseline.GetValueOrDefault(file.Key)} in this file)"))
             .Order(StringComparer.Ordinal)
             .ToList();
 

@@ -132,12 +132,29 @@ public class QueryModelTests
     [InlineData("""{ "$type": "QueryStatement", "query": { "body": { "$type": "Select", "distinct": false, "items": [ { "expr": { "$type": "ColumnRef", "name": null } } ], "from": [], "groupBy": [], "windows": [] }, "orderBy": [] } }""", Invalid)]
     [InlineData("""{ "formatVersion": 2, "$type": "QueryStatement" }""", "The saved query was written by a newer version (format 2).")]
     [InlineData("""{ "formatVersion": "one", "$type": "QueryStatement" }""", "The saved query has an unreadable format version.")]
+    [InlineData("""{ "formatVersion": null, "$type": "QueryStatement" }""", "The saved query has an unreadable format version.")]
+    [InlineData("""{ "formatVersion": 0, "$type": "QueryStatement" }""", "The saved query has an unreadable format version.")]
+    [InlineData("""{ "$type": "QueryStatement", "$type": "Nope" }""", "The saved query is not valid JSON: ")]
+    [InlineData("""{ "$type": "QueryStatement", "query": { "body": { "$type": "Select", "distinct": false, "items": [ { "expr": { "$type": "ColumnRef", "name": "a", "name": "b" } } ], "from": [], "groupBy": [], "windows": [] }, "orderBy": [] } }""", "The saved query is not valid JSON: ")]
+    [InlineData("""{ "$type": "QueryStatement", "query": { "body": { "$type": "Select", "distinct": false, "items": [ { "expr": { "$type": "Binary", "op": 999, "left": { "$type": "ColumnRef", "name": "a" }, "right": { "$type": "ColumnRef", "name": "b" } } } ], "from": [], "groupBy": [], "windows": [] }, "orderBy": [] } }""", Invalid)]
     public void Json_Deserialize_BadContent_ReturnsReadableErrorInsteadOfThrowing(string json, string expectedError)
     {
         var result = QueryModelJson.Deserialize(json);
 
         Assert.Null(result.Statement);
         Assert.StartsWith(expectedError, result.Error);
+    }
+
+    [Fact]
+    public void Json_Deserialize_ErrorInsideAList_NamesTheAbsolutePathWithoutClrNamespaces()
+    {
+        const string json = """{ "$type": "QueryStatement", "query": { "body": { "$type": "Select", "distinct": false, "items": [ { "expr": { "$type": "ColumnRef", "name": null } } ], "from": [], "groupBy": [], "windows": [] }, "orderBy": [] } }""";
+
+        var error = QueryModelJson.Deserialize(json).Error;
+
+        Assert.Equal(
+            Invalid + "The constructor parameter 'Name' on type 'ColumnRef' doesn't allow null values. Consider updating its nullability annotation. (at $.query.body.items[0].expr.name)",
+            error);
     }
 
     [Theory]
