@@ -13,10 +13,11 @@ internal static class FixtureCases
     public static string SchemaSql => Read(Path.Combine(Root, "_schema", "sqlite.sql"));
 
     public static string[] CaseNames() =>
-        Directory.GetDirectories(Root).Select(Path.GetFileName).Where(n => !n!.StartsWith('_')).Order().ToArray()!;
+        Directory.GetDirectories(Root).Select(d => new DirectoryInfo(d).Name).Where(n => !n.StartsWith('_')).Order().ToArray();
 
     public static string Version(string dialect) =>
-        JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(Path.Combine(Root, "_versions.json")))![dialect];
+        JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(Path.Combine(Root, "_versions.json")))?[dialect]
+        ?? throw new InvalidOperationException($"Fixtures/_versions.json has no version for {dialect}.");
 
     public static Statement Model(string name)
     {

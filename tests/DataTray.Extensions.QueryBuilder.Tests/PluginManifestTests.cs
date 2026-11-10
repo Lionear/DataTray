@@ -12,8 +12,8 @@ public class PluginManifestTests
 
         var actual = new object[]
         {
-            root.GetProperty("id").GetString()!,
-            root.GetProperty("type").GetString()!,
+            root.GetProperty("id").ToString(),
+            root.GetProperty("type").ToString(),
             root.GetProperty("hostApiVersion").GetInt32(),
             string.Join(",", root.GetProperty("capabilities").EnumerateArray().Select(c => c.GetString())),
         };

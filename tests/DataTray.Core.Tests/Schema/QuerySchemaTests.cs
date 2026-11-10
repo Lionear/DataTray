@@ -116,7 +116,8 @@ public class QuerySchemaTests
 
         var table = await Create(cache, "Sales").GetTableAsync(new QueryTableRef("Sales", "dbo", "Orders", false));
 
-        Assert.Equal([new QueryColumn("id", "int"), new QueryColumn("customer_id", null)], table!.Columns);
+        Assert.NotNull(table);
+        Assert.Equal([new QueryColumn("id", "int"), new QueryColumn("customer_id", null)], table.Columns);
         Assert.Equal([new QueryForeignKey("customer_id", "Customers", "id")], table.ForeignKeys);
     }
 

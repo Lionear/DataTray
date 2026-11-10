@@ -44,7 +44,7 @@ public class OpenTabStateTests
         var restored = JsonSerializer.Deserialize<OpenTabState>(
             JsonSerializer.Serialize(original, Options), Options);
 
-        Assert.Equal("{\"x\":1}", restored!.PaneStates!["acme.designer"]);
+        Assert.Equal("{\"x\":1}", restored?.PaneStates?["acme.designer"]);
     }
 
     [Fact]
@@ -54,7 +54,8 @@ public class OpenTabStateTests
 
         var state = JsonSerializer.Deserialize<OpenTabState>(legacy, Options);
 
-        Assert.Null(state!.PaneStates);
+        Assert.NotNull(state);
+        Assert.Null(state.PaneStates);
         Assert.True(state.IsActive);
     }
 }

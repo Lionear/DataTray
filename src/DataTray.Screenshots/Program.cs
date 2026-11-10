@@ -724,7 +724,11 @@ internal static class SceneCatalog
     private static async Task<Window?> BuildQueryPaneAsync(IServiceProvider services, string sandbox, string state)
     {
         var window = await BuildQueryAsync(services, sandbox, "input");
-        var document = ((MainViewModel)window!.DataContext!).SelectedDocument!;
+        if (window is not { DataContext: MainViewModel { SelectedDocument: { } document } })
+        {
+            throw new InvalidOperationException("The query scene has no selected query document to mount the demo pane on.");
+        }
+
         QueryPaneDemo.Apply(document, state);
         Program.Settle(rounds: 10);
         return window;

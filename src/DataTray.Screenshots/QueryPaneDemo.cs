@@ -20,7 +20,8 @@ internal static class QueryPaneDemo
         document.TogglePaneCommand.Execute(document.QueryPanes[0]);
         if (state == "linked")
         {
-            plugin.Created!.Generate();
+            var demo = plugin.Created ?? throw new InvalidOperationException("The demo pane was not created, so it cannot link the editor.");
+            demo.Generate();
         }
     }
 
