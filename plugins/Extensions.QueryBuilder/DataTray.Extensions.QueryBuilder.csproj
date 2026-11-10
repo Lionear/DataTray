@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <RootNamespace>DataTray.Extensions.QueryBuilder</RootNamespace>
+    <!-- Plugin build: emit the private parsers (ScriptDom, SqlParserCS) into the output folder so the plugin
+         loads them from its isolated AssemblyLoadContext, exactly like Tools.MsSqlBacpac does for DacFx. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>

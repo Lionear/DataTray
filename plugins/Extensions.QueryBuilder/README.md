@@ -5,29 +5,32 @@
 The pure core of the Visual Query Builder plugin: a query **model**, a **generator** per dialect, a **reader** that
 turns SQL back into the model, and a **read-back check** that decides whether a query may be shown in the builder.
 
-There is **no UI yet** (the pane, the plugin entry class and staging into the desktop app arrive in PR 3) and
-**no DML generation or reading yet** (PR 4). `INSERT`/`UPDATE`/`DELETE`/`MERGE` exist in the model only; the generator
-answers `dml-not-yet` and the readers refuse them with the same code. The core has no Avalonia, no host types and no I/O.
+There is **no UI yet** (the pane, the plugin entry class and staging into the desktop app are not yet implemented) and
+**no DML generation or reading yet**. `INSERT`/`UPDATE`/`DELETE`/`MERGE` exist in the model only; the generator answers
+`dml-not-yet` and the reader refuses them with the same code. The core has no Avalonia, no host types and no I/O.
 
 ```
 Model (Statement) ──SqlGenerator + IDialect──▶ SQL text
-SQL text ──ISqlReader──▶ Model ──SqlGenerator──▶ SQL text ──token compare──▶ shown / refused
+SQL text ──ReadBack (reader)──▶ Model ──SqlGenerator──▶ SQL text ──token compare──▶ shown / refused
 ```
 
 ## Layout
 
 | Folder | Contents |
 |---|---|
-| `Model/` | Immutable records: `Query`, `Select`, `SetOp`, `With`, sources, expressions, windows, DML statements. `QueryModelJson` (de)serialises them. |
+| `Model/` | Immutable records: `Query`, `Select`, `SetOp`, `With`, sources, expressions, windows, DML statements. `QueryModelJson` (de)serialises them with a root `formatVersion` (a file without one is version 1). |
 | `Dialects/` | `SqlDialects.For`, `IDialect`, `DialectCapabilities` and the style enums. |
 | `Generation/` | `SqlGenerator.Generate(statement, dialect)` returning `GenerationResult(Sql, Problems)`. |
-| `Reading/` | `SqlReaders.For(providerId)`, `ReadBack.ReadAndVerify`, the script scanner and the token comparison. |
+| `Reading/` | `ReadBack.ReadAndVerify`, the only public read path; the readers, the script scanner and the token comparison are internal. |
 
 ## Dialects and capabilities
 
 `SqlDialects.For(providerId, serverVersion)` takes a provider id (`sqlserver`, `postgres`, `mysql`, `sqlite`; anything
 else throws `NotSupportedException`) and the server's version string. The version is parsed into a `DialectCapabilities`
 record. **A null or unparseable version turns every version-gated capability off**: the builder never guesses a feature on.
+A major-only version (`16`) reads as `16.0.0`; a number too large to parse makes the version unknown. **MariaDB** (a version
+string containing `MariaDB` on the `mysql` provider) is treated as an unknown version: its numbering and features differ
+from MySQL's, so every version-gated feature is off.
 
 | Capability | sqlserver | postgres | mysql | sqlite |
 |---|---|---|---|---|
@@ -66,8 +69,9 @@ The remaining flags (`OrderByInSubqueryNeedsLimit`, `LimitInInSubquery`, `OrderB
 - **Problems instead of rewrites.** A model the dialect cannot express yields `Sql = null` and a list of
   `GenerationProblem(Code, Message, Node)`. Nothing is silently changed into something similar.
 - **Predicate as value.** A predicate (`=`, `LIKE`, `IN`, `EXISTS`, `AND` …) used where a value is expected, such as a select
-  item, is `predicate-as-value`, because SQL Server has no boolean type. A boolean literal used as a predicate becomes `1 = 1`
-  / `1 = 0`.
+  item, is `predicate-as-value`, because SQL Server has no boolean type. The reverse, a value in `WHERE`, `ON`, `HAVING` or
+  under `NOT`/`AND`/`OR` (`WHERE [a]`), is `value-as-predicate`. A boolean literal used as a predicate becomes `1 = 1` /
+  `1 = 0`; a `Fragment` is passed through in either position.
 - **Limits.** SQL Server writes `TOP (n)` on a plain `SELECT` and `OFFSET … FETCH` when there is an offset or a set
   operation. Others write `LIMIT n OFFSET m`. `OFFSET` without `ORDER BY` is `offset-needs-order-by`.
 - **Narrow strings.** `LiteralKind.NarrowString` is a `'…'` literal without the `N` prefix; it exists so that SQL Server
@@ -78,7 +82,7 @@ The remaining flags (`OrderByInSubqueryNeedsLimit`, `LimitInInSubquery`, `OrderB
 Problem codes the generator can emit: `dml-not-yet`, `nested-query-body`, `nested-with`, `order-by-needs-limit`,
 `limit-in-in-subquery`, `invalid-limit`, `offset-needs-order-by`, `empty-with`, `empty-cte-columns`, `intersect-except`,
 `intersect-except-all`, `order-by-in-set-operand`, `parenthesized-query`, `empty-values`, `empty-select`, `join-needs-on`,
-`join-unexpected-on`, `right-join`, `full-join`, `predicate-as-value`, `quantified-subquery`, `invalid-quantified-op`,
+`join-unexpected-on`, `right-join`, `full-join`, `predicate-as-value`, `value-as-predicate`, `quantified-subquery`, `invalid-quantified-op`,
 `invalid-number`, `invalid-boolean`, `concat-arity`, `window-functions`, `invalid-frame`, `groups-frame`, `range-offset`,
 `frame-exclude`, `invalid-frame-offset`, `named-window`.
 
@@ -93,14 +97,15 @@ Problem codes the generator can emit: `dml-not-yet`, `nested-query-body`, `neste
 
 ## Reader
 
-`SqlReaders.For(providerId)` returns an `ISqlReader`; no parser type leaves `Reading/`.
+Reading goes through `ReadBack.ReadAndVerify` (below). Internally a reader per provider sits behind `ISqlReader`; no parser
+type leaves `Reading/`.
 
 | Provider | Parser |
 |---|---|
 | `sqlserver` | `Microsoft.SqlServer.TransactSql.ScriptDom` 180.37.3 (same version as the host formatter) |
 | `postgres`, `mysql`, `sqlite` | `SqlParserCS` 0.6.5 |
 
-`Read(sql)` returns a `ReadResult(Outcome, Statement, Reasons, FragmentCount, CommentCount)`:
+The result is a `ReadResult(Outcome, Statement, Reasons, FragmentCount, CommentCount)`:
 
 - **Read**: the whole query maps onto the model.
 - **ReadWithFragments**: it maps, but some pieces are kept as verbatim text (`FragmentSource` / `Fragment` expressions), for
@@ -113,7 +118,8 @@ Problem codes the generator can emit: `dml-not-yet`, `nested-query-body`, `neste
 `procedure-call`, `control-flow`, `dml-not-yet`, `not-a-query` (DDL and other statements), `parse-error`, and
 `cannot-represent` for query shapes the model does not hold (T-SQL `FOR XML/JSON`, `SELECT INTO`, `OPTION (…)`, `COMPUTE`,
 `ROLLUP`/`CUBE`/`GROUPING SETS`, graph `MATCH`). Dialect-specific constructs the scanner refuses: `escape-string` and
-`prefixed-string` (postgres `E'…'`, `B'…'`), `adjacent-strings`, `sqlite-cast`, `mysql-modifier`, `mysql-operator`,
+`prefixed-string` (postgres `E'…'`, `B'…'`; `E'…'` on mysql and sqlite), `unterminated-quote` (a string, quoted name or
+comment that runs to the end of the text, refused before any parser sees it), `adjacent-strings`, `sqlite-cast`, `mysql-modifier`, `mysql-operator`,
 `mysql-like-escape`, `mysql-double-dash`, `mysql-executable-comment` (`/*! … */`, MariaDB `/*M! … */`).
 
 **Known gaps**
@@ -138,8 +144,7 @@ regenerated SQL means something other than what the user typed.
 `tests/DataTray.Extensions.QueryBuilder.Tests`, run with `dotnet test tests/DataTray.Extensions.QueryBuilder.Tests`.
 
 - **Goldens**: `Fixtures/<case>/` holds `model.json` plus, per dialect, either `<dialect>.sql` or `<dialect>.problems.txt`.
-  There are 167 cases, with 632 SQL goldens (150 sqlserver, 165 postgres, 158 mysql, 159 sqlite) and 37 problem files. Versions are pinned in
-  `Fixtures/_versions.json` (sqlserver 16.0, postgres 16.4, mysql 8.4.0, sqlite 3.50.4).
+  Versions are pinned in `Fixtures/_versions.json`.
 - **Three validity proofs**, so a golden cannot be merely self-consistent: SQLite runs `EXPLAIN` on every sqlite golden against
   a demo schema (`Fixtures/_schema/sqlite.sql`); ScriptDom parses every sqlserver golden; SqlParserCS parses the postgres and
   mysql goldens.

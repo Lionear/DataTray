@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using DataTray.Extensions.QueryBuilder.Model;
 
 namespace DataTray.Extensions.QueryBuilder.Tests.Model;
@@ -84,6 +85,30 @@ public class QueryModelTests
 
         Assert.Equal(new object[] { Build(), rows1 }, new object[] { Build(), rows2 });
         Assert.Equal(Build().GetHashCode(), Build().GetHashCode());
+    }
+
+    [Fact]
+    public void Json_Serialize_WritesFormatVersionOne()
+    {
+        var json = QueryModelJson.Serialize(new QueryStatement(Simple(Col("a"))));
+
+        Assert.Equal(1, JsonNode.Parse(json)?["formatVersion"]?.GetValue<int>());
+    }
+
+    [Fact]
+    public void Json_Deserialize_TypeDiscriminatorAfterOtherProperties_Reads()
+    {
+        const string json = """
+            {
+              "query": {
+                "body": { "distinct": false, "items": [ { "expr": { "name": "a", "$type": "ColumnRef" } } ], "from": [], "groupBy": [], "windows": [], "$type": "Select" },
+                "orderBy": []
+              },
+              "$type": "QueryStatement"
+            }
+            """;
+
+        Assert.Equal(new QueryStatement(Simple(Col("a"))), QueryModelJson.Deserialize(json));
     }
 
     [Theory]
