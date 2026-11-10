@@ -37,6 +37,8 @@ public class DialectCapabilitiesTests
         { "mysql", "8.4.0", c => c.RightJoin, true },
         { "mysql", "8.4.0", c => c.LimitInInSubquery, false },
         { "mysql", "8.4.0", c => c.Merge, false },
+        { "mysql", "11.4.2-MariaDB", c => c.IntersectExcept, false },
+        { "mysql", "10.11.5-MariaDB-1:10.11.5+maria~ubu2204", c => c.Lateral, false },
         { "postgres", "14.10", c => c.Merge, false },
         { "postgres", "15.0", c => c.Merge, true },
         { "postgres", "16.4", c => c.MergeNotMatchedBySource, false },

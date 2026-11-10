@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace DataTray.Extensions.QueryBuilder.Model;
 
-public sealed class ValueListConverterFactory : JsonConverterFactory
+internal sealed class ValueListConverterFactory : JsonConverterFactory
 {
     public override bool CanConvert(Type typeToConvert) =>
         typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(ValueList<>);

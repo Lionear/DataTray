@@ -4,7 +4,9 @@ public static class SqlDialects
 {
     public static IDialect For(string providerId, string? serverVersion)
     {
-        var v = ServerVersion.Parse(serverVersion);
+        // MariaDB reports through the mysql provider with its own numbering; its features are not MySQL's.
+        var mariaDb = providerId == "mysql" && serverVersion?.Contains("MariaDB", StringComparison.OrdinalIgnoreCase) == true;
+        var v = mariaDb ? null : ServerVersion.Parse(serverVersion);
         return providerId switch
         {
             "sqlserver" => new Dialect("sqlserver", '[', ']', "N", false, SqlServer(v)),

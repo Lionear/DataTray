@@ -8,7 +8,7 @@ namespace DataTray.Extensions.QueryBuilder.Reading;
 /// The tokens of a query as the server sees them: no comments or whitespace, identifiers unquoted, strings by value and
 /// kind, plus a short list of spellings that cannot change the meaning. Anything not listed stays a difference.
 /// </summary>
-public static class SqlTokens
+internal static class SqlTokens
 {
     private static readonly string[] Operators = ["->>", "#>>", "<>", "!=", "<=", ">=", "||", "::", "->", "#>", "@>", "<@", "!<", "!>"];
 

@@ -1,6 +1,6 @@
 namespace DataTray.Extensions.QueryBuilder.Reading;
 
-public static class SqlReaders
+internal static class SqlReaders
 {
     public static ISqlReader For(string providerId) => providerId switch
     {

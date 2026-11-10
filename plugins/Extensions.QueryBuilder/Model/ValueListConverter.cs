@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace DataTray.Extensions.QueryBuilder.Model;
 
-public sealed class ValueListConverter<T> : JsonConverter<ValueList<T>>
+internal sealed class ValueListConverter<T> : JsonConverter<ValueList<T>>
 {
     public override ValueList<T>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         new(JsonSerializer.Deserialize<List<T>>(ref reader, options)!);
