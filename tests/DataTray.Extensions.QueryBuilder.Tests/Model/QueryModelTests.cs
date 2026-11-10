@@ -108,7 +108,36 @@ public class QueryModelTests
             }
             """;
 
-        Assert.Equal(new QueryStatement(Simple(Col("a"))), QueryModelJson.Deserialize(json));
+        Assert.Equal(new QueryModelLoadResult(new QueryStatement(Simple(Col("a"))), null), QueryModelJson.Deserialize(json));
+    }
+
+    private const string Body = """
+        "body": { "$type": "Select", "distinct": false, "items": [ { "expr": { "$type": "ColumnRef", "name": "a" } } ], "from": [], "groupBy": [], "windows": [] }
+        """;
+
+    private const string Invalid = "The saved query does not match the query model: ";
+
+    [Theory]
+    [InlineData("null", "The saved query is empty.")]
+    [InlineData("", "The saved query is empty.")]
+    [InlineData("  ", "The saved query is empty.")]
+    [InlineData("{", "The saved query is not valid JSON: ")]
+    [InlineData("""{ "$type": "Nope" }""", Invalid)]
+    [InlineData("{}", Invalid)]
+    [InlineData("[]", Invalid)]
+    [InlineData("""{ "$type": "QueryStatement" }""", Invalid)]
+    [InlineData("""{ "$type": "QueryStatement", "query": { """ + Body + " } }", Invalid)]
+    [InlineData("""{ "$type": "QueryStatement", "query": { """ + Body + """, "orderBy": null } }""", Invalid)]
+    [InlineData("""{ "$type": "QueryStatement", "query": { """ + Body + """, "orderBy": [ null ] } }""", Invalid)]
+    [InlineData("""{ "$type": "QueryStatement", "query": { "body": { "$type": "Select", "distinct": false, "items": [ { "expr": { "$type": "ColumnRef", "name": null } } ], "from": [], "groupBy": [], "windows": [] }, "orderBy": [] } }""", Invalid)]
+    [InlineData("""{ "formatVersion": 2, "$type": "QueryStatement" }""", "The saved query was written by a newer version (format 2).")]
+    [InlineData("""{ "formatVersion": "one", "$type": "QueryStatement" }""", "The saved query has an unreadable format version.")]
+    public void Json_Deserialize_BadContent_ReturnsReadableErrorInsteadOfThrowing(string json, string expectedError)
+    {
+        var result = QueryModelJson.Deserialize(json);
+
+        Assert.Null(result.Statement);
+        Assert.StartsWith(expectedError, result.Error);
     }
 
     [Theory]
@@ -117,6 +146,6 @@ public class QueryModelTests
     {
         var read = QueryModelJson.Deserialize(QueryModelJson.Serialize(model));
 
-        Assert.Equal(model, read);
+        Assert.Equal(new QueryModelLoadResult(model, null), read);
     }
 }

@@ -18,7 +18,7 @@ SQL text ──ReadBack (reader)──▶ Model ──SqlGenerator──▶ SQL 
 
 | Folder | Contents |
 |---|---|
-| `Model/` | Immutable records: `Query`, `Select`, `SetOp`, `With`, sources, expressions, windows, DML statements. `QueryModelJson` (de)serialises them with a root `formatVersion` (a file without one is version 1). |
+| `Model/` | Immutable records: `Query`, `Select`, `SetOp`, `With`, sources, expressions, windows, DML statements. `QueryModelJson` (de)serialises them with a root `formatVersion` (a file without one is version 1); `Deserialize` returns a `QueryModelLoadResult` whose `Error` explains bad content instead of throwing. |
 | `Dialects/` | `SqlDialects.For`, `IDialect`, `DialectCapabilities` and the style enums. |
 | `Generation/` | `SqlGenerator.Generate(statement, dialect)` returning `GenerationResult(Sql, Problems)`. |
 | `Reading/` | `ReadBack.ReadAndVerify`, the only public read path; the readers, the script scanner and the token comparison are internal. |

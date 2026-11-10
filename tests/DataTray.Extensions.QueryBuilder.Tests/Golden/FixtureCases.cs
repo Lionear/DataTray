@@ -18,7 +18,11 @@ internal static class FixtureCases
     public static string Version(string dialect) =>
         JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(Path.Combine(Root, "_versions.json")))![dialect];
 
-    public static Statement Model(string name) => QueryModelJson.Deserialize(Read(Path.Combine(Root, name, "model.json")));
+    public static Statement Model(string name)
+    {
+        var loaded = QueryModelJson.Deserialize(Read(Path.Combine(Root, name, "model.json")));
+        return loaded.Statement ?? throw new InvalidOperationException($"Fixture {name}: {loaded.Error}");
+    }
 
     public static FixtureExpectation Expected(string name, string dialect)
     {

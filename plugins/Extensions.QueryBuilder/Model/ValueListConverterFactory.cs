@@ -9,5 +9,6 @@ internal sealed class ValueListConverterFactory : JsonConverterFactory
         typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(ValueList<>);
 
     public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
-        (JsonConverter)Activator.CreateInstance(typeof(ValueListConverter<>).MakeGenericType(typeToConvert.GetGenericArguments()[0]))!;
+        Activator.CreateInstance(typeof(ValueListConverter<>).MakeGenericType(typeToConvert.GetGenericArguments()[0])) as JsonConverter
+        ?? throw new InvalidOperationException($"No list converter could be created for {typeToConvert}.");
 }
