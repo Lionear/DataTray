@@ -1,0 +1,205 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             xmlns:sdk="using:DataTray.Sdk.Ui"
+             x:Class="DataTray.App.Views.QueryMessagesView">
+  <!-- SE-300: a query tab's Messages log. DataContext is the DocumentViewModel (for Loc and the derived texts);
+       the log itself is its Messages property. Kind is never told by colour alone: errors and warnings get a
+       marker and a bar, row counts are dimmed, client lines are italic. -->
+  <UserControl.Styles>
+    <!-- Level chips: a small square in the level's colour, the name and its count. Off = dimmed, no fill. -->
+    <Style Selector="ToggleButton.LevelChip">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.LevelChip:checked /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.LevelChip:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.Follow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{StaticResource SEControlRadius}" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.Follow:checked /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SEAccentBrush}" />
+    </Style>
+
+    <Style Selector="ListBox.MessageLog ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+
+    <!-- One line. The tint and the bar sit behind the content so the theme brushes stay usable as-is. -->
+    <Style Selector="Panel.line Rectangle.tint, Panel.line Rectangle.bar">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Panel.line.error Rectangle.tint">
+      <Setter Property="IsVisible" Value="True" />
+      <Setter Property="Fill" Value="{DynamicResource SEStatusErrorBrush}" />
+    </Style>
+    <Style Selector="Panel.line.error Rectangle.bar">
+      <Setter Property="IsVisible" Value="True" />
+      <Setter Property="Fill" Value="{DynamicResource SEStatusErrorBrush}" />
+    </Style>
+    <Style Selector="Panel.line.warning Rectangle.bar">
+      <Setter Property="IsVisible" Value="True" />
+      <Setter Property="Fill" Value="{DynamicResource SEStatusWaitingBrush}" />
+    </Style>
+    <Style Selector="Panel.line.error TextBlock.text, Panel.line.error TextBlock.marker">
+      <Setter Property="Foreground" Value="{DynamicResource SEStatusErrorBrush}" />
+    </Style>
+    <Style Selector="Panel.line.warning TextBlock.text, Panel.line.warning TextBlock.marker">
+      <Setter Property="Foreground" Value="{DynamicResource SEStatusWaitingTextBrush}" />
+    </Style>
+    <Style Selector="Panel.line.rowcount TextBlock.text">
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+    <Style Selector="Panel.line.client TextBlock.text">
+      <Setter Property="FontStyle" Value="Italic" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*">
+    <!-- Toolbar: filter, level chips, then Follow / Copy / Clear on the right. -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,0,0,6">
+      <TextBox Grid.Column="0" Width="230" Text="{Binding Messages.FilterText}"
+               PlaceholderText="{Binding Loc[MessagesFilterPlaceholder]}" />
+      <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11.5"
+                 Foreground="{DynamicResource SETextFaintBrush}"
+                 Text="{Binding MessagesFilterCountText}" IsVisible="{Binding Messages.IsFiltered}" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0">
+        <ToggleButton Classes="LevelChip" IsChecked="{Binding Messages.ShowInfo}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource SETextFaintBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Loc[MessagesInfo]}" FontSize="12" />
+            <TextBlock Text="{Binding Messages.InfoCount}" FontSize="12" FontWeight="SemiBold" />
+          </StackPanel>
+        </ToggleButton>
+        <ToggleButton Classes="LevelChip" IsChecked="{Binding Messages.ShowWarnings}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource SEStatusWaitingBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Loc[MessagesWarnings]}" FontSize="12" />
+            <TextBlock Text="{Binding Messages.WarningCount}" FontSize="12" FontWeight="SemiBold" />
+          </StackPanel>
+        </ToggleButton>
+        <ToggleButton Classes="LevelChip" IsChecked="{Binding Messages.ShowErrors}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource SEStatusErrorBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Loc[MessagesErrors]}" FontSize="12" />
+            <TextBlock Text="{Binding Messages.ErrorCount}" FontSize="12" FontWeight="SemiBold" />
+          </StackPanel>
+        </ToggleButton>
+      </StackPanel>
+      <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4">
+        <ToggleButton Classes="Follow" IsChecked="{Binding Messages.IsFollowing}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <Path Width="11" Height="11" Stretch="Uniform" Data="{x:Static sdk:Icons.Download}"
+                  Stroke="{Binding $parent[ToggleButton].Foreground}" StrokeThickness="1.6"
+                  StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Loc[MessagesFollow]}" FontSize="12" />
+          </StackPanel>
+        </ToggleButton>
+        <Button Classes="Subtle" Padding="7,4" Click="OnCopyClick" ToolTip.Tip="{Binding Loc[MessagesCopy]}">
+          <Path Width="13" Height="13" Stretch="Uniform" Data="{x:Static sdk:Icons.Copy}"
+                Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.5"
+                StrokeJoin="Round" StrokeLineCap="Round" />
+        </Button>
+        <Button Classes="Subtle" Padding="7,4" Click="OnClearClick" ToolTip.Tip="{Binding Loc[MessagesClear]}">
+          <Path Width="13" Height="13" Stretch="Uniform" Data="{x:Static sdk:Icons.Trash2}"
+                Stroke="{DynamicResource SETextSecondaryBrush}" StrokeThickness="1.5"
+                StrokeJoin="Round" StrokeLineCap="Round" />
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- Past the cap: say so rather than pretend the log is complete. -->
+    <Border Grid.Row="1" IsVisible="{Binding Messages.IsTruncated}" Padding="10,5" Margin="0,0,0,4"
+            CornerRadius="{StaticResource SEControlRadius}"
+            Background="{DynamicResource SEMatchBgBrush}">
+      <TextBlock Text="{Binding MessagesTruncatedText}" FontSize="12" TextWrapping="Wrap"
+                 Foreground="{DynamicResource SEMatchFgBrush}" />
+    </Border>
+
+    <Border Grid.Row="2" BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+            CornerRadius="{StaticResource SEControlRadius}" ClipToBounds="True">
+      <Panel>
+        <ListBox x:Name="Log" Classes="MessageLog" ItemsSource="{Binding Messages.Visible}"
+                 SelectionMode="Multiple" Background="Transparent" BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Panel Classes="line" Classes.error="{Binding IsError}" Classes.warning="{Binding IsWarning}"
+                     Classes.rowcount="{Binding IsRowCount}" Classes.client="{Binding IsClient}">
+                <Rectangle Classes="tint" Opacity="0.12" />
+                <Rectangle Classes="bar" Width="3" HorizontalAlignment="Left" />
+                <!-- The divider between kept runs. -->
+                <TextBlock IsVisible="{Binding IsSeparator}" Text="{Binding Text}" Margin="10,6"
+                           HorizontalAlignment="Center" FontSize="11.5"
+                           Foreground="{DynamicResource SETextFaintBrush}" />
+                <Grid IsVisible="{Binding !IsSeparator}" ColumnDefinitions="96,18,*" Margin="10,2,10,2">
+                  <TextBlock Grid.Column="0" Text="{Binding TimeText}" FontFamily="{StaticResource SEMonoFont}"
+                             FontSize="12" Foreground="{DynamicResource SETextFaintBrush}" />
+                  <TextBlock Grid.Column="1" Classes="marker" FontFamily="{StaticResource SEMonoFont}" FontSize="12"
+                             Text="×" IsVisible="{Binding IsError}" />
+                  <TextBlock Grid.Column="1" Classes="marker" FontFamily="{StaticResource SEMonoFont}" FontSize="12"
+                             FontWeight="Bold" Text="!" IsVisible="{Binding IsWarning}" />
+                  <TextBlock Grid.Column="1" Classes="marker" FontFamily="{StaticResource SEMonoFont}" FontSize="12"
+                             Text="–" IsVisible="{Binding IsClient}"
+                             Foreground="{DynamicResource SETextFaintBrush}" />
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Classes="text" Text="{Binding Header}" IsVisible="{Binding HasHeader}"
+                               FontFamily="{StaticResource SEMonoFont}" FontSize="12" />
+                    <TextBlock Classes="text" Text="{Binding Text}" TextWrapping="Wrap"
+                               FontFamily="{StaticResource SEMonoFont}" FontSize="12" />
+                  </StackPanel>
+                </Grid>
+              </Panel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Empty: nothing yet, or nothing that passes the filter. -->
+        <TextBlock Text="{Binding Loc[MessagesEmpty]}" IsVisible="{Binding !Messages.Total}"
+                   HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0"
+                   FontFamily="{StaticResource SEMonoFont}" FontSize="12"
+                   Foreground="{DynamicResource SETextFaintBrush}" />
+        <TextBlock Text="{Binding Loc[MessagesNoMatch]}"
+                   HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0"
+                   FontFamily="{StaticResource SEMonoFont}" FontSize="12"
+                   Foreground="{DynamicResource SETextFaintBrush}">
+          <TextBlock.IsVisible>
+            <MultiBinding Converter="{x:Static conv:BoolConverters.And}">
+              <Binding Path="!Messages.Visible.Count" />
+              <Binding Path="!!Messages.Total" />
+            </MultiBinding>
+          </TextBlock.IsVisible>
+        </TextBlock>
+
+        <!-- Following paused: how much arrived since, and the way back to the bottom. -->
+        <Button Classes="Accent" IsVisible="{Binding Messages.HasNewWhilePaused}" Click="OnResumeFollowClick"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,10" Padding="10,4">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Path Width="11" Height="11" Stretch="Uniform" Data="{x:Static sdk:Icons.ChevronDown}"
+                  Stroke="{DynamicResource SEAccentFgBrush}" StrokeThickness="1.8"
+                  StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding MessagesNewText}" FontSize="12" />
+          </StackPanel>
+        </Button>
+      </Panel>
+    </Border>
+  </Grid>
+</UserControl>

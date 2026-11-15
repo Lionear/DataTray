@@ -3366,6 +3366,9 @@ public partial class MainViewModel : ViewModelBase
         document.Reported += (level, message) => ReportOutput(level, document.Connection?.Name, message);
         // A query auto-connects outside the tree's connect flow, so reflect that on the connection's status dot.
         document.ConnectionActivity += SetConnectionState;
+        // SE-300: drains the tab's message queue and moves its clock while it runs, also when it is not the
+        // tab on screen — a background run must not pile up its messages until it ends.
+        document.Ticker = tick => DispatcherTimer.Run(tick, TimeSpan.FromMilliseconds(100));
         if (_pluginHostUi is { } hostUi)
         {
             document.MountQueryToolbar(_queryToolbarContributions, hostUi);

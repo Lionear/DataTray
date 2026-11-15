@@ -2445,4 +2445,7 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="SettingsKeepQueryMessagesHint" xml:space="preserve">
     <value>Off: a query tab's messages are cleared when its next run starts. On: runs are separated by a divider, up to the latest 10,000 lines.</value>
   </data>
+  <data name="RunClockStopped" xml:space="preserve">
+    <value>· stopped</value>
+  </data>
 </root>

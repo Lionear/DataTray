@@ -109,6 +109,7 @@ public class QueryMessagesRunTests
         Assert.Equal(QueryRunOutcome.Failed, document.RunOutcome);
         Assert.Equal("Msg 547", document.Messages.FirstErrorCode);
         Assert.True(document.IsMessagesSelected);
+        Assert.False(document.ShowEditToolbar);   // Add row / Save act on a grid that is not on screen
     }
 
     [Fact] // SE-300: a provider that only throws still gets its error into the timeline, after what came before.
@@ -125,6 +126,32 @@ public class QueryMessagesRunTests
 
         Assert.Equal(["batch 1", "boom"], document.Messages.Visible.Select(e => e.Text));
         Assert.Equal(1, document.Messages.ErrorCount);
+    }
+
+    [Fact] // SE-300: Clear empties the view mid-run without stopping it; a failure after that still shows up,
+           // also when earlier kept runs had errors of their own.
+    public async Task Error_AfterClearingKeptMessagesMidRun_StillLandsInTheTimeline()
+    {
+        _settings.KeepQueryMessagesBetweenRuns = true;
+        var document = NewDocument();
+        _provider.Script = (_, _) => throw new InvalidOperationException("first");
+        await document.RunCommand.ExecuteAsync(null);
+        var reached = new TaskCompletionSource();
+        var gate = new TaskCompletionSource();
+        _provider.Script = async (_, _) =>
+        {
+            reached.SetResult();
+            await gate.Task;
+            throw new InvalidOperationException("second");
+        };
+
+        var run = document.RunCommand.ExecuteAsync(null);
+        await reached.Task;
+        document.Messages.Clear();
+        gate.SetResult();
+        await run;
+
+        Assert.Equal(["second"], document.Messages.Visible.Select(e => e.Text));
     }
 
     public static IEnumerable<object[]> TabCases() =>

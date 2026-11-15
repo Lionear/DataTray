@@ -19,4 +19,10 @@ public sealed record QueryMessageEntry(QueryMessageKind Kind, string Text, DateT
     public string TimeText => Time.ToString("HH:mm:ss.fff");
 
     public bool HasHeader => Header is not null;
+
+    public bool IsError => Kind == QueryMessageKind.Error;
+
+    public bool IsWarning => Kind == QueryMessageKind.Warning;
+
+    public bool IsRowCount => Kind == QueryMessageKind.RowsAffected;
 }

@@ -155,6 +155,8 @@ public partial class App : Application
                 await Task.Delay(splash.Classes.Contains("reduced-motion") ? 0 : 350);
                 handedOver = true;
                 front = mainWindow;
+                // SE-300: the run spinner and pulse read this class, the same answer the splash got.
+                mainWindow.Classes.Set("reduced-motion", splash.Classes.Contains("reduced-motion"));
                 desktop.MainWindow = mainWindow;
                 mainWindow.Show();
                 splash.Close();

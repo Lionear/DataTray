@@ -364,6 +364,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     {
         _viewers = viewers;
         Messages = new QueryMessageLog(clock ?? TimeProvider.System);
+        WireMessages();
         _providers = providers;
         _connections = connections;
         _formatter = formatter;
@@ -833,7 +834,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     /// <summary>The Add/Delete/Save/Discard/Export edit toolbar shows for a real result set, but never in
     /// monitor mode — those are write actions, and the live sessions grid is read-only.</summary>
-    public bool ShowEditToolbar => !IsMonitorMode && Editable is not null;
+    public bool ShowEditToolbar => !IsMonitorMode && Editable is not null && !IsMessagesSelected;
 
     /// <summary>True while a query tab is showing a single SELECT's results one page at a time (SE-178) —
     /// drives the under-grid prev/next/row-range nav.</summary>

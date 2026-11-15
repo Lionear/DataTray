@@ -421,6 +421,10 @@
           </Grid>
           <TextBlock Text="{Binding Loc[QueryTimeoutHint]}" FontSize="11" TextWrapping="Wrap"
                      Foreground="{DynamicResource SETextFaintBrush}" />
+          <ToggleSwitch IsChecked="{Binding KeepQueryMessagesBetweenRuns}" Margin="0,10,0,0"
+                        OnContent="{Binding Loc[SettingsKeepQueryMessages]}" OffContent="{Binding Loc[SettingsKeepQueryMessages]}" />
+          <TextBlock Text="{Binding Loc[SettingsKeepQueryMessagesHint]}" FontSize="11" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SETextFaintBrush}" />
           <TextBlock Classes="SectionHead"
                      Text="{Binding Loc[SettingsSecPaging], Converter={x:Static c:UpperCaseConverter.Instance}, StringFormat='2. {0}'}" />
           <Grid ColumnDefinitions="*,Auto">

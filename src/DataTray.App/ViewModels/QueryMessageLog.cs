@@ -35,10 +35,16 @@ public sealed partial class QueryMessageLog(TimeProvider clock, int capacity = Q
     private int _infoCount;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasWarnings))]
     private int _warningCount;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasErrors))]
     private int _errorCount;
+
+    public bool HasWarnings => WarningCount > 0;
+
+    public bool HasErrors => ErrorCount > 0;
 
     /// <summary>Lines no longer kept because the log reached its capacity.</summary>
     [ObservableProperty]
@@ -55,6 +61,18 @@ public sealed partial class QueryMessageLog(TimeProvider clock, int capacity = Q
 
     public bool IsTruncated => Dropped > 0;
 
+    /// <summary>The list sticks to the newest line. The view clears it when the user scrolls up and sets it
+    /// again on Follow, End, or scrolling back to the bottom.</summary>
+    [ObservableProperty]
+    private bool _isFollowing = true;
+
+    /// <summary>Lines that arrived since following paused — the "n new messages" pill.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNewWhilePaused))]
+    private int _newWhilePaused;
+
+    public bool HasNewWhilePaused => NewWhilePaused > 0;
+
     public int Capacity => capacity;
 
     [ObservableProperty]
@@ -68,6 +86,14 @@ public sealed partial class QueryMessageLog(TimeProvider clock, int capacity = Q
 
     [ObservableProperty]
     private bool _showErrors = true;
+
+    partial void OnIsFollowingChanged(bool value)
+    {
+        if (value)
+        {
+            NewWhilePaused = 0;
+        }
+    }
 
     partial void OnFilterTextChanged(string value) => Refilter();
     partial void OnShowInfoChanged(bool value) => Refilter();
@@ -111,6 +137,11 @@ public sealed partial class QueryMessageLog(TimeProvider clock, int capacity = Q
             Count(entry);
         }
 
+        if (!IsFollowing)
+        {
+            NewWhilePaused += arrived.Count(e => !e.IsSeparator);
+        }
+
         _kept.AddRange(arrived);
         var overflow = _kept.Count - capacity;
         if (overflow > 0)
@@ -136,7 +167,7 @@ public sealed partial class QueryMessageLog(TimeProvider clock, int capacity = Q
         _incoming.Clear();
         _kept.Clear();
         Visible.Clear();
-        Total = InfoCount = WarningCount = ErrorCount = Dropped = 0;
+        Total = InfoCount = WarningCount = ErrorCount = Dropped = NewWhilePaused = 0;
         FirstErrorCode = null;
         LastText = null;
     }

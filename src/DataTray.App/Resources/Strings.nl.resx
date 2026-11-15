@@ -2445,4 +2445,7 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="SettingsKeepQueryMessagesHint" xml:space="preserve">
     <value>Uit: de berichten van een querytab worden gewist zodra de volgende uitvoering start. Aan: uitvoeringen worden gescheiden door een scheidingsregel, tot de laatste 10.000 regels.</value>
   </data>
+  <data name="RunClockStopped" xml:space="preserve">
+    <value>· gestopt</value>
+  </data>
 </root>

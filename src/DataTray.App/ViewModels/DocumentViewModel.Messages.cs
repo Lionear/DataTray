@@ -21,6 +21,12 @@ public partial class DocumentViewModel
     private int _runNumber;
     private int _errorsBeforeRun;
 
+    private IDisposable? _ticker;
+
+    /// <summary>Starts a repeating UI-thread callback that runs while it returns true; set by the host. Without
+    /// one (tests) nothing ticks on its own and the run's end does the last drain.</summary>
+    public Func<Func<bool>, IDisposable>? Ticker { get; set; }
+
     /// <summary>This tab's Messages log.</summary>
     public QueryMessageLog Messages { get; }
 
@@ -28,7 +34,66 @@ public partial class DocumentViewModel
     [NotifyPropertyChangedFor(nameof(RunStatusText))]
     [NotifyPropertyChangedFor(nameof(HasRunStatus))]
     [NotifyPropertyChangedFor(nameof(ShowRunClock))]
+    [NotifyPropertyChangedFor(nameof(IsRunActive))]
+    [NotifyPropertyChangedFor(nameof(IsRunCompleted))]
+    [NotifyPropertyChangedFor(nameof(IsRunCancelled))]
+    [NotifyPropertyChangedFor(nameof(IsRunFailed))]
+    [NotifyPropertyChangedFor(nameof(ShowRunningLastMessage))]
+    [NotifyPropertyChangedFor(nameof(HasMessagesPill))]
     private QueryRunOutcome _runOutcome;
+
+    public bool IsRunActive => RunOutcome == QueryRunOutcome.Running;
+
+    public bool IsRunCompleted => RunOutcome == QueryRunOutcome.Completed;
+
+    public bool IsRunCancelled => RunOutcome == QueryRunOutcome.Cancelled;
+
+    public bool IsRunFailed => RunOutcome == QueryRunOutcome.Failed;
+
+    /// <summary>The latest message beside "Running · 00:42" in the status bar.</summary>
+    public bool ShowRunningLastMessage => IsRunActive && Messages.LastText is not null;
+
+    /// <summary>The status-bar pill that opens the Messages tab: only for an engine with messages, once there are any.</summary>
+    public bool HasMessagesPill => HasRunStatus && _messagesSupported && Messages.Total > 0;
+
+    /// <summary>The count on the tab and the pill: the real total, shortened past a thousand (<c>48.2k</c>).</summary>
+    public string MessagesBadge => Messages.Total < 1000
+        ? Messages.Total.ToString(CultureInfo.InvariantCulture)
+        : (Messages.Total / 1000.0).ToString("0.#", CultureInfo.InvariantCulture) + "k";
+
+    public string MessagesTruncatedText => Loc.Get("MessagesTruncated", Messages.Capacity, Messages.Total);
+
+    public string MessagesNewText => Loc.Get("MessagesNew", Messages.NewWhilePaused);
+
+    public string MessagesFilterCountText => Loc.Get("MessagesFilterCount", Messages.Visible.Count, Messages.Total);
+
+    // The log changes on its own (flushes, filters); re-announce what the view derives from it.
+    private void WireMessages()
+    {
+        Messages.PropertyChanged += (_, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(QueryMessageLog.Total):
+                    OnPropertyChanged(nameof(MessagesBadge));
+                    OnPropertyChanged(nameof(MessagesTruncatedText));
+                    OnPropertyChanged(nameof(MessagesFilterCountText));
+                    OnPropertyChanged(nameof(HasMessagesPill));
+                    OnPropertyChanged(nameof(RunStatusText));
+                    break;
+                case nameof(QueryMessageLog.NewWhilePaused):
+                    OnPropertyChanged(nameof(MessagesNewText));
+                    break;
+                case nameof(QueryMessageLog.LastText):
+                    OnPropertyChanged(nameof(ShowRunningLastMessage));
+                    break;
+                case nameof(QueryMessageLog.FirstErrorCode):
+                    OnPropertyChanged(nameof(RunStatusText));
+                    break;
+            }
+        };
+        Messages.Visible.CollectionChanged += (_, _) => OnPropertyChanged(nameof(MessagesFilterCountText));
+    }
 
     /// <summary>Elapsed time of the current (or last) run, <c>00:42</c>.</summary>
     [ObservableProperty]
@@ -43,6 +108,7 @@ public partial class DocumentViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsGridSurface))]
     [NotifyPropertyChangedFor(nameof(IsViewerSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowEditToolbar))]
     private bool _isMessagesSelected;
 
     /// <summary>Whether the provider of the last run reports messages at all; without it there is no tab and
@@ -104,6 +170,7 @@ public partial class DocumentViewModel
     {
         _messagesSupported = _providers.TryGet(Connection.ProviderId, out var provider) && provider.SupportsQueryMessages;
         OnPropertyChanged(nameof(SupportsMessages));
+        OnPropertyChanged(nameof(HasMessagesPill));
         _runNumber++;
         if (_settingsStore.Load().KeepQueryMessagesBetweenRuns && Messages.Total > 0)
         {
@@ -128,10 +195,17 @@ public partial class DocumentViewModel
         _runElapsed = TimeSpan.Zero;
         RunClock = FormatClock(TimeSpan.Zero);
         RunOutcome = QueryRunOutcome.Running;
+        _ticker = Ticker?.Invoke(() =>
+        {
+            Tick();
+            return RunOutcome == QueryRunOutcome.Running;
+        });
     }
 
     private void EndRunProgress(bool cancelled)
     {
+        _ticker?.Dispose();
+        _ticker = null;
         Messages.Flush();
         _runElapsed = Messages.Clock.GetUtcNow() - _runStartedAt;
         RunClock = FormatClock(_runElapsed);
@@ -158,7 +232,7 @@ public partial class DocumentViewModel
 
         _runFailed = true;
         Messages.Flush();
-        if (Messages.ErrorCount == _errorsBeforeRun)
+        if (Messages.ErrorCount <= _errorsBeforeRun)
         {
             Messages.Report(new QueryMessage(QueryMessageKind.Error, message));
         }

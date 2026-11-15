@@ -122,4 +122,21 @@ public class QueryMessageLogTests
         Assert.True(log.Visible[1].IsClient);
         Assert.Equal(2, log.Total);
     }
+
+    [Fact] // SE-300: scrolling up pauses following; the pill counts what arrived since, and resuming resets it.
+    public void Flush_WhilePaused_CountsNewMessagesUntilFollowingResumes()
+    {
+        var log = new QueryMessageLog(new FakeClock());
+        log.Report(new QueryMessage(QueryMessageKind.Info, "seen"));
+        log.Flush();
+
+        log.IsFollowing = false;
+        log.Report(new QueryMessage(QueryMessageKind.Info, "new 1"));
+        log.Report(new QueryMessage(QueryMessageKind.RowsAffected, "(1 row affected)"));
+        log.Flush();
+        Assert.Equal(2, log.NewWhilePaused);
+
+        log.IsFollowing = true;
+        Assert.Equal(0, log.NewWhilePaused);
+    }
 }

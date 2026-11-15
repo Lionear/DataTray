@@ -81,6 +81,27 @@
       <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
     </Style>
+
+    <!-- SE-300: the run spinner in the status bar. Still under reduced motion: a dashed ring, no turning. -->
+    <Style Selector="Window:not(.reduced-motion) Ellipse.spin">
+      <Style.Animations>
+        <Animation Duration="0:0:0.9" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- The latest message beside "Running · 00:42": plain text that opens the Messages tab. -->
+    <Style Selector="Button.LastMessage">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.LastMessage:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+    </Style>
   </UserControl.Styles>
   <!-- Row 2 = splitter for the bottom tool-window, row 3 = the panel itself (its height is restored
        and persisted in code-behind, same as the sidebar width), row 4 = status bar. -->
@@ -935,9 +956,48 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
+        <!-- SE-300: where the active tab's run stands — spinner while running, a coloured dot after — plus the
+             latest server message, so a long script shows signs of life without opening its Messages tab. -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center" Margin="14,0,0,0"
+                    IsVisible="{Binding SelectedDocument.HasRunStatus, FallbackValue=False}">
+          <Ellipse Classes="spin" Width="11" Height="11" VerticalAlignment="Center"
+                   Stroke="{DynamicResource SEAccentBrush}" StrokeThickness="1.6" StrokeDashArray="4,2.5"
+                   IsVisible="{Binding SelectedDocument.IsRunActive}">
+            <Ellipse.RenderTransform>
+              <RotateTransform />
+            </Ellipse.RenderTransform>
+          </Ellipse>
+          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{DynamicResource SEStatusConnectedBrush}"
+                   IsVisible="{Binding SelectedDocument.IsRunCompleted}" />
+          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{DynamicResource SETextFaintBrush}"
+                   IsVisible="{Binding SelectedDocument.IsRunCancelled}" />
+          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{DynamicResource SEStatusErrorBrush}"
+                   IsVisible="{Binding SelectedDocument.IsRunFailed}" />
+          <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}"
+                     Text="{Binding SelectedDocument.RunStatusText}" />
+          <Button Classes="LastMessage" VerticalAlignment="Center" MaxWidth="460"
+                  IsVisible="{Binding SelectedDocument.ShowRunningLastMessage}"
+                  Command="{Binding SelectedDocument.SelectMessagesCommand}">
+            <TextBlock FontFamily="{StaticResource SEMonoFont}" FontSize="11.5" TextTrimming="CharacterEllipsis"
+                       Text="{Binding SelectedDocument.Messages.LastText, StringFormat='· {0}'}" />
+          </Button>
+        </StackPanel>
+
         <!-- Run stats for the active document: rows · duration · engine. -->
         <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                     IsVisible="{Binding SelectedDocument, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+          <!-- SE-300: opens the active tab's Messages; only for an engine that sends any, once it has. -->
+          <Button Classes="StatusToggle" Classes.on="{Binding SelectedDocument.IsMessagesSelected}"
+                  IsVisible="{Binding SelectedDocument.HasMessagesPill, FallbackValue=False}"
+                  Command="{Binding SelectedDocument.SelectMessagesCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <Path Width="13" Height="13" Stretch="Uniform" Data="{x:Static sdk:Icons.ScrollText}"
+                    Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.3"
+                    StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Loc[MessagesTab]}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding SelectedDocument.MessagesBadge}" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
           <TextBlock FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}"
                      Text="{Binding SelectedDocument.StatusLine}" />
         </StackPanel>
