@@ -263,6 +263,26 @@ public interface IDbProvider
     Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct);
 
     /// <summary>
+    /// True when this provider reports server messages (<c>PRINT</c>, notices, warnings, row counts) through
+    /// the <see cref="ExecuteScriptAsync(ConnectionProfile, string, IProgress{QueryMessage}, CancellationToken)"/>
+    /// overload. Drives whether a query tab offers a Messages tab at all; false (the default) keeps the tab and
+    /// its status-bar pill away, so an engine without messages shows only the run clock (host API v31, SE-300).
+    /// </summary>
+    bool SupportsQueryMessages => false;
+
+    /// <summary>
+    /// <see cref="ExecuteScriptAsync(ConnectionProfile, string, CancellationToken)"/>, reporting every server
+    /// message to <paramref name="messages"/> while the script runs: live, as the driver raises it, not
+    /// collected until the end. Errors still throw as before; a provider may also report them here first
+    /// (<see cref="QueryMessageKind.Error"/>) to give them a server header. The default ignores
+    /// <paramref name="messages"/>, so a provider that does not override it runs exactly as it always did
+    /// (host API v31, SE-300).
+    /// </summary>
+    Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(
+        ConnectionProfile profile, string sql, IProgress<QueryMessage> messages, CancellationToken ct) =>
+        ExecuteScriptAsync(profile, sql, ct);
+
+    /// <summary>
     /// Run this provider's EXPLAIN-equivalent for <paramref name="sql"/> without executing the
     /// query itself, and return the plan as a normal <see cref="QueryResult"/> so it renders in the
     /// existing grid infrastructure.
