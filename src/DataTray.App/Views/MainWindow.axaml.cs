@@ -90,6 +90,8 @@ public partial class MainWindow : Window
                 PopulateSubsystemMenu(vm);
                 vm.AboutRequested = ShowAboutAsync;
                 vm.Update.ChangelogRequested = ShowUpdateChangelogAsync;
+                vm.Update.SaveSession = SaveSession; // the updater exits without a close pass (SE-301)
+                StartSessionAutosave();
                 // No apply/reveal callbacks since SE-245: the updater replaces the app and restarts it
                 // itself, so there is no relaunch for the host to carry out and no file to hand over.
                 // Removing the leftover pre-Velopack install runs someone's uninstaller, so it asks first;
@@ -384,9 +386,37 @@ public partial class MainWindow : Window
             return;
         }
 
+        _autosave?.Stop();
+        SaveSession();
+        base.OnClosing(e);
+    }
+
+    /// <summary>The one "save the session" path: a normal close and the updater's exit both come through here.</summary>
+    private void SaveSession()
+    {
         PersistLayout();
         (DataContext as MainViewModel)?.PersistOpenTabs();
-        base.OnClosing(e);
+    }
+
+    // Autosave so a crash or kill costs at most this long (SE-301). Tabs only, not layout. The store skips the
+    // write when nothing changed, so an idle app does no I/O; a timer keeps it clear of every edit path.
+    private static readonly TimeSpan AutosaveInterval = TimeSpan.FromSeconds(30);
+    private DispatcherTimer? _autosave;
+
+    private void StartSessionAutosave()
+    {
+        _autosave ??= new DispatcherTimer(AutosaveInterval, DispatcherPriority.Background, (_, _) =>
+        {
+            try
+            {
+                (DataContext as MainViewModel)?.PersistOpenTabs();
+            }
+            catch (Exception)
+            {
+                // Best effort: the close path writes again and reports nothing either.
+            }
+        });
+        _autosave.Start();
     }
 
     private bool _dirtyHandled;

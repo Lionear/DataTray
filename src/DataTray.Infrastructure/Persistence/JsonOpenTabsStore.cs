@@ -15,6 +15,10 @@ public sealed class JsonOpenTabsStore : IOpenTabsStore
 
     private readonly string _path;
 
+    // What the file holds after our last write. Autosave calls Save on a timer; an unchanged session
+    // costs a string compare instead of a disk write.
+    private string? _lastWritten;
+
     public JsonOpenTabsStore(string? path = null)
     {
         _path = path ?? DefaultPath();
@@ -47,11 +51,19 @@ public sealed class JsonOpenTabsStore : IOpenTabsStore
 
     public void Save(IReadOnlyList<OpenTabState> tabs)
     {
-        var dir = Path.GetDirectoryName(_path)!;
+        var json = JsonSerializer.Serialize(tabs, Options);
+        if (json == _lastWritten)
+        {
+            return;
+        }
+
+        var dir = Path.GetDirectoryName(Path.GetFullPath(_path)) ?? Path.GetPathRoot(_path) ?? ".";
         Directory.CreateDirectory(dir);
 
+        // Temp file + replace: an interrupted write leaves the previous session intact, never half a file.
         var temp = Path.Combine(dir, $".{Path.GetFileName(_path)}.{Guid.NewGuid():N}.tmp");
-        File.WriteAllText(temp, JsonSerializer.Serialize(tabs, Options));
+        File.WriteAllText(temp, json);
         File.Move(temp, _path, overwrite: true);
+        _lastWritten = json;
     }
 }
