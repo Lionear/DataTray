@@ -83,6 +83,11 @@ jobs:
       - name: Test (Providers.Prometheus)
         run: dotnet test tests/DataTray.Providers.Prometheus.Tests/DataTray.Providers.Prometheus.Tests.csproj -c Release
 
+      # SE-302: the script that decides whether the scheduled nightly has anything to build. Plain python3
+      # on the runner, no project file, so the guard below does not see it.
+      - name: Test (tools/nightly-needed.py)
+        run: python3 -m unittest discover -s tools -p 'test_*.py'
+
       # The steps above name their projects one by one, which is how DataTray.Tools.SchemaDiff.Tests
       # managed to sit outside CI from the day it was added: adding a test project doesn't fail anything,
       # it just quietly runs nowhere. This fails the build instead of letting the next one slip through.
