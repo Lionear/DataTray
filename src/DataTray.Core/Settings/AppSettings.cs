@@ -136,6 +136,10 @@ public sealed class AppSettings
     /// run's token after the interval (same mechanism as the Stop button). MCP has its own timeout.</summary>
     public int QueryTimeoutSeconds { get; set; }
 
+    /// <summary>Keep a query tab's Messages across runs instead of clearing them when the next run starts
+    /// (SE-300). Off by default: a run's messages belong to the result it produced.</summary>
+    public bool KeepQueryMessagesBetweenRuns { get; set; }
+
     /// <summary>Rows fetched per page when browsing a table/collection/index (the "Browse table" grid).
     /// Applied to newly opened browse tabs. Default 200.</summary>
     public int BrowsePageSize { get; set; } = 200;

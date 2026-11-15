@@ -78,7 +78,7 @@ public sealed partial class QueryMessageLog(TimeProvider clock, int capacity = Q
 
     /// <summary>Queue a server message. Safe from any thread; nothing shows until the next <see cref="Flush"/>.</summary>
     public void Report(QueryMessage value) =>
-        _incoming.Enqueue(new QueryMessageEntry(value.Kind, value.Text, clock.GetLocalNow())
+        _incoming.Enqueue(new QueryMessageEntry(value.Kind, value.Text, Clock.GetLocalNow())
         {
             Header = value.Header,
             Code = value.Code,
@@ -86,11 +86,11 @@ public sealed partial class QueryMessageLog(TimeProvider clock, int capacity = Q
 
     /// <summary>Queue a line the app writes itself (the cancel note). It counts as an info message.</summary>
     public void AddClientLine(string text) =>
-        _incoming.Enqueue(new QueryMessageEntry(QueryMessageKind.Info, text, clock.GetLocalNow()) { IsClient = true });
+        _incoming.Enqueue(new QueryMessageEntry(QueryMessageKind.Info, text, Clock.GetLocalNow()) { IsClient = true });
 
     /// <summary>Queue the divider between two runs whose messages are both kept.</summary>
     public void AddSeparator(string text) =>
-        _incoming.Enqueue(new QueryMessageEntry(QueryMessageKind.Info, text, clock.GetLocalNow()) { IsSeparator = true });
+        _incoming.Enqueue(new QueryMessageEntry(QueryMessageKind.Info, text, Clock.GetLocalNow()) { IsSeparator = true });
 
     /// <summary>Move everything queued into the log. UI thread only. Returns true when anything arrived.</summary>
     public bool Flush()
