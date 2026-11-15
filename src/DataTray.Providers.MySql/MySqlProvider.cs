@@ -120,21 +120,47 @@ public sealed class MySqlProvider : IDbProvider
         return await ReadResultAsync(reader, stopwatch, ct);
     }
 
-    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    public Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct) =>
+        ExecuteScriptAsync(profile, sql, new Progress<QueryMessage>(), ct);
+
+    public bool SupportsQueryMessages => true;
+
+    // SE-300: MySQL has no PRINT and sends nothing while a statement runs. MySqlConnector raises InfoMessage
+    // (it runs SHOW WARNINGS itself) only for the warnings of the command's last statement, once the command
+    // is done — checked against MariaDB 11. That is what this reports; there are no per-statement row counts.
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(
+        ConnectionProfile profile, string sql, IProgress<QueryMessage> messages, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await OpenAsync(profile, ct);
-        await using var command = new MySqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-
-        var results = new List<QueryResult>();
-        do
+        connection.InfoMessage += (_, e) =>
         {
-            results.Add(await ReadResultAsync(reader, stopwatch, ct));
-        } while (await reader.NextResultAsync(ct));
+            foreach (var error in e.Errors)
+            {
+                messages.Report(MySqlMessages.From(error.Level, (int)error.ErrorCode, error.Message));
+            }
+        };
+        await using var command = new MySqlCommand(sql, connection);
 
-        return results;
+        try
+        {
+            var results = new List<QueryResult>();
+            await using (var reader = await command.ExecuteReaderAsync(ct))
+            {
+                do
+                {
+                    results.Add(await ReadResultAsync(reader, stopwatch, ct));
+                } while (await reader.NextResultAsync(ct));
+            }
+
+            return results;
+        }
+        catch (MySqlException ex)
+        {
+            messages.Report(new QueryMessage(QueryMessageKind.Error, ex.Message) { Code = ex.Number.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+            throw;
+        }
     }
 
     private static async Task<QueryResult> ReadResultAsync(MySqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)

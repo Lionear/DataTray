@@ -3,7 +3,7 @@
   "id": "mysql",
   "type": "provider",
   "name": "MySQL / MariaDB",
-  "version": "0.6.0",
-  "hostApiVersion": 29,
+  "version": "0.7.0",
+  "hostApiVersion": 31,
   "entryAssembly": "DataTray.Providers.MySql.dll"
 }

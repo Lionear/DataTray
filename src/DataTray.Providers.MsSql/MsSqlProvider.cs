@@ -390,21 +390,51 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         public TextReader GetTextReader(int i) => reader.GetTextReader(i);
     }
 
-    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    public Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct) =>
+        ExecuteScriptAsync(profile, sql, new Progress<QueryMessage>(), ct);
+
+    public bool SupportsQueryMessages => true;
+
+    // SE-300: PRINT and RAISERROR (severity 0–10, WITH NOWAIT included) arrive through InfoMessage and the
+    // per-statement row counts through StatementCompleted, both live while the reader is still open — checked
+    // against SQL Server 2025 with the ticket's batch-delete loop. Messages that follow an error in the same
+    // batch are not raised as InfoMessage; SqlClient folds them into the SqlException, so they are reported
+    // from there, in order, right before it is rethrown.
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(
+        ConnectionProfile profile, string sql, IProgress<QueryMessage> messages, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await OpenAsync(profile, ct);
+        connection.InfoMessage += (_, e) => Report(messages, e.Errors);
         await using var command = new SqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
+        command.StatementCompleted += (_, e) => messages.Report(MsSqlMessages.RowsAffected(e.RecordCount));
 
-        var results = new List<QueryResult>();
-        do
+        try
         {
-            results.Add(await ReadResultAsync(reader, stopwatch, ct));
-        } while (await reader.NextResultAsync(ct));
+            await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
 
-        return results;
+            var results = new List<QueryResult>();
+            do
+            {
+                results.Add(await ReadResultAsync(reader, stopwatch, ct));
+            } while (await reader.NextResultAsync(ct));
+
+            return results;
+        }
+        catch (SqlException ex)
+        {
+            Report(messages, ex.Errors);
+            throw;
+        }
+    }
+
+    private static void Report(IProgress<QueryMessage> messages, SqlErrorCollection errors)
+    {
+        foreach (SqlError error in errors)
+        {
+            messages.Report(MsSqlMessages.From(error.Number, error.Class, error.State, error.LineNumber, error.Message));
+        }
     }
 
     private static async Task<QueryResult> ReadResultAsync(SqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)

@@ -36,4 +36,8 @@
     <Using Include="DataTray.Sdk.Branding" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- SE-300: the driver-to-message mapping is internal to the plugin and tested on its own. -->
+    <InternalsVisibleTo Include="DataTray.Core.Tests" />
+  </ItemGroup>
 </Project>

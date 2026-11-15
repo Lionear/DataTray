@@ -3,7 +3,7 @@
   "id": "sqlserver",
   "type": "provider",
   "name": "SQL Server",
-  "version": "0.8.0",
-  "hostApiVersion": 30,
+  "version": "0.9.0",
+  "hostApiVersion": 31,
   "entryAssembly": "DataTray.Providers.MsSql.dll"
 }
