@@ -390,21 +390,94 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         public TextReader GetTextReader(int i) => reader.GetTextReader(i);
     }
 
-    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    public Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct) =>
+        ExecuteScriptAsync(profile, sql, new Progress<QueryMessage>(), ct);
+
+    public bool SupportsQueryMessages => true;
+
+    // SE-300: PRINT and RAISERROR (severity 0–10, WITH NOWAIT included) arrive through InfoMessage and the
+    // per-statement row counts through StatementCompleted, both live while the reader is still open — checked
+    // against SQL Server 2025 with the ticket's batch-delete loop. Messages that follow an error in the same
+    // batch are not raised as InfoMessage; SqlClient folds them into the SqlException, so they are reported
+    // from there, in order, right before it is rethrown.
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(
+        ConnectionProfile profile, string sql, IProgress<QueryMessage> messages, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await OpenAsync(profile, ct);
+        connection.InfoMessage += (_, e) => Report(messages, e.Errors);
         await using var command = new SqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
+        command.StatementCompleted += (_, e) => messages.Report(MsSqlMessages.RowsAffected(e.RecordCount));
+
+        try
+        {
+            // SqlClient 6.0 ignores cancellation in ExecuteReaderAsync once part of the response has arrived — and a
+            // RAISERROR … WITH NOWAIT is exactly that — so Stop let the ticket's batch-delete loop run to its end
+            // (measured: cancel at 2.5 s, back after 10 s, every batch deleted). The synchronous reader with
+            // SqlCommand.Cancel on the token stops the server within the second; it runs on a worker so the UI
+            // thread stays free, which also keeps the messages coming in live.
+            return await Task.Run(() => ReadAll(command, stopwatch, ct), ct);
+        }
+        catch (SqlException) when (ct.IsCancellationRequested)
+        {
+            // Cancel() surfaces as "A severe error occurred on the current command" — it is the user's stop.
+            throw new OperationCanceledException(ct);
+        }
+        catch (SqlException ex)
+        {
+            Report(messages, ex.Errors);
+            throw;
+        }
+    }
+
+    private static IReadOnlyList<QueryResult> ReadAll(SqlCommand command, Stopwatch stopwatch, CancellationToken ct)
+    {
+        using var stop = ct.Register(command.Cancel);
+        using var reader = command.ExecuteReader(CommandBehavior.KeyInfo);
 
         var results = new List<QueryResult>();
         do
         {
-            results.Add(await ReadResultAsync(reader, stopwatch, ct));
-        } while (await reader.NextResultAsync(ct));
+            results.Add(ReadResult(reader, stopwatch));
+        } while (reader.NextResult());
 
         return results;
+    }
+
+    // The synchronous twin of ReadResultAsync, for the script path above.
+    private static QueryResult ReadResult(SqlDataReader reader, Stopwatch stopwatch)
+    {
+        var (columns, fields) = BuildColumns(reader);
+
+        var rows = new List<object?[]>();
+        while (reader.Read())
+        {
+            var row = new object?[fields.Length];
+            for (var i = 0; i < fields.Length; i++)
+            {
+                var value = reader.GetValue(fields[i]);
+                row[i] = value is DBNull ? null : value;
+            }
+
+            rows.Add(row);
+        }
+
+        return new QueryResult
+        {
+            Columns = columns,
+            Rows = rows,
+            RecordsAffected = reader.RecordsAffected,
+            Elapsed = stopwatch.Elapsed
+        };
+    }
+
+    private static void Report(IProgress<QueryMessage> messages, SqlErrorCollection errors)
+    {
+        foreach (SqlError error in errors)
+        {
+            messages.Report(MsSqlMessages.From(error.Number, error.Class, error.State, error.LineNumber, error.Message));
+        }
     }
 
     private static async Task<QueryResult> ReadResultAsync(SqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)

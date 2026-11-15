@@ -130,21 +130,53 @@ public sealed class PostgresProvider : IDbProvider
         return await ReadResultAsync(reader, stopwatch, ct);
     }
 
-    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    public Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct) =>
+        ExecuteScriptAsync(profile, sql, new Progress<QueryMessage>(), ct);
+
+    public bool SupportsQueryMessages => true;
+
+    // SE-300: NOTICE/WARNING/INFO (RAISE inside a DO block or function included) arrive through the Notice
+    // event live while the reader is open — checked against PostgreSQL 18. Row counts per statement are only
+    // known once the reader has walked the whole command (NextResult skips statements without rows), so they
+    // follow the notices at the end, in statement order.
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(
+        ConnectionProfile profile, string sql, IProgress<QueryMessage> messages, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await OpenAsync(profile, ct);
+        connection.Notice += (_, e) => messages.Report(PostgresMessages.FromNotice(e.Notice.InvariantSeverity, e.Notice.MessageText));
         await using var command = new NpgsqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
 
-        var results = new List<QueryResult>();
-        do
+        try
         {
-            results.Add(await ReadResultAsync(reader, stopwatch, ct));
-        } while (await reader.NextResultAsync(ct));
+            await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
 
-        return results;
+            var results = new List<QueryResult>();
+            do
+            {
+                results.Add(await ReadResultAsync(reader, stopwatch, ct));
+            } while (await reader.NextResultAsync(ct));
+
+            // Statements is marked obsolete in favour of DbBatch, but a DbBatch needs the script split into
+            // statements up front; this is the only per-statement count Npgsql gives for raw script text.
+#pragma warning disable CS0618
+            foreach (var statement in reader.Statements)
+#pragma warning restore CS0618
+            {
+                if (PostgresMessages.FromStatement(statement.StatementType, statement.RecordsAffected) is { } count)
+                {
+                    messages.Report(count);
+                }
+            }
+
+            return results;
+        }
+        catch (PostgresException ex)
+        {
+            messages.Report(new QueryMessage(QueryMessageKind.Error, ex.MessageText) { Code = ex.SqlState });
+            throw;
+        }
     }
 
     private static async Task<QueryResult> ReadResultAsync(NpgsqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)

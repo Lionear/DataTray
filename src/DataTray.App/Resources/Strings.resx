@@ -2376,4 +2376,76 @@ Switching means downgrading to {1}. Plugins built for a newer host may stop load
   <data name="QueryPaneEditAsSql" xml:space="preserve">
     <value>Edit as SQL</value>
   </data>
+  <data name="QueryCancelledAfter" xml:space="preserve">
+    <value>Query cancelled after {0}.</value>
+  </data>
+  <data name="MessagesRunSeparator" xml:space="preserve">
+    <value>Run {0} · {1}</value>
+  </data>
+  <data name="RunStatusRunning" xml:space="preserve">
+    <value>Running · {0}</value>
+  </data>
+  <data name="RunStatusCompleted" xml:space="preserve">
+    <value>Completed · {0} s</value>
+  </data>
+  <data name="RunStatusCancelled" xml:space="preserve">
+    <value>Cancelled at {0}</value>
+  </data>
+  <data name="RunStatusCancelledKept" xml:space="preserve">
+    <value>Cancelled at {0} · {1} messages kept</value>
+  </data>
+  <data name="RunStatusFailed" xml:space="preserve">
+    <value>Failed at {0}</value>
+  </data>
+  <data name="RunStatusFailedCode" xml:space="preserve">
+    <value>Failed at {0} · {1}</value>
+  </data>
+  <data name="MessagesTab" xml:space="preserve">
+    <value>Messages</value>
+  </data>
+  <data name="MessagesFilterPlaceholder" xml:space="preserve">
+    <value>Filter messages…</value>
+  </data>
+  <data name="MessagesInfo" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="MessagesWarnings" xml:space="preserve">
+    <value>Warnings</value>
+  </data>
+  <data name="MessagesErrors" xml:space="preserve">
+    <value>Errors</value>
+  </data>
+  <data name="MessagesFollow" xml:space="preserve">
+    <value>Follow</value>
+  </data>
+  <data name="MessagesCopy" xml:space="preserve">
+    <value>Copy messages (selection, or everything shown)</value>
+  </data>
+  <data name="MessagesClear" xml:space="preserve">
+    <value>Clear messages (does not stop the run)</value>
+  </data>
+  <data name="MessagesEmpty" xml:space="preserve">
+    <value>No messages from the server yet.</value>
+  </data>
+  <data name="MessagesNoMatch" xml:space="preserve">
+    <value>No messages match the filter.</value>
+  </data>
+  <data name="MessagesTruncated" xml:space="preserve">
+    <value>Showing the latest {0:N0} of {1:N0} messages. Older ones were dropped.</value>
+  </data>
+  <data name="MessagesNew" xml:space="preserve">
+    <value>{0} new messages</value>
+  </data>
+  <data name="MessagesFilterCount" xml:space="preserve">
+    <value>{0} of {1}</value>
+  </data>
+  <data name="SettingsKeepQueryMessages" xml:space="preserve">
+    <value>Keep messages between runs</value>
+  </data>
+  <data name="SettingsKeepQueryMessagesHint" xml:space="preserve">
+    <value>Off: a query tab's messages are cleared when its next run starts. On: runs are separated by a divider, up to the latest 10,000 lines.</value>
+  </data>
+  <data name="RunClockStopped" xml:space="preserve">
+    <value>· stopped</value>
+  </data>
 </root>

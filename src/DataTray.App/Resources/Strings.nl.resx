@@ -2376,4 +2376,76 @@ Wisselen betekent downgraden naar {1}. Plugins die voor een nieuwere host zijn g
   <data name="QueryPaneEditAsSql" xml:space="preserve">
     <value>Bewerken als SQL</value>
   </data>
+  <data name="QueryCancelledAfter" xml:space="preserve">
+    <value>Query geannuleerd na {0}.</value>
+  </data>
+  <data name="MessagesRunSeparator" xml:space="preserve">
+    <value>Uitvoering {0} · {1}</value>
+  </data>
+  <data name="RunStatusRunning" xml:space="preserve">
+    <value>Bezig · {0}</value>
+  </data>
+  <data name="RunStatusCompleted" xml:space="preserve">
+    <value>Voltooid · {0} s</value>
+  </data>
+  <data name="RunStatusCancelled" xml:space="preserve">
+    <value>Geannuleerd op {0}</value>
+  </data>
+  <data name="RunStatusCancelledKept" xml:space="preserve">
+    <value>Geannuleerd op {0} · {1} berichten bewaard</value>
+  </data>
+  <data name="RunStatusFailed" xml:space="preserve">
+    <value>Mislukt op {0}</value>
+  </data>
+  <data name="RunStatusFailedCode" xml:space="preserve">
+    <value>Mislukt op {0} · {1}</value>
+  </data>
+  <data name="MessagesTab" xml:space="preserve">
+    <value>Berichten</value>
+  </data>
+  <data name="MessagesFilterPlaceholder" xml:space="preserve">
+    <value>Berichten filteren…</value>
+  </data>
+  <data name="MessagesInfo" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="MessagesWarnings" xml:space="preserve">
+    <value>Waarschuwingen</value>
+  </data>
+  <data name="MessagesErrors" xml:space="preserve">
+    <value>Fouten</value>
+  </data>
+  <data name="MessagesFollow" xml:space="preserve">
+    <value>Volgen</value>
+  </data>
+  <data name="MessagesCopy" xml:space="preserve">
+    <value>Berichten kopiëren (selectie, of alles wat zichtbaar is)</value>
+  </data>
+  <data name="MessagesClear" xml:space="preserve">
+    <value>Berichten wissen (stopt de uitvoering niet)</value>
+  </data>
+  <data name="MessagesEmpty" xml:space="preserve">
+    <value>Nog geen berichten van de server.</value>
+  </data>
+  <data name="MessagesNoMatch" xml:space="preserve">
+    <value>Geen berichten voor dit filter.</value>
+  </data>
+  <data name="MessagesTruncated" xml:space="preserve">
+    <value>De laatste {0:N0} van {1:N0} berichten. Oudere zijn weggevallen.</value>
+  </data>
+  <data name="MessagesNew" xml:space="preserve">
+    <value>{0} nieuwe berichten</value>
+  </data>
+  <data name="MessagesFilterCount" xml:space="preserve">
+    <value>{0} van {1}</value>
+  </data>
+  <data name="SettingsKeepQueryMessages" xml:space="preserve">
+    <value>Berichten bewaren tussen uitvoeringen</value>
+  </data>
+  <data name="SettingsKeepQueryMessagesHint" xml:space="preserve">
+    <value>Uit: de berichten van een querytab worden gewist zodra de volgende uitvoering start. Aan: uitvoeringen worden gescheiden door een scheidingsregel, tot de laatste 10.000 regels.</value>
+  </data>
+  <data name="RunClockStopped" xml:space="preserve">
+    <value>· gestopt</value>
+  </data>
 </root>

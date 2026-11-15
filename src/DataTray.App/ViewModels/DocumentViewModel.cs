@@ -196,7 +196,11 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     private void Report(OutputLevel level, string message) => Reported?.Invoke(level, message);
 
-    private void ReportFailure(string message) => Report(OutputLevel.Error, message);
+    private void ReportFailure(string message)
+    {
+        NoteRunFailure(message);
+        Report(OutputLevel.Error, message);
+    }
 
     /// <summary>Raised (connection id + new state) when running a query touches the connection, so the host
     /// can colour that connection's status dot even though the query auto-connected outside the tree's own
@@ -355,9 +359,12 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         IServerVersionCache serverVersions,
         IAppSettingsStore settingsStore,
         ILocalizer localizer,
-        IViewerRegistry? viewers = null)
+        IViewerRegistry? viewers = null,
+        TimeProvider? clock = null)
     {
         _viewers = viewers;
+        Messages = new QueryMessageLog(clock ?? TimeProvider.System);
+        WireMessages();
         _providers = providers;
         _connections = connections;
         _formatter = formatter;
@@ -827,7 +834,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
 
     /// <summary>The Add/Delete/Save/Discard/Export edit toolbar shows for a real result set, but never in
     /// monitor mode — those are write actions, and the live sessions grid is read-only.</summary>
-    public bool ShowEditToolbar => !IsMonitorMode && Editable is not null;
+    public bool ShowEditToolbar => !IsMonitorMode && Editable is not null && !IsMessagesSelected;
 
     /// <summary>True while a query tab is showing a single SELECT's results one page at a time (SE-178) —
     /// drives the under-grid prev/next/row-range nav.</summary>
@@ -1879,12 +1886,14 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         }
         _runCts = cts;
         IsRunning = true;
+        BeginRunProgress();
         try
         {
             await body(cts.Token);
         }
         finally
         {
+            EndRunProgress(cts.IsCancellationRequested);
             IsRunning = false;
             _runCts = null;
         }
@@ -1922,6 +1931,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         }
 
         SetPagedQuery(null, false); // an EXPLAIN result isn't pageable — drop any prior paged-query bar
+        StartMessagesForRun();
 
         await RunTracked(ct, async token =>
         {
@@ -1952,6 +1962,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     // the multi-result-set path below.
     private Task RunScriptAsync(string sql, CancellationToken ct)
     {
+        StartMessagesForRun();
         if (_pageQueries && _queryPageSize > 0)
         {
             if (QueryPaging.TryGetPageableSelect(sql, out var statement, out var ordered))
@@ -1992,7 +2003,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
                 var provider = _providers.Get(Connection.ProviderId);
                 var sql = string.Join("\n", statements.Select(s => Paged(provider.Dialect, s, 0) + ";"));
 
-                var results = await provider.ExecuteScriptAsync(profile, sql, token);
+                var results = await provider.ExecuteScriptAsync(profile, sql, Messages, token);
                 stopwatch.Stop();
                 SignalConnection(ConnectionState.Connected);
 
@@ -2133,7 +2144,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
             var results = new List<QueryResult>();
             foreach (var batch in batches)
             {
-                results.AddRange(await provider.ExecuteScriptAsync(profile, batch, token));
+                results.AddRange(await provider.ExecuteScriptAsync(profile, batch, Messages, token));
             }
 
             stopwatch.Stop();
@@ -2379,6 +2390,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         }
 
         OnPropertyChanged(nameof(HasMultipleResultSets));
+        OnPropertyChanged(nameof(ShowResultTabs));
+        OnPropertyChanged(nameof(ShowResultStrip));
 
         if (SelectedResultSetIndex == 0)
         {
@@ -2411,7 +2424,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     {
         for (var i = 0; i < ResultSets.Count; i++)
         {
-            ResultSets[i].IsSelected = i == index;
+            ResultSets[i].IsSelected = !IsMessagesSelected && i == index;
         }
     }
 
@@ -2421,6 +2434,8 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         var index = ResultSets.IndexOf(tab);
         if (index >= 0)
         {
+            _tabPickedByUser = true;
+            IsMessagesSelected = false;
             SelectedResultSetIndex = index;
         }
     }
@@ -2664,9 +2679,9 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
     // Row 5 holds the grid and a viewer's control as siblings, and a plugin-owned tab (SE-216) covers the
     // whole body. Neither may stay mounted underneath that — a hidden DataGrid still takes focus and
     // keyboard — so both surfaces are gated on the mode as well as on the switcher.
-    public bool IsGridSurface => IsGridView && !IsPluginMode;
+    public bool IsGridSurface => IsGridView && !IsPluginMode && !IsMessagesSelected;
 
-    public bool IsViewerSurface => !IsGridView && !IsPluginMode;
+    public bool IsViewerSurface => !IsGridView && !IsPluginMode && !IsMessagesSelected;
 
     /// <summary>Whether the switcher is worth drawing: only once something other than the grid is on offer.
     /// Row 4 shows when this or <see cref="HasMultipleResultSets"/> holds.</summary>
@@ -2692,6 +2707,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
             _viewerContext = null;
             SelectedView = null;
             OnPropertyChanged(nameof(HasViewSwitcher));
+            OnPropertyChanged(nameof(ShowResultStrip));
             OnPropertyChanged(nameof(ViewerContext));
             return;
         }
@@ -2706,6 +2722,7 @@ public partial class DocumentViewModel : ViewModelBase, IQueryDocument
         }
 
         OnPropertyChanged(nameof(HasViewSwitcher));
+        OnPropertyChanged(nameof(ShowResultStrip));
 
         // Keep the choice across a refresh when it still applies; fall back to the grid when it doesn't,
         // rather than leaving a viewer mounted over data it just said it cannot render.

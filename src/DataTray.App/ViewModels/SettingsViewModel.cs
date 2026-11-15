@@ -473,6 +473,9 @@ public partial class SettingsViewModel : ViewModelBase
     private bool _pageQueryResults;
 
     [ObservableProperty]
+    private bool _keepQueryMessagesBetweenRuns;
+
+    [ObservableProperty]
     private int _queryPageSize;
 
     [ObservableProperty]
@@ -1064,6 +1067,7 @@ public partial class SettingsViewModel : ViewModelBase
         QueryTimeoutSeconds = settings.QueryTimeoutSeconds;
         BrowsePageSize = settings.BrowsePageSize;
         PageQueryResults = settings.PageQueryResults;
+        KeepQueryMessagesBetweenRuns = settings.KeepQueryMessagesBetweenRuns;
         QueryPageSize = settings.QueryPageSize;
         RestoreTabsOnStartup = settings.RestoreTabsOnStartup;
         PromptSaveQueryOnClose = settings.PromptSaveQueryOnClose;
@@ -1276,6 +1280,7 @@ public partial class SettingsViewModel : ViewModelBase
         QueryTimeoutSeconds = defaults.QueryTimeoutSeconds;
         BrowsePageSize = defaults.BrowsePageSize;
         PageQueryResults = defaults.PageQueryResults;
+        KeepQueryMessagesBetweenRuns = defaults.KeepQueryMessagesBetweenRuns;
         QueryPageSize = defaults.QueryPageSize;
         RestoreTabsOnStartup = defaults.RestoreTabsOnStartup;
         PromptSaveQueryOnClose = defaults.PromptSaveQueryOnClose;
@@ -1345,6 +1350,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.QueryTimeoutSeconds = QueryTimeoutSeconds;
         settings.BrowsePageSize = BrowsePageSize;
         settings.PageQueryResults = PageQueryResults;
+        settings.KeepQueryMessagesBetweenRuns = KeepQueryMessagesBetweenRuns;
         settings.QueryPageSize = QueryPageSize;
         settings.RestoreTabsOnStartup = RestoreTabsOnStartup;
         settings.PromptSaveQueryOnClose = PromptSaveQueryOnClose;

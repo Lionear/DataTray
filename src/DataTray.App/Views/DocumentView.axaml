@@ -5,6 +5,7 @@
              xmlns:vm="using:DataTray.App.ViewModels"
              xmlns:ctl="using:DataTray.App.Controls"
              xmlns:cv="using:DataTray.App.Converters"
+             xmlns:views="using:DataTray.App.Views"
              x:Class="DataTray.App.Views.DocumentView">
   <UserControl.Resources>
     <!-- Shared by the three mode bars' overflow flyouts (SE-255 §4). Icon plus label; a row whose child
@@ -81,6 +82,53 @@
       <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
       <Setter Property="TextElement.Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
     </Style>
+    <!-- SE-300: the run clock beside Run/Stop — a filled pill with a pulsing dot while running, plain text
+         once frozen after a stop or a failure. -->
+    <Style Selector="Border.RunClock">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.RunClock.running">
+      <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
+    </Style>
+    <Style Selector="Border.RunClock TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.RunClock.running TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Window:not(.reduced-motion) Ellipse.pulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.2" IterationCount="INFINITE" PlaybackDirection="Alternate">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.3" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Window.reduced-motion ProgressBar.RunBar">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+
+    <!-- SE-300: the count on the Messages tab. Amber with a warning, red with an error, so a failure never
+         hides behind the grid. -->
+    <Style Selector="Border.MessageBadge">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+    </Style>
+    <Style Selector="Border.MessageBadge TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.MessageBadge.warning">
+      <Setter Property="Background" Value="{DynamicResource SEMatchBgBrush}" />
+    </Style>
+    <Style Selector="Border.MessageBadge.warning TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SEMatchFgBrush}" />
+    </Style>
+    <Style Selector="Border.MessageBadge.error">
+      <Setter Property="Background" Value="{DynamicResource SEStatusErrorBrush}" />
+    </Style>
+    <Style Selector="Border.MessageBadge.error TextBlock">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+
     <Style Selector="ListBox.ViewSwitcher ListBoxItem:selected /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource SEAccentBrush}" />
       <Setter Property="TextElement.Foreground" Value="{DynamicResource SEAccentFgBrush}" />
@@ -103,6 +151,18 @@
                 IsVisible="{Binding IsRunning}"
                 ctl:OverflowPanel.OverflowHeader="{Binding Loc[Stop]}"
                 ctl:OverflowPanel.OverflowCommand="{Binding StopCommand}" />
+        <!-- SE-300: elapsed time. No overflow header, so it stays on the bar next to Run/Stop. -->
+        <Border Classes="RunClock" Classes.running="{Binding IsRunActive}" IsVisible="{Binding ShowRunClock}"
+                Padding="8,3" CornerRadius="{StaticResource SEControlRadius}" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Ellipse Classes="pulse" Width="7" Height="7" VerticalAlignment="Center"
+                     Fill="{DynamicResource SEAccentBrush}" IsVisible="{Binding IsRunActive}" />
+            <TextBlock Text="{Binding RunClock}" FontFamily="{StaticResource SEMonoFont}" FontSize="12.5"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Loc[RunClockStopped]}" IsVisible="{Binding IsRunCancelled}"
+                       FontFamily="{StaticResource SEMonoFont}" FontSize="12.5" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
         <Button Content="{Binding Loc[RunAtCursor]}" Command="{Binding RunAtCursorCommand}"
                 ctl:OverflowPanel.OverflowHeader="{Binding Loc[RunAtCursor]}"
                 ctl:OverflowPanel.OverflowCommand="{Binding RunAtCursorCommand}" />
@@ -354,6 +414,18 @@
       </Grid>
     </Grid>
 
+    <!-- SE-300: a thin "busy" line under the toolbar while a query runs. No percentage: the server sends none. -->
+    <ProgressBar Grid.Row="1" Classes="RunBar" IsIndeterminate="True" VerticalAlignment="Top"
+                 Height="2" MinHeight="2" Margin="0,-6,0,0" IsHitTestVisible="False"
+                 Foreground="{DynamicResource SEAccentBrush}" Background="Transparent">
+      <ProgressBar.IsVisible>
+        <MultiBinding Converter="{x:Static conv:BoolConverters.And}">
+          <Binding Path="IsRunActive" />
+          <Binding Path="IsQueryMode" />
+        </MultiBinding>
+      </ProgressBar.IsVisible>
+    </ProgressBar>
+
     <!-- Row 2: Query-editor/Result-grid splitter (SE-283). Not a GridSplitter: its neighbours are the
          editor (row 1, a persisted pixel height) and the edit toolbar (row 3, Auto) — a GridSplitter would
          trade pixels with that Auto row instead of the grid, the same wrong-neighbour problem SE-170 hit
@@ -392,16 +464,11 @@
     <!-- Row 4: result-set tab strip (left) + the "View" switcher (right, SE-75). The row carries two
          independent things now, so it shows when *either* has something to say: the tab strip only for a
          multi-statement/multi-resultset run or Explain, the switcher whenever a viewer plugin applies. -->
-    <Grid Grid.Row="4" Margin="0,0,0,6" ColumnDefinitions="Auto,*,Auto">
-      <Grid.IsVisible>
-        <MultiBinding Converter="{x:Static conv:BoolConverters.Or}">
-          <Binding Path="HasMultipleResultSets" />
-          <Binding Path="HasViewSwitcher" />
-        </MultiBinding>
-      </Grid.IsVisible>
+    <Grid Grid.Row="4" Margin="0,0,0,6" ColumnDefinitions="Auto,Auto,*,Auto"
+          IsVisible="{Binding ShowResultStrip}">
 
       <ItemsControl Grid.Column="0" ItemsSource="{Binding ResultSets}"
-                    IsVisible="{Binding HasMultipleResultSets}">
+                    IsVisible="{Binding ShowResultTabs}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" Spacing="4" />
@@ -416,7 +483,21 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+      <!-- SE-300: the last tab of the strip, only once there is something to say (see ShowMessagesTab). -->
+      <Button Grid.Column="1" Classes="ResultTab" Classes.Accent="{Binding IsMessagesSelected}" Margin="4,0,0,0"
+              Command="{Binding SelectMessagesCommand}" IsVisible="{Binding ShowMessagesTab}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="{Binding Loc[MessagesTab]}" VerticalAlignment="Center" />
+          <Border Classes="MessageBadge" Classes.warning="{Binding Messages.HasWarnings}"
+                  Classes.error="{Binding Messages.HasErrors}" IsVisible="{Binding !!Messages.Total}"
+                  CornerRadius="8" Padding="6,0" MinWidth="18" Height="16" VerticalAlignment="Center">
+            <TextBlock Text="{Binding MessagesBadge}" FontSize="10.5" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </StackPanel>
+      </Button>
+
+      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
                   IsVisible="{Binding HasViewSwitcher}">
         <TextBlock Text="{Binding Loc[ViewLabel]}" VerticalAlignment="Center"
                    FontSize="11.5" Foreground="{DynamicResource SETextFaintBrush}" />
@@ -490,6 +571,16 @@
       </DataGrid>
     </Border>
 
+    <!-- SE-300: the Messages log, in the grid's place while its tab is selected. -->
+    <views:QueryMessagesView Grid.Row="5">
+      <views:QueryMessagesView.IsVisible>
+        <MultiBinding Converter="{x:Static conv:BoolConverters.And}">
+          <Binding Path="IsMessagesSelected" />
+          <Binding Path="!IsPluginMode" />
+        </MultiBinding>
+      </views:QueryMessagesView.IsVisible>
+    </views:QueryMessagesView>
+
     <!-- Row 6: query-result paging nav (SE-178) — under the grid, DataGrip/DBeaver-style. Browse has its own
          paging bar on top (with the filter box); this is the query-mode counterpart, prev/next + row range. -->
     <Grid Grid.Row="6" ColumnDefinitions="Auto,Auto,Auto" Margin="0,6,0,0">
@@ -497,7 +588,7 @@
       <Grid.IsVisible>
         <MultiBinding Converter="{x:Static conv:BoolConverters.And}">
           <Binding Path="IsQueryPaged" />
-          <Binding Path="IsGridView" />
+          <Binding Path="IsGridSurface" />
         </MultiBinding>
       </Grid.IsVisible>
       <Button Grid.Column="0" Margin="0,0,6,0"

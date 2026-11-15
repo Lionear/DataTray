@@ -37,6 +37,19 @@ internal static class QueryDocumentFixture
             new FakeSchemaCache(), new ServerVersionCache(), new FakeSettingsStore(), new FakeLocalizer());
     }
 
+    /// <summary>A query document over <paramref name="provider"/> (registered as "fake", connection "c1"), with the
+    /// settings and clock a test controls (SE-300).</summary>
+    public static DocumentViewModel NewDocument(IDbProvider provider, AppSettings settings, TimeProvider clock, out SavedConnection connection)
+    {
+        var providers = new DbProviderRegistry([new ProviderRegistration("fake", provider)]);
+        var connections = new ConnectionService(new FakeConnectionStore(), new FakeSecretStore(), providers);
+        connections.Save("c1", "Prod", "fake", new Dictionary<string, string?> { ["database"] = "master" });
+        connection = connections.List().First();
+
+        return new DocumentViewModel(providers, connections, new FakeFormatter(), new FakeHistory(), new FakeQueryLog(),
+            new FakeSchemaCache(), new ServerVersionCache(), new FakeSettingsStore(settings), new FakeLocalizer(), clock: clock);
+    }
+
     // The refresh runs off the InitQuery call as fire-and-forget; poll rather than sleep a fixed amount.
     public static async Task WaitFor(Func<bool> condition)
     {
@@ -125,9 +138,9 @@ internal static class QueryDocumentFixture
         public void Invalidate(string connectionId) { }
     }
 
-    private sealed class FakeSettingsStore : IAppSettingsStore
+    private sealed class FakeSettingsStore(AppSettings? settings = null) : IAppSettingsStore
     {
-        public AppSettings Load() => new();
+        public AppSettings Load() => settings ?? new();
         public void Save(AppSettings settings) { }
     }
 

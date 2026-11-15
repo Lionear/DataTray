@@ -173,7 +173,13 @@ public static class ProviderHostApi
     //                   declaring 29 while implementing it would load on a v29 host and then die in
     //                   GetTypes() with ReflectionTypeLoadException, taking the whole provider with it.
     //                   That — new types, not "has this number shipped" — is the test for a bump.
-    public const int Version = 30;
+    // v31 (2026-11-15): server messages while a script runs (SE-300). New types QueryMessage/QueryMessageKind,
+    //                   IDbProvider.SupportsQueryMessages (default false) and an ExecuteScriptAsync overload taking
+    //                   an IProgress<QueryMessage> (default delegates to the old one and reports nothing). Purely
+    //                   additive, but bumped because of the new types: v30 shipped in 0.8.0, and a plugin
+    //                   implementing the overload would otherwise load on a 0.8.0 host and fail on the missing
+    //                   QueryMessage type.
+    public const int Version = 31;
 
     /// <summary>Oldest plugin ABI this host still loads. Additive bumps (v11→v22 style) keep this fixed;
     /// only a breaking change raises it. Raised to 23 by the v23 BuildNodeQuery signature change above —
