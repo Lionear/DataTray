@@ -412,21 +412,64 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
         try
         {
-            await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
-
-            var results = new List<QueryResult>();
-            do
-            {
-                results.Add(await ReadResultAsync(reader, stopwatch, ct));
-            } while (await reader.NextResultAsync(ct));
-
-            return results;
+            // SqlClient 6.0 ignores cancellation in ExecuteReaderAsync once part of the response has arrived — and a
+            // RAISERROR … WITH NOWAIT is exactly that — so Stop let the ticket's batch-delete loop run to its end
+            // (measured: cancel at 2.5 s, back after 10 s, every batch deleted). The synchronous reader with
+            // SqlCommand.Cancel on the token stops the server within the second; it runs on a worker so the UI
+            // thread stays free, which also keeps the messages coming in live.
+            return await Task.Run(() => ReadAll(command, stopwatch, ct), ct);
+        }
+        catch (SqlException) when (ct.IsCancellationRequested)
+        {
+            // Cancel() surfaces as "A severe error occurred on the current command" — it is the user's stop.
+            throw new OperationCanceledException(ct);
         }
         catch (SqlException ex)
         {
             Report(messages, ex.Errors);
             throw;
         }
+    }
+
+    private static IReadOnlyList<QueryResult> ReadAll(SqlCommand command, Stopwatch stopwatch, CancellationToken ct)
+    {
+        using var stop = ct.Register(command.Cancel);
+        using var reader = command.ExecuteReader(CommandBehavior.KeyInfo);
+
+        var results = new List<QueryResult>();
+        do
+        {
+            results.Add(ReadResult(reader, stopwatch));
+        } while (reader.NextResult());
+
+        return results;
+    }
+
+    // The synchronous twin of ReadResultAsync, for the script path above.
+    private static QueryResult ReadResult(SqlDataReader reader, Stopwatch stopwatch)
+    {
+        var (columns, fields) = BuildColumns(reader);
+
+        var rows = new List<object?[]>();
+        while (reader.Read())
+        {
+            var row = new object?[fields.Length];
+            for (var i = 0; i < fields.Length; i++)
+            {
+                var value = reader.GetValue(fields[i]);
+                row[i] = value is DBNull ? null : value;
+            }
+
+            rows.Add(row);
+        }
+
+        return new QueryResult
+        {
+            Columns = columns,
+            Rows = rows,
+            RecordsAffected = reader.RecordsAffected,
+            Elapsed = stopwatch.Elapsed
+        };
     }
 
     private static void Report(IProgress<QueryMessage> messages, SqlErrorCollection errors)
