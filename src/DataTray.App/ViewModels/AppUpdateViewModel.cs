@@ -55,6 +55,10 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
     /// install the user still has.</summary>
     public Func<Task<bool>>? ConfirmRemoveLegacyInstall { get; set; }
 
+    /// <summary>Set by the view: writes the session (tabs, window layout) exactly as a normal quit does. The
+    /// updater ends the process itself, so the window's closing path never runs for an update (SE-301).</summary>
+    public Action? SaveSession { get; set; }
+
     /// <summary>The channel of the running build — the default a fresh install follows until one is chosen.</summary>
     public UpdateChannel RunningChannel => _service.BuildChannel;
 
@@ -364,6 +368,17 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
         }
 
         StatusMessage = Loc["UpdateDialogInstalling"];
+
+        // Synchronous on purpose: once the updater is called the process can be gone before a pending write
+        // finishes. A failed save must not block the update itself — the autosave keeps a recent copy.
+        try
+        {
+            SaveSession?.Invoke();
+        }
+        catch (Exception)
+        {
+            // Deliberately swallowed, see above.
+        }
 
         try
         {

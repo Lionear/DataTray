@@ -47,7 +47,6 @@
   "src/DataTray.Infrastructure/Persistence/JsonConnectionStore.cs": 1,
   "src/DataTray.Infrastructure/Persistence/JsonFavoriteQueryStore.cs": 1,
   "src/DataTray.Infrastructure/Persistence/JsonKeymapStore.cs": 1,
-  "src/DataTray.Infrastructure/Persistence/JsonOpenTabsStore.cs": 1,
   "src/DataTray.Infrastructure/Persistence/JsonPluginSettingsStore.cs": 1,
   "src/DataTray.Infrastructure/Persistence/JsonPluginStateStore.cs": 1,
   "src/DataTray.Infrastructure/Persistence/JsonQueryHistoryStore.cs": 1,
