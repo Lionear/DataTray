@@ -11,6 +11,13 @@ name: Build
 # the target ref out explicitly either way. Cron is a hint, not a promise: GitHub delays scheduled runs
 # under load, routinely by hours (02:00 UTC has been landing near 05:00).
 #
+# The nightly only builds when develop has changed since the nightly release was last published (SE-302).
+# The `setup` job compares the commit the `nightly` release was built from (its target) with develop's tip;
+# no difference, or only files the push trigger's `paths-ignore` below also ignores, and notes/build/release
+# are skipped, so the release and update.json stay as they were. That list is read from this very file by
+# tools/nightly-needed.py, so there is exactly one. Manual runs and the push/tag builds always build.
+# A failed or cancelled nightly publishes nothing, so the next one builds again.
+#
 # To pause the nightly, comment out the `schedule` block; `workflow_dispatch` keeps manual runs.
 on:
   workflow_dispatch:
@@ -59,10 +66,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.target.outputs.ref }}
+      checkout_ref: ${{ steps.target.outputs.checkout_ref }}
       tag: ${{ steps.target.outputs.tag }}
       release_tag: ${{ steps.target.outputs.release_tag }}
       channel: ${{ steps.target.outputs.channel }}
       version: ${{ steps.target.outputs.version }}
+      # Only the scheduled nightly can say 'false'; the step is skipped for every other event.
+      build_needed: ${{ steps.nightly.outputs.build_needed || 'true' }}
     steps:
       # Base checkout only. GitHub fires `schedule`/`push` from the default branch, so this tree is
       # main's regardless of what we build — the base <Version> is fetched from the *target* ref below.
@@ -105,6 +115,19 @@ jobs:
             esac
           fi
 
+          # Pin the commit now. Every later job checks out this SHA instead of the branch name, so the
+          # commit the nightly check compared, the one the matrix builds and the one the release records
+          # as its target are the same one even when someone pushes while the build runs. A tag already is
+          # a fixed point.
+          if [ "$IS_TAG" = yes ]; then
+            CHECKOUT_REF="$REF"
+          else
+            CHECKOUT_REF=$(git ls-remote origin "refs/heads/$REF" | cut -f1)
+            if ! printf '%s' "$CHECKOUT_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "Could not resolve the tip of '$REF'" >&2; exit 1
+            fi
+          fi
+
           # Channel + two tags. TAG carries the rolling update.json manifest (one per channel). RELEASE_TAG
           # is where the build assets land: the v-tag itself for Stable (a real latest release), the rolling
           # tag otherwise.
@@ -142,12 +165,59 @@ jobs:
 
           {
             echo "ref=$REF"
+            echo "checkout_ref=$CHECKOUT_REF"
             echo "tag=$TAG"
             echo "release_tag=$RELEASE_TAG"
             echo "channel=$CHANNEL"
             echo "version=$VERSION"
           } >> "$GITHUB_OUTPUT"
-          echo "Building $REF -> channel '$CHANNEL' (assets on '$RELEASE_TAG', manifest on '$TAG'), version $VERSION"
+          echo "Building $REF ($CHECKOUT_REF) -> channel '$CHANNEL' (assets on '$RELEASE_TAG', manifest on '$TAG'), version $VERSION"
+
+      # SE-302: the nightly builds only when something real changed since the last published one. Any
+      # trouble in here means 'build' (see tools/nightly-needed.py), never a silent skip.
+      - name: Skip the nightly when nothing changed
+        id: nightly
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CURRENT: ${{ steps.target.outputs.checkout_ref }}
+        run: |
+          set -uo pipefail
+
+          # 'Last built' is the commit the `nightly` release was created from (the release job passes the
+          # built commit as --target), not the last green scheduled run: a run's head_sha is the tip when
+          # it was *triggered* (a build that started later may have built something newer), a run that
+          # skipped also reports success without having built anything, and a manual publish never
+          # counts. A failed or cancelled nightly never reaches the release job, so it leaves the older
+          # commit in place and the next run builds again. contents: read is enough for `gh release view`.
+          PREV=""; PREV_DATE=""
+          if REL=$(gh release view nightly --json targetCommitish,publishedAt --jq '[.targetCommitish, .publishedAt[:10]] | @tsv'); then
+            PREV=${REL%%$'\t'*}; PREV_DATE=${REL#*$'\t'}
+            if ! printf '%s' "$PREV" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "::warning::nightly release target '$PREV' is not a commit SHA, building"
+              PREV=""; PREV_DATE=""
+            fi
+          else
+            echo "No nightly release to compare with (none yet, or gh failed): building"
+          fi
+
+          # The base checkout is shallow; the diff needs both commits and what lies between them.
+          if [ -n "$PREV" ]; then
+            if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+              git fetch --no-tags --unshallow origin develop || echo "::warning::could not fetch develop's history"
+            fi
+            git fetch --no-tags origin "$CURRENT" || true
+          fi
+
+          if ! OUT=$(python3 tools/nightly-needed.py --current "$CURRENT" --previous "$PREV" --previous-date "$PREV_DATE"); then
+            echo "::warning::nightly-needed.py failed, building"
+            OUT=$'build_needed=true\nsummary=Could not decide whether anything changed, building'
+          fi
+          printf '%s\n' "$OUT" >> "$GITHUB_OUTPUT"
+          SUMMARY=$(printf '%s\n' "$OUT" | sed -n 's/^summary=//p')
+          echo "$SUMMARY"
+          printf '### Nightly\n\n%s\n' "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
 
   # The release notes, rendered once and shared. Every platform's package and the GitHub release body
   # then say exactly the same thing, and — the point of SE-266 — the packages carry them at all: vpk
@@ -159,11 +229,12 @@ jobs:
   notes:
     name: Render release notes
     needs: setup
+    if: ${{ needs.setup.outputs.build_needed == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.setup.outputs.ref }}
+          ref: ${{ needs.setup.outputs.checkout_ref }}
 
       # The maintainer-curated CHANGELOG.md [Unreleased] section (Keep a Changelog), not the git log —
       # the changelog is the source of truth for "what changed". An empty section falls back to a
@@ -191,6 +262,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     needs: [setup, notes]
+    if: ${{ needs.setup.outputs.build_needed == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -228,7 +300,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.setup.outputs.ref }}
+          ref: ${{ needs.setup.outputs.checkout_ref }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -436,7 +508,7 @@ jobs:
   release:
     name: Publish ${{ needs.setup.outputs.channel }} release
     needs: [setup, build]
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'push' || inputs.publish_release }}
+    if: ${{ needs.setup.outputs.build_needed == 'true' && (github.event_name == 'schedule' || github.event_name == 'push' || inputs.publish_release) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -445,7 +517,7 @@ jobs:
       # Full history + tags so the changelog can diff against the previous v-tag.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.setup.outputs.ref }}
+          ref: ${{ needs.setup.outputs.checkout_ref }}
           fetch-depth: 0
           fetch-tags: true
 
